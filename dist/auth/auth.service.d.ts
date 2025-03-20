@@ -1,0 +1,33 @@
+import { UtilityService } from '../utility/utility.service';
+import { JwtService } from '@nestjs/jwt';
+import { JwtResponse, UserAuth } from './interface/auth.interface';
+import refreshJwtConfig from '../config/refresh.jwt.config';
+import { ConfigType } from '@nestjs/config';
+import { AdminService } from '../user/service/admin.service';
+import { WorkerService } from '../user/service/worker.service';
+import { UserSessionService } from '../user/service/user-session.service';
+import { UserType } from '../user/enums/user-type';
+import { Admin } from '../user/entity/admin.entity';
+import { UserChangePasswordDto } from '../user/dto/user-change-password.dto';
+export declare class AuthService {
+    private readonly jwtService;
+    private readonly workerService;
+    private readonly adminService;
+    private readonly utilityService;
+    private readonly userSessionService;
+    private readonly jwtRefreshConfig;
+    private readonly logger;
+    constructor(jwtService: JwtService, workerService: WorkerService, adminService: AdminService, utilityService: UtilityService, userSessionService: UserSessionService, jwtRefreshConfig: ConfigType<typeof refreshJwtConfig>);
+    validateUser(email: string, password: string, userType: UserType): Promise<UserAuth>;
+    login(user: UserAuth, userType: UserType): Promise<JwtResponse>;
+    refreshToken(user: UserAuth, userType: UserType): Promise<JwtResponse>;
+    logout(user: UserAuth, userType: UserType): Promise<void>;
+    validateRefreshToken(userId: string, userType: UserType, refreshToken: string): Promise<UserAuth>;
+    validateAccessToken(userId: string, userType: UserType): Promise<UserAuth>;
+    getLoggedInUser(user: UserAuth, userType: UserType): Promise<Worker | Admin>;
+    changeUserPassword(user: UserAuth, userType: UserType, changePasswordDto: UserChangePasswordDto): Promise<string>;
+    private generateTokensAndUpdateUser;
+    private getRefreshToken;
+    private getAccessToken;
+    private getUser;
+}

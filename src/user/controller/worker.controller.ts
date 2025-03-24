@@ -5,16 +5,20 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CreateWorkerDto } from '../dto/create-worker.dto';
 import { WorkerService } from '../service/worker.service';
-import { plainToClass } from 'class-transformer';
+import { plainToInstance } from 'class-transformer';
 import { WorkerDto } from '../dto/worker.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
 import { UserType } from '../enums/user-type';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
+import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
+import { UtilityService } from '../../utility/utility.service';
+import { Worker } from '../entity/worker.entity';
 
 @UseGuards(RolesGuard)
 @Roles(UserType.ADMIN)
@@ -25,7 +29,7 @@ export class WorkerController {
   @Post()
   async create(@Body() createWorkerDto: CreateWorkerDto): Promise<WorkerDto> {
     const worker = await this.workerService.create(createWorkerDto);
-    return plainToClass(WorkerDto, worker);
+    return plainToInstance(WorkerDto, worker);
   }
 
   @Put('/:id')
@@ -34,13 +38,25 @@ export class WorkerController {
     @Body() updateWorkerDto: UpdateWorkerDto,
   ): Promise<WorkerDto> {
     const worker = await this.workerService.update(id, updateWorkerDto);
-    return plainToClass(WorkerDto, worker);
+    return plainToInstance(WorkerDto, worker);
   }
 
   @Get('/:id')
   async get(@Param('id') id: string): Promise<WorkerDto> {
-    const worker = await this.workerService.get(id);
-    return plainToClass(WorkerDto, worker);
+    const worker = await this.workerService.get(id, true);
+    return plainToInstance(WorkerDto, worker);
+  }
+
+  @Get()
+  async findAll(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ): Promise<PaginationResponseDto<WorkerDto>> {
+    const workers = await this.workerService.getAll(page, limit);
+    return UtilityService.getPaginationResponseDto<Worker, WorkerDto>(
+      workers,
+      WorkerDto,
+    );
   }
 
   @Post('reset-password/:id')

@@ -10,6 +10,7 @@ import { Department } from '../entity/department.entity';
 import { CreateDepartmentDto } from '../dto/create-department.dto';
 import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
+import { UtilityService } from '../../utility/utility.service';
 
 @Injectable()
 export class DepartmentService {
@@ -54,13 +55,12 @@ export class DepartmentService {
       order: { createdAt: 'DESC' },
     });
 
-    return {
-      data: departments,
+    return UtilityService.createPaginationResponse<Department>(
+      departments,
       page,
       limit,
-      totalCount: total,
-      totalPages: Math.ceil(total / limit),
-    };
+      total,
+    );
   }
 
   async update(

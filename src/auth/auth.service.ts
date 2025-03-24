@@ -14,9 +14,6 @@ import { WorkerService } from '../user/service/worker.service';
 import { UserSessionService } from '../user/service/user-session.service';
 import { UserType } from '../user/enums/user-type';
 import { User } from '../user/entity/user.entity';
-import { WorkerDto } from '../user/dto/worker.dto';
-import { AdminDto } from '../user/dto/admin.dto';
-import { plainToClass } from 'class-transformer';
 import { Admin } from '../user/entity/admin.entity';
 import { UserChangePasswordDto } from '../user/dto/user-change-password.dto';
 
@@ -28,7 +25,6 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly workerService: WorkerService,
     private readonly adminService: AdminService,
-    private readonly utilityService: UtilityService,
     private readonly userSessionService: UserSessionService,
     @Inject(refreshJwtConfig.KEY)
     private readonly jwtRefreshConfig: ConfigType<typeof refreshJwtConfig>,
@@ -45,7 +41,7 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('Invalid email address');
 
-    const passwordMatches = await this.utilityService.verifyHashedValue(
+    const passwordMatches = await UtilityService.verifyHashedValue(
       password,
       user.password,
     );
@@ -80,7 +76,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const isValid = await this.utilityService.verifyHashedValue(
+    const isValid = await UtilityService.verifyHashedValue(
       refreshToken,
       hashedUserRefreshToken,
     );
@@ -142,8 +138,7 @@ export class AuthService {
 
     const refresh_token = await this.getRefreshToken(payload);
 
-    const hashedRefreshToken =
-      await this.utilityService.hashValue(refresh_token);
+    const hashedRefreshToken = await UtilityService.hashValue(refresh_token);
 
     await this.userSessionService.updateUserLogin(
       userId,

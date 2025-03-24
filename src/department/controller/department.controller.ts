@@ -17,29 +17,38 @@ import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
 import { UserType } from '../../user/enums/user-type';
+import { UtilityService } from '../../utility/utility.service';
+import { DepartmentDto } from '../dto/department.dto';
+import { plainToInstance } from 'class-transformer';
 
 @Controller('departments')
 export class DepartmentController {
   constructor(private readonly departmentService: DepartmentService) {}
 
-  @Get('/all')
+  @Get()
   async findAll(
     @Query('page') page?: number,
     @Query('limit') limit?: number,
-  ): Promise<PaginationResponseDto<Department>> {
-    return this.departmentService.getAll(page, limit);
+  ): Promise<PaginationResponseDto<DepartmentDto>> {
+    const departments = await this.departmentService.getAll(page, limit);
+    return UtilityService.getPaginationResponseDto<Department, DepartmentDto>(
+      departments,
+      Department,
+    );
   }
 
   @Get('/:id')
-  async findOne(@Param('id') id: string): Promise<Department> {
-    return this.departmentService.getOne(id);
+  async findOne(@Param('id') id: string): Promise<DepartmentDto> {
+    const department = await this.departmentService.getOne(id);
+    return plainToInstance(DepartmentDto, department);
   }
 
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserType.ADMIN)
-  async create(@Body() request: CreateDepartmentDto): Promise<Department> {
-    return this.departmentService.create(request);
+  async create(@Body() request: CreateDepartmentDto): Promise<DepartmentDto> {
+    const department = await this.departmentService.create(request);
+    return plainToInstance(DepartmentDto, department);
   }
 
   @Put('/:id')
@@ -48,8 +57,9 @@ export class DepartmentController {
   async update(
     @Param('id') id: string,
     @Body() request: UpdateDepartmentDto,
-  ): Promise<Department> {
-    return this.departmentService.update(id, request);
+  ): Promise<DepartmentDto> {
+    const department = await this.departmentService.update(id, request);
+    return plainToInstance(DepartmentDto, department);
   }
 
   @Delete('/:id')

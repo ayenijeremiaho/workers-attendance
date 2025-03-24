@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import * as argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
+import { PaginationResponseDto } from './dto/PaginationResponseDto';
+import { plainToInstance } from 'class-transformer';
+import { ClassConstructor } from 'class-transformer/types/interfaces';
 
 @Injectable()
 export class UtilityService {
@@ -9,11 +12,51 @@ export class UtilityService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  public async hashValue(value: string): Promise<string> {
+  public static createPaginationResponse<T>(
+    data: T[],
+    page: number,
+    limit: number,
+    total: number,
+  ): PaginationResponseDto<T> {
+    const totalCount = total || 0;
+    const totalPages = totalCount > 0 ? Math.ceil(totalCount / limit) : 1;
+
+    return {
+      data,
+      page,
+      limit,
+      totalCount,
+      totalPages,
+    };
+  }
+
+  public static getPaginationResponseDto<I, O>(
+    response: PaginationResponseDto<I>,
+    classConstructor: ClassConstructor<O>,
+  ): PaginationResponseDto<O> {
+    const mapToDtos = response.data.map((value) =>
+      plainToInstance(classConstructor, value),
+    );
+    return {
+      ...response,
+      data: mapToDtos,
+    };
+  }
+
+  public static capitalizeFirstLetter(name: string): string {
+    if (!name) return name;
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  public static generateRandomPassword(): string {
+    return Math.random().toString(36).slice(-8);
+  }
+
+  public static async hashValue(value: string): Promise<string> {
     return await argon2.hash(value);
   }
 
-  public async verifyHashedValue(
+  public static async verifyHashedValue(
     value: string,
     hashedValue: string,
   ): Promise<boolean> {

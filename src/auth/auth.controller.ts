@@ -17,7 +17,7 @@ import { UserType } from '../user/enums/user-type';
 import { WorkerLocalAuthGuard } from './guard/worker-local-auth.guard';
 import { Roles } from './decorator/roles.decorator';
 import { RolesGuard } from './guard/roles.guard';
-import { plainToClass } from 'class-transformer';
+import { plainToInstance } from 'class-transformer';
 import { WorkerDto } from '../user/dto/worker.dto';
 import { AdminDto } from '../user/dto/admin.dto';
 import { UserChangePasswordDto } from '../user/dto/user-change-password.dto';
@@ -61,7 +61,7 @@ export class AuthController {
       req.user,
       UserType.ADMIN,
     );
-    return plainToClass(AdminDto, admin);
+    return plainToInstance(AdminDto, admin);
   }
 
   @HttpCode(HttpStatus.OK)
@@ -104,7 +104,7 @@ export class AuthController {
       req.user,
       UserType.WORKER,
     );
-    return plainToClass(WorkerDto, worker);
+    return plainToInstance(WorkerDto, worker);
   }
 
   @HttpCode(HttpStatus.OK)

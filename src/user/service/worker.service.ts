@@ -12,6 +12,7 @@ import { Worker } from '../entity/worker.entity';
 import { Department } from '../../department/entity/department.entity';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { UserChangePasswordDto } from '../dto/user-change-password.dto';
+import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
 
 @Injectable()
 export class WorkerService {
@@ -47,7 +48,7 @@ export class WorkerService {
     }
 
     const unEncryptedPassword = `${createWorkerDto.lastname}`;
-    const password = await this.utilityService.hashValue(unEncryptedPassword);
+    const password = await UtilityService.hashValue(unEncryptedPassword);
 
     const createWorker = {
       ...createWorkerDto,
@@ -60,8 +61,8 @@ export class WorkerService {
     this.logger.log('worker created successfully');
 
     this.utilityService.sendEmail(
-      createWorkerDto.email,
-      'Worker Account Created',
+      worker.email,
+      `${UtilityService.capitalizeFirstLetter(worker.firstname)} Account Created`,
       `Your account has been created successfully. Your password is ${unEncryptedPassword}`,
     );
 
@@ -72,7 +73,7 @@ export class WorkerService {
     id: string,
     updateWorkerDto: UpdateWorkerDto,
   ): Promise<Worker> {
-    let worker = await this.findById(id);
+    let worker = await this.get(id);
     await this.verifyIfEmailUpdate(worker, updateWorkerDto.email);
     await this.verifyIfDepartmentUpdate(worker, updateWorkerDto.departmentId);
 
@@ -91,36 +92,62 @@ export class WorkerService {
     worker = await this.workerRepository.save(worker);
 
     this.utilityService.sendEmail(
-      updateWorkerDto.email,
-      'Worker Account Updated',
+      worker.email,
+      `${UtilityService.capitalizeFirstLetter(worker.firstname)} Account Updated`,
       `Your account has been updated successfully`,
     );
 
     return worker;
   }
 
-  public async get(id: string): Promise<Worker> {
-    return await this.workerRepository.findOne({
-      where: { id },
-      relations: ['department'],
-    });
-  }
-
-  public async resetPassword(id: string): Promise<string> {
-    const worker = await this.findById(id);
+  public async get(id: string, fullDetails: boolean = false): Promise<Worker> {
+    const worker = fullDetails
+      ? await this.workerRepository.findOne({
+          where: { id },
+          relations: ['department'],
+        })
+      : await this.workerRepository.findOneBy({ id });
 
     if (!worker) {
       throw new NotFoundException('Worker not found');
+    } else {
+      return worker;
+    }
+  }
+
+  public async getAll(
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<PaginationResponseDto<Worker>> {
+    if (page < 1) {
+      throw new BadRequestException('Page number must be greater than 0');
     }
 
-    const newPassword = this.generateRandomPassword();
-    worker.password = await this.utilityService.hashValue(newPassword);
+    const [workers, total] = await this.workerRepository.findAndCount({
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { createdAt: 'DESC' },
+    });
+
+    return UtilityService.createPaginationResponse<Worker>(
+      workers,
+      page,
+      limit,
+      total,
+    );
+  }
+
+  public async resetPassword(id: string): Promise<string> {
+    const worker = await this.get(id);
+
+    const newPassword = UtilityService.generateRandomPassword();
+    worker.password = await UtilityService.hashValue(newPassword);
     worker.changedPassword = true;
     await this.workerRepository.save(worker);
 
     this.utilityService.sendEmail(
       worker.email,
-      'Password Reset',
+      `${UtilityService.capitalizeFirstLetter(worker.firstname)} Password Reset`,
       `Your password has been reset. Your new password is ${newPassword}`,
     );
 
@@ -132,16 +159,13 @@ export class WorkerService {
     id: string,
     changePasswordDto: UserChangePasswordDto,
   ): Promise<string> {
-    const worker = await this.findById(id);
+    const worker = await this.get(id);
 
-    if (!worker) {
-      throw new NotFoundException('Worker not found');
-    }
-
-    const isOldPasswordValid = await this.utilityService.verifyHashedValue(
+    const isOldPasswordValid = await UtilityService.verifyHashedValue(
       changePasswordDto.oldPassword,
       worker.password,
     );
+
     if (!isOldPasswordValid) {
       throw new BadRequestException('Old password is incorrect');
     }
@@ -153,23 +177,19 @@ export class WorkerService {
     }
 
     worker.changedPassword = true;
-    worker.password = await this.utilityService.hashValue(
+    worker.password = await UtilityService.hashValue(
       changePasswordDto.newPassword,
     );
     await this.workerRepository.save(worker);
 
     this.utilityService.sendEmail(
       worker.email,
-      'Password Changed',
+      `${UtilityService.capitalizeFirstLetter(worker.firstname)} Password Changed`,
       `Your password has been changed successfully.`,
     );
 
     this.logger.log(`Password changed for worker with email ${worker.email}`);
     return 'Password changed successfully';
-  }
-
-  private generateRandomPassword(): string {
-    return Math.random().toString(36).slice(-8);
   }
 
   private async verifyIfDepartmentUpdate(
@@ -205,22 +225,6 @@ export class WorkerService {
 
       worker.email = newEmail;
     }
-  }
-
-  public async getByEmail(email: string): Promise<Worker> {
-    const worker = await this.findByEmail(email);
-
-    if (!worker) {
-      throw new NotFoundException(
-        'Worker with the provided email does not exist',
-      );
-    } else {
-      return worker;
-    }
-  }
-
-  public async findById(id: string): Promise<Worker> {
-    return await this.workerRepository.findOneBy({ id });
   }
 
   public async findByEmail(email: string) {

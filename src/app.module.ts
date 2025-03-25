@@ -9,6 +9,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { LoggerModule } from 'nestjs-pino';
 import { DepartmentModule } from './department/department.module';
+import { EventModule } from './event/event.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { DepartmentModule } from './department/department.module';
     UtilityModule,
     UserModule,
     DepartmentModule,
+    EventModule,
   ],
   controllers: [AppController],
   providers: [AppService],

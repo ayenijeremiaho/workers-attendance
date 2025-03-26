@@ -132,10 +132,6 @@ export class AuthService {
 
     const access_token = await this.getAccessToken(payload);
 
-    if (userType === UserType.WORKER) {
-      return { access_token };
-    }
-
     const refresh_token = await this.getRefreshToken(payload);
 
     const hashedRefreshToken = await UtilityService.hashValue(refresh_token);

@@ -16,7 +16,7 @@ import { CreateDepartmentDto } from '../dto/create-department.dto';
 import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
-import { UserType } from '../../user/enums/user-type';
+import { UserTypeEnum } from '../../user/enums/user-type.enum';
 import { UtilityService } from '../../utility/utility.service';
 import { DepartmentDto } from '../dto/department.dto';
 import { plainToInstance } from 'class-transformer';
@@ -45,7 +45,7 @@ export class DepartmentController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   async create(@Body() request: CreateDepartmentDto): Promise<DepartmentDto> {
     const department = await this.departmentService.create(request);
     return plainToInstance(DepartmentDto, department);
@@ -53,7 +53,7 @@ export class DepartmentController {
 
   @Put('/:id')
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   async update(
     @Param('id') id: string,
     @Body() request: UpdateDepartmentDto,
@@ -64,7 +64,7 @@ export class DepartmentController {
 
   @Delete('/:id')
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   async delete(@Param('id') id: string): Promise<void> {
     await this.departmentService.delete(id);
   }

@@ -12,7 +12,7 @@ import { ConfigType } from '@nestjs/config';
 import { AdminService } from '../user/service/admin.service';
 import { WorkerService } from '../user/service/worker.service';
 import { UserSessionService } from '../user/service/user-session.service';
-import { UserType } from '../user/enums/user-type';
+import { UserTypeEnum } from '../user/enums/user-type.enum';
 import { User } from '../user/entity/user.entity';
 import { Admin } from '../user/entity/admin.entity';
 import { UserChangePasswordDto } from '../user/dto/user-change-password.dto';
@@ -33,7 +33,7 @@ export class AuthService {
   async validateUser(
     email: string,
     password: string,
-    userType: UserType,
+    userType: UserTypeEnum,
   ): Promise<UserAuth> {
     this.logger.log(`Validating ${userType} user with email: ${email}`);
 
@@ -52,21 +52,21 @@ export class AuthService {
     return { id: user.id, role: user.getType() };
   }
 
-  async login(user: UserAuth, userType: UserType): Promise<JwtResponse> {
+  async login(user: UserAuth, userType: UserTypeEnum): Promise<JwtResponse> {
     return await this.generateTokensAndUpdateUser(user.id, userType);
   }
 
-  async refreshToken(user: UserAuth, userType: UserType): Promise<JwtResponse> {
+  async refreshToken(user: UserAuth, userType: UserTypeEnum): Promise<JwtResponse> {
     return await this.generateTokensAndUpdateUser(user.id, userType);
   }
 
-  async logout(user: UserAuth, userType: UserType): Promise<void> {
+  async logout(user: UserAuth, userType: UserTypeEnum): Promise<void> {
     await this.userSessionService.updateUserLogout(user.id, userType);
   }
 
   async validateRefreshToken(
     userId: string,
-    userType: UserType,
+    userType: UserTypeEnum,
     refreshToken: string,
   ): Promise<UserAuth> {
     const hashedUserRefreshToken =
@@ -90,7 +90,7 @@ export class AuthService {
 
   async validateAccessToken(
     userId: string,
-    userType: UserType,
+    userType: UserTypeEnum,
   ): Promise<UserAuth> {
     const hashedUserRefreshToken =
       await this.userSessionService.getHashedUserRefreshToken(userId, userType);
@@ -103,9 +103,9 @@ export class AuthService {
 
   async getLoggedInUser(
     user: UserAuth,
-    userType: UserType,
+    userType: UserTypeEnum,
   ): Promise<Worker | Admin> {
-    if (userType == UserType.WORKER) {
+    if (userType == UserTypeEnum.WORKER) {
       return this.workerService.get(user.id);
     } else {
       return this.adminService.get(user.id);
@@ -114,10 +114,10 @@ export class AuthService {
 
   async changeUserPassword(
     user: UserAuth,
-    userType: UserType,
+    userType: UserTypeEnum,
     changePasswordDto: UserChangePasswordDto,
   ): Promise<string> {
-    if (userType === UserType.WORKER) {
+    if (userType === UserTypeEnum.WORKER) {
       return this.workerService.changePassword(user.id, changePasswordDto);
     } else {
       return this.adminService.changePassword(user.id, changePasswordDto);
@@ -126,13 +126,13 @@ export class AuthService {
 
   private async generateTokensAndUpdateUser(
     userId: string,
-    userType: UserType,
+    userType: UserTypeEnum,
   ) {
     const payload: JwtPayload = { sub: userId, role: userType };
 
     const access_token = await this.getAccessToken(payload);
 
-    if (userType === UserType.WORKER) {
+    if (userType === UserTypeEnum.WORKER) {
       return { access_token };
     }
 
@@ -157,8 +157,8 @@ export class AuthService {
     return await this.jwtService.signAsync(payload);
   }
 
-  private async getUser(userType: UserType, email: string): Promise<User> {
-    if (userType === UserType.ADMIN) {
+  private async getUser(userType: UserTypeEnum, email: string): Promise<User> {
+    if (userType === UserTypeEnum.ADMIN) {
       return await this.adminService.findByEmail(email);
     }
 

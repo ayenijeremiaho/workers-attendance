@@ -1,10 +1,10 @@
 import { Entity } from 'typeorm';
 import { User } from './user.entity';
-import { UserType } from '../enums/user-type';
+import { UserTypeEnum } from '../enums/user-type.enum';
 
 @Entity({ name: 'admins' })
 export class Admin extends User {
-  public getType(): UserType {
-    return UserType.ADMIN;
+  public getType(): UserTypeEnum {
+    return UserTypeEnum.ADMIN;
   }
 }

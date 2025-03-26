@@ -14,7 +14,7 @@ import { CreateAdminDto } from '../dto/create-admin.dto';
 import { plainToInstance } from 'class-transformer';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
-import { UserType } from '../enums/user-type';
+import { UserTypeEnum } from '../enums/user-type.enum';
 import { AdminDto } from '../dto/admin.dto';
 import { UpdateAdminDto } from '../dto/update-admin.dto';
 import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
@@ -33,7 +33,7 @@ export class AdminController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Put('/:id')
   async update(
     @Param('id') id: string,
@@ -44,7 +44,7 @@ export class AdminController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Get('/:id')
   async get(@Param('id') id: string): Promise<AdminDto> {
     const admin = await this.adminService.get(id);
@@ -52,7 +52,7 @@ export class AdminController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Get()
   async findAll(
     @Query('page') page?: number,
@@ -66,7 +66,7 @@ export class AdminController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Post('reset-password/:id')
   async resetPassword(@Param('id') id: string): Promise<string> {
     return await this.adminService.resetPassword(id);

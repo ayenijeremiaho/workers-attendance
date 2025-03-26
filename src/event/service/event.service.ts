@@ -1,17 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { GlobalEventConfig } from '../entity/global-event-config.entity';
+import { EventConfig } from '../entity/event-config.entity';
 import { Repository } from 'typeorm';
 import { UpdateEventConfigDto } from '../dto/update-event-config.dto';
 
 @Injectable()
 export class EventService {
   constructor(
-    @InjectRepository(GlobalEventConfig)
-    private readonly globalEventConfigRepository: Repository<GlobalEventConfig>,
+    @InjectRepository(EventConfig)
+    private readonly globalEventConfigRepository: Repository<EventConfig>,
   ) {}
 
-  async getGlobalEventConfig(): Promise<GlobalEventConfig> {
+  async getGlobalEventConfig(): Promise<EventConfig> {
     const configs = await this.globalEventConfigRepository.find();
     return configs[0];
   }

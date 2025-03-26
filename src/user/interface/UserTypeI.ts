@@ -1,5 +1,5 @@
-import { UserType } from '../enums/user-type';
+import { UserTypeEnum } from '../enums/user-type.enum';
 
 export interface UserTypeI {
-  getType(): UserType;
+  getType(): UserTypeEnum;
 }

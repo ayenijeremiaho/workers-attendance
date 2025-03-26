@@ -2,7 +2,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-local';
 import { AuthService } from '../auth.service';
 import { Injectable } from '@nestjs/common';
-import { UserType } from '../../user/enums/user-type';
+import { UserTypeEnum } from '../../user/enums/user-type.enum';
 
 @Injectable()
 export class AdminLocalStrategy extends PassportStrategy(
@@ -17,6 +17,6 @@ export class AdminLocalStrategy extends PassportStrategy(
   }
 
   async validate(email: string, password: string) {
-    return this.authService.validateUser(email, password, UserType.ADMIN);
+    return this.authService.validateUser(email, password, UserTypeEnum.ADMIN);
   }
 }

@@ -2,11 +2,12 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { EventService } from './service/event.service';
 import { EventController } from './controller/event.controller';
 import { GlobalEventConfigSeed } from './seed/global-event-config.seed';
-import { GlobalEventConfig } from './entity/global-event-config.entity';
+import { EventConfig } from './entity/event-config.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([GlobalEventConfig])],
+  imports: [TypeOrmModule.forFeature([EventConfig]), ConfigModule],
   providers: [EventService, GlobalEventConfigSeed],
   controllers: [EventController],
 })

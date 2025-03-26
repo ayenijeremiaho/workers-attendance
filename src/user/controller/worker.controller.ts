@@ -14,14 +14,14 @@ import { plainToInstance } from 'class-transformer';
 import { WorkerDto } from '../dto/worker.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
-import { UserType } from '../enums/user-type';
+import { UserTypeEnum } from '../enums/user-type.enum';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
 import { UtilityService } from '../../utility/utility.service';
 import { Worker } from '../entity/worker.entity';
 
 @UseGuards(RolesGuard)
-@Roles(UserType.ADMIN)
+@Roles(UserTypeEnum.ADMIN)
 @Controller('workers')
 export class WorkerController {
   constructor(private readonly workerService: WorkerService) {}

@@ -6,7 +6,7 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
-import { UserType } from '../enums/user-type';
+import { UserTypeEnum } from '../enums/user-type.enum';
 
 @Unique(['userId', 'userType'])
 @Entity({ name: 'user_session' })
@@ -19,10 +19,10 @@ export class UserSession {
 
   @Column({
     type: 'enum',
-    enum: UserType,
+    enum: UserTypeEnum,
     enumName: 'user_type',
   })
-  userType: UserType;
+  userType: UserTypeEnum;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   lastLogin: Date;

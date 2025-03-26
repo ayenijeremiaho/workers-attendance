@@ -1,19 +1,3 @@
-import { IsOptional, IsNumber, IsLatitude, IsLongitude } from 'class-validator';
+import { CreateEventConfigDto } from './create-event-config.dto';
 
-export class UpdateEventConfigDto {
-  @IsOptional()
-  @IsNumber()
-  checkinStartTimeInSeconds?: number;
-
-  @IsOptional()
-  @IsNumber()
-  lateComingStartTimeInSeconds?: number;
-
-  @IsOptional()
-  @IsLatitude()
-  defaultLocationLatitude?: number;
-
-  @IsOptional()
-  @IsLongitude()
-  defaultLocationLongitude?: number;
-}
+export type UpdateEventConfigDto = Partial<CreateEventConfigDto>;

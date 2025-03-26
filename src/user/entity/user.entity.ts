@@ -5,10 +5,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { UserTypeI } from '../interface/UserTypeI';
-import { UserType } from '../enums/user-type';
+import { UserTypeEnum } from '../enums/user-type.enum';
 
 export abstract class User implements UserTypeI {
-  abstract getType(): UserType;
+  abstract getType(): UserTypeEnum;
 
   @PrimaryGeneratedColumn('uuid')
   id: string;

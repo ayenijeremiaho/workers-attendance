@@ -13,7 +13,7 @@ import { AdminLocalAuthGuard } from './guard/admin-local-auth.guard';
 import { JwtResponse } from './interface/auth.interface';
 import { RefreshJwtAuthGuard } from './guard/refresh-jwt-auth.guard';
 import { Public } from './decorator/public.decorator';
-import { UserType } from '../user/enums/user-type';
+import { UserTypeEnum } from '../user/enums/user-type.enum';
 import { WorkerLocalAuthGuard } from './guard/worker-local-auth.guard';
 import { Roles } from './decorator/roles.decorator';
 import { RolesGuard } from './guard/roles.guard';
@@ -29,44 +29,44 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(AdminLocalAuthGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Post('/admin/login')
   async adminLogin(@Request() req: any): Promise<JwtResponse> {
-    return this.authService.login(req.user, UserType.ADMIN);
+    return this.authService.login(req.user, UserTypeEnum.ADMIN);
   }
 
   @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(RefreshJwtAuthGuard, RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Post('/admin/refresh')
   async adminRefresh(@Request() req: any): Promise<JwtResponse> {
-    return this.authService.refreshToken(req.user, UserType.ADMIN);
+    return this.authService.refreshToken(req.user, UserTypeEnum.ADMIN);
   }
 
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Post('/admin/logout')
   async adminLogout(@Request() req: any): Promise<void> {
-    await this.authService.logout(req.user, UserType.ADMIN);
+    await this.authService.logout(req.user, UserTypeEnum.ADMIN);
   }
 
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Get('/admin/profile')
   async adminProfile(@Request() req: any): Promise<AdminDto> {
     const admin = await this.authService.getLoggedInUser(
       req.user,
-      UserType.ADMIN,
+      UserTypeEnum.ADMIN,
     );
     return plainToInstance(AdminDto, admin);
   }
 
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles(UserType.ADMIN)
+  @Roles(UserTypeEnum.ADMIN)
   @Post('/admin/change-password')
   async changeAdminPassword(
     @Request() req: any,
@@ -74,7 +74,7 @@ export class AuthController {
   ): Promise<string> {
     return this.authService.changeUserPassword(
       req.user,
-      UserType.ADMIN,
+      UserTypeEnum.ADMIN,
       changePasswordDto,
     );
   }
@@ -84,32 +84,32 @@ export class AuthController {
   @UseGuards(WorkerLocalAuthGuard)
   @Post('/worker/login')
   async workerLogin(@Request() req: any): Promise<JwtResponse> {
-    return this.authService.login(req.user, UserType.WORKER);
+    return this.authService.login(req.user, UserTypeEnum.WORKER);
   }
 
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles(UserType.WORKER)
+  @Roles(UserTypeEnum.WORKER)
   @Post('/worker/logout')
   async workerLogout(@Request() req: any): Promise<void> {
-    await this.authService.logout(req.user, UserType.WORKER);
+    await this.authService.logout(req.user, UserTypeEnum.WORKER);
   }
 
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles(UserType.WORKER)
+  @Roles(UserTypeEnum.WORKER)
   @Get('/worker/profile')
   async workerProfile(@Request() req: any): Promise<WorkerDto> {
     const worker = await this.authService.getLoggedInUser(
       req.user,
-      UserType.WORKER,
+      UserTypeEnum.WORKER,
     );
     return plainToInstance(WorkerDto, worker);
   }
 
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles(UserType.WORKER)
+  @Roles(UserTypeEnum.WORKER)
   @Post('/worker/change-password')
   async changeWorkerPassword(
     @Request() req: any,
@@ -117,7 +117,7 @@ export class AuthController {
   ): Promise<string> {
     return this.authService.changeUserPassword(
       req.user,
-      UserType.WORKER,
+      UserTypeEnum.WORKER,
       changePasswordDto,
     );
   }

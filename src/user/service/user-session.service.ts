@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserSession } from '../entity/user-session.entity';
-import { UserType } from '../enums/user-type';
+import { UserTypeEnum } from '../enums/user-type.enum';
 
 @Injectable()
 export class UserSessionService {
@@ -15,7 +15,7 @@ export class UserSessionService {
 
   async updateUserLogin(
     userId: string,
-    userType: UserType,
+    userType: UserTypeEnum,
     hashedRefreshToken: string,
   ): Promise<void> {
     let userSession = await this.findUserSessionByUserId(userId, userType);
@@ -45,7 +45,7 @@ export class UserSessionService {
     this.logger.log(`Created ${userType} - ${userId} session`);
   }
 
-  async updateUserLogout(userId: string, userType: UserType): Promise<void> {
+  async updateUserLogout(userId: string, userType: UserTypeEnum): Promise<void> {
     const userSession = await this.findUserSessionByUserId(userId, userType);
 
     if (!userSession) {
@@ -59,7 +59,7 @@ export class UserSessionService {
 
   async getHashedUserRefreshToken(
     userId: string,
-    userType: UserType,
+    userType: UserTypeEnum,
   ): Promise<string | null> {
     const userSession = await this.findUserSessionByUserId(userId, userType);
 
@@ -70,7 +70,7 @@ export class UserSessionService {
     return userSession.hashedRefreshToken;
   }
 
-  private async findUserSessionByUserId(userId: string, userType: UserType) {
+  private async findUserSessionByUserId(userId: string, userType: UserTypeEnum) {
     return await this.userSessionRepository.findOneBy({
       userId,
       userType,

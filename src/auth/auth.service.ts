@@ -106,7 +106,7 @@ export class AuthService {
     userType: UserType,
   ): Promise<Worker | Admin> {
     if (userType == UserType.WORKER) {
-      return this.workerService.get(user.id);
+      return this.workerService.get(user.id, true);
     } else {
       return this.adminService.get(user.id);
     }

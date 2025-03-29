@@ -9,15 +9,15 @@ export class GlobalEventConfigSeed {
   constructor(
     private readonly configService: ConfigService,
     @InjectRepository(EventConfig)
-    private readonly globalEventConfigRepository: Repository<EventConfig>,
+    private readonly eventConfigRepository: Repository<EventConfig>,
   ) {}
 
   async seed() {
-    const count = await this.globalEventConfigRepository.count({
+    const count = await this.eventConfigRepository.count({
       where: { event: null },
     });
     if (count === 0) {
-      const defaultConfig = this.globalEventConfigRepository.create({
+      const defaultConfig = this.eventConfigRepository.create({
         event: null,
         checkinStartTimeInSeconds: this.configService.get<number>(
           'DEFAULT_EVENT_CHECK_IN_TIME_IN_SECONDS',
@@ -32,7 +32,7 @@ export class GlobalEventConfigSeed {
           'DEFAULT_EVENT_LOCATION_LONGITUDE',
         ),
       });
-      await this.globalEventConfigRepository.save(defaultConfig);
+      await this.eventConfigRepository.save(defaultConfig);
     }
   }
 }

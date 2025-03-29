@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Event } from '../entity/event.entity';
 import { RecurringEvent } from '../entity/recurring-event.entity';
 import { addDays, addWeeks, addMonths } from 'date-fns';
+import { CreateRecurringEventDto } from '../dto/create-recurring-event.dto';
 
 @Injectable()
 export class RecurringEventService {
@@ -14,7 +15,9 @@ export class RecurringEventService {
     private readonly recurringEventRepository: Repository<RecurringEvent>,
   ) {}
 
-  async createRecurringEvent(recurringEventDto: any): Promise<RecurringEvent> {
+  async createRecurringEvent(
+    recurringEventDto: CreateRecurringEventDto,
+  ): Promise<RecurringEvent> {
     if (!recurringEventDto.recurrenceEndDate) {
       throw new Error('recurrenceEndDate is required');
     }
@@ -70,10 +73,10 @@ export class RecurringEventService {
   }
 
   async deleteFutureEvents(recurringEventId: string): Promise<void> {
-    const recurringEvent = await this.recurringEventRepository.findOne(
-      recurringEventId,
-      { relations: ['events'] },
-    );
+    const recurringEvent = await this.recurringEventRepository.findOne({
+      where: { id: recurringEventId },
+      relations: ['events'],
+    });
     if (recurringEvent) {
       const futureEvents = recurringEvent.events.filter(
         (event) => event.startDate > new Date(),

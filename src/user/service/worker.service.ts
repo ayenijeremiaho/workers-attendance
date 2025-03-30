@@ -13,6 +13,7 @@ import { Department } from '../../department/entity/department.entity';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { UserChangePasswordDto } from '../dto/user-change-password.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
+import { WorkerStatusEnum } from '../enums/worker-status.enum';
 
 @Injectable()
 export class WorkerService {
@@ -92,6 +93,25 @@ export class WorkerService {
       worker.email,
       `${UtilityService.capitalizeFirstLetter(worker.firstname)} Account Updated`,
       `Your account has been updated successfully`,
+    );
+
+    return worker;
+  }
+
+  async changeStatus(id: string, status: WorkerStatusEnum) {
+    const worker = await this.get(id);
+
+    if (status === worker.status) {
+      throw new BadRequestException(`Worker status is already ${status}`);
+    }
+
+    worker.status = status;
+    await this.workerRepository.save(worker);
+
+    this.utilityService.sendEmail(
+      worker.email,
+      `${UtilityService.capitalizeFirstLetter(worker.firstname)} Account Status Changed`,
+      `Your account status has been changed to ${status}`,
     );
 
     return worker;

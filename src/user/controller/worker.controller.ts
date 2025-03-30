@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -19,6 +20,7 @@ import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/utility.service';
 import { Worker } from '../entity/worker.entity';
+import { WorkerStatusEnum } from '../enums/worker-status.enum';
 
 @UseGuards(RolesGuard)
 @Roles(UserTypeEnum.ADMIN)
@@ -38,6 +40,15 @@ export class WorkerController {
     @Body() updateWorkerDto: UpdateWorkerDto,
   ): Promise<WorkerDto> {
     const worker = await this.workerService.update(id, updateWorkerDto);
+    return plainToInstance(WorkerDto, worker);
+  }
+
+  @Patch('/change-status/:id/:status')
+  async changeStatus(
+    @Param('id') id: string,
+    @Param('status') status: WorkerStatusEnum,
+  ): Promise<WorkerDto> {
+    const worker = await this.workerService.changeStatus(id, status);
     return plainToInstance(WorkerDto, worker);
   }
 

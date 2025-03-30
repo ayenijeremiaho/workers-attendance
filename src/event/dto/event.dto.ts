@@ -1,25 +1,31 @@
 import { Exclude, Expose } from 'class-transformer';
 import { ToDateString } from '../../utility/dto/date-converter';
+import { EventConfigDto } from './event-config.dto';
 
 @Exclude()
-export class EventConfigDto {
+export class EventDto {
   @Expose()
   id: string;
 
   @Expose()
-  checkinStartTimeInSeconds: number;
+  name: string;
 
   @Expose()
-  lateComingStartTimeInSeconds: number;
+  description: string;
 
   @Expose()
-  checkinStopTimeInSeconds: number;
+  @ToDateString()
+  startDate: string;
 
   @Expose()
-  locationLongitude: number;
+  @ToDateString()
+  endDate: string;
 
   @Expose()
-  locationLatitude: number;
+  eventConfig: EventConfigDto;
+
+  @Expose()
+  recurringEventId: string;
 
   @Expose()
   @ToDateString()

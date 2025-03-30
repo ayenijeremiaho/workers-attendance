@@ -11,7 +11,8 @@ import { UtilityService } from '../../utility/utility.service';
 import { Admin } from '../entity/admin.entity';
 import { UserChangePasswordDto } from '../dto/user-change-password.dto';
 import { UpdateAdminDto } from '../dto/update-admin.dto';
-import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
+import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
+import { FindManyOptions } from 'typeorm/find-options/FindManyOptions';
 
 @Injectable()
 export class AdminService {
@@ -23,7 +24,7 @@ export class AdminService {
     private readonly utilityService: UtilityService,
   ) {}
 
-  public async create(createAdminDto: CreateAdminDto): Promise<string> {
+  async create(createAdminDto: CreateAdminDto): Promise<string> {
     const alreadyExist = await this.alreadyExist(createAdminDto.email);
 
     if (alreadyExist) {
@@ -54,10 +55,7 @@ export class AdminService {
     return 'success';
   }
 
-  public async update(
-    id: string,
-    updateAdminDto: UpdateAdminDto,
-  ): Promise<Admin> {
+  async update(id: string, updateAdminDto: UpdateAdminDto): Promise<Admin> {
     let admin = await this.get(id);
 
     await this.verifyIfEmailUpdate(admin, updateAdminDto.email);
@@ -85,7 +83,7 @@ export class AdminService {
     return admin;
   }
 
-  public async get(id: string): Promise<Admin> {
+  async get(id: string): Promise<Admin> {
     const admin = await this.adminRepository.findOneBy({ id });
 
     if (!admin) {
@@ -95,7 +93,7 @@ export class AdminService {
     }
   }
 
-  public async getAll(
+  async getAll(
     page: number = 1,
     limit: number = 10,
   ): Promise<PaginationResponseDto<Admin>> {
@@ -117,7 +115,7 @@ export class AdminService {
     );
   }
 
-  public async resetPassword(id: string): Promise<string> {
+  async resetPassword(id: string): Promise<string> {
     const admin = await this.get(id);
 
     const newPassword = UtilityService.generateRandomPassword();
@@ -135,11 +133,11 @@ export class AdminService {
     return 'Password reset successfully';
   }
 
-  public async findByEmail(email: string) {
+  async findByEmail(email: string) {
     return await this.adminRepository.findOne({ where: { email } });
   }
 
-  public async changePassword(
+  async changePassword(
     id: string,
     changePasswordDto: UserChangePasswordDto,
   ): Promise<string> {
@@ -177,6 +175,10 @@ export class AdminService {
 
     this.logger.log(`Password changed for admin with email ${admin.email}`);
     return 'Password changed successfully';
+  }
+
+  async count(options?: FindManyOptions<Admin>): Promise<number> {
+    return this.adminRepository.count(options);
   }
 
   private async verifyIfEmailUpdate(admin: Admin, newEmail: string) {

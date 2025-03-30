@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import * as argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
-import { PaginationResponseDto } from './dto/PaginationResponseDto';
+import { PaginationResponseDto } from './dto/pagination-response.dto';
 import { plainToInstance } from 'class-transformer';
 import { ClassConstructor } from 'class-transformer/types/interfaces';
 

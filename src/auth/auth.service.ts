@@ -56,7 +56,10 @@ export class AuthService {
     return await this.generateTokensAndUpdateUser(user.id, userType);
   }
 
-  async refreshToken(user: UserAuth, userType: UserTypeEnum): Promise<JwtResponse> {
+  async refreshToken(
+    user: UserAuth,
+    userType: UserTypeEnum,
+  ): Promise<JwtResponse> {
     return await this.generateTokensAndUpdateUser(user.id, userType);
   }
 

@@ -17,7 +17,7 @@ import { Roles } from '../../auth/decorator/roles.decorator';
 import { UserTypeEnum } from '../enums/user-type.enum';
 import { AdminDto } from '../dto/admin.dto';
 import { UpdateAdminDto } from '../dto/update-admin.dto';
-import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
+import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/utility.service';
 import { Admin } from '../entity/admin.entity';
 
@@ -28,7 +28,6 @@ export class AdminController {
   @Public()
   @Post()
   async create(@Body() createAdminDto: CreateAdminDto): Promise<string> {
-    console.log('creating admin');
     return await this.adminService.create(createAdminDto);
   }
 

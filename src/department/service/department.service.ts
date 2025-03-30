@@ -9,7 +9,7 @@ import { Repository } from 'typeorm';
 import { Department } from '../entity/department.entity';
 import { CreateDepartmentDto } from '../dto/create-department.dto';
 import { UpdateDepartmentDto } from '../dto/update-department.dto';
-import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
+import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/utility.service';
 
 @Injectable()

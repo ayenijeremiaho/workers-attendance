@@ -6,8 +6,12 @@ export class CreateEventConfigDto {
   checkinStartTimeInSeconds: number;
 
   @IsNumber()
-  @Min(60)
+  @Min(120)
   lateComingStartTimeInSeconds: number;
+
+  @IsNumber()
+  @Min(180)
+  checkinStopTimeInSeconds: number;
 
   @IsLatitude()
   locationLatitude: number;

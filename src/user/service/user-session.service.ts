@@ -45,7 +45,10 @@ export class UserSessionService {
     this.logger.log(`Created ${userType} - ${userId} session`);
   }
 
-  async updateUserLogout(userId: string, userType: UserTypeEnum): Promise<void> {
+  async updateUserLogout(
+    userId: string,
+    userType: UserTypeEnum,
+  ): Promise<void> {
     const userSession = await this.findUserSessionByUserId(userId, userType);
 
     if (!userSession) {
@@ -70,7 +73,10 @@ export class UserSessionService {
     return userSession.hashedRefreshToken;
   }
 
-  private async findUserSessionByUserId(userId: string, userType: UserTypeEnum) {
+  private async findUserSessionByUserId(
+    userId: string,
+    userType: UserTypeEnum,
+  ) {
     return await this.userSessionRepository.findOneBy({
       userId,
       userType,

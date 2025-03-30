@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { AdminController } from './controller/admin.controller';
 import { AdminService } from './service/admin.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -8,10 +8,17 @@ import { WorkerController } from './controller/worker.controller';
 import { Worker } from './entity/worker.entity';
 import { WorkerService } from './service/worker.service';
 import { Department } from '../department/entity/department.entity';
+import { DefaultAdminSeed } from './seed/default-admin.seed';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Admin, Worker, Department])],
+  providers: [AdminService, WorkerService, DefaultAdminSeed, UtilityService],
   controllers: [AdminController, WorkerController],
-  providers: [AdminService, WorkerService, UtilityService],
 })
-export class UserModule {}
+export class UserModule implements OnModuleInit {
+  constructor(private readonly defaultAdminSeed: DefaultAdminSeed) {}
+
+  async onModuleInit() {
+    await this.defaultAdminSeed.seed();
+  }
+}

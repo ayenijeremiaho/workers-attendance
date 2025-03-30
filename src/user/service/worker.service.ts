@@ -12,7 +12,7 @@ import { Worker } from '../entity/worker.entity';
 import { Department } from '../../department/entity/department.entity';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { UserChangePasswordDto } from '../dto/user-change-password.dto';
-import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
+import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 
 @Injectable()
 export class WorkerService {
@@ -26,7 +26,7 @@ export class WorkerService {
     private readonly utilityService: UtilityService,
   ) {}
 
-  public async create(createWorkerDto: CreateWorkerDto): Promise<Worker> {
+  async create(createWorkerDto: CreateWorkerDto): Promise<Worker> {
     const alreadyExist = await this.alreadyExist(createWorkerDto.email);
 
     if (alreadyExist) {
@@ -69,10 +69,7 @@ export class WorkerService {
     return worker;
   }
 
-  public async update(
-    id: string,
-    updateWorkerDto: UpdateWorkerDto,
-  ): Promise<Worker> {
+  async update(id: string, updateWorkerDto: UpdateWorkerDto): Promise<Worker> {
     let worker = await this.get(id);
     await this.verifyIfEmailUpdate(worker, updateWorkerDto.email);
     await this.verifyIfDepartmentUpdate(worker, updateWorkerDto.departmentId);
@@ -100,7 +97,7 @@ export class WorkerService {
     return worker;
   }
 
-  public async get(id: string, fullDetails: boolean = false): Promise<Worker> {
+  async get(id: string, fullDetails: boolean = false): Promise<Worker> {
     const worker = fullDetails
       ? await this.workerRepository.findOne({
           where: { id },
@@ -115,7 +112,7 @@ export class WorkerService {
     }
   }
 
-  public async getAll(
+  async getAll(
     page: number = 1,
     limit: number = 10,
   ): Promise<PaginationResponseDto<Worker>> {
@@ -137,7 +134,7 @@ export class WorkerService {
     );
   }
 
-  public async resetPassword(id: string): Promise<string> {
+  async resetPassword(id: string): Promise<string> {
     const worker = await this.get(id);
 
     const newPassword = UtilityService.generateRandomPassword();
@@ -155,7 +152,7 @@ export class WorkerService {
     return 'Password reset successfully';
   }
 
-  public async changePassword(
+  async changePassword(
     id: string,
     changePasswordDto: UserChangePasswordDto,
   ): Promise<string> {
@@ -227,7 +224,7 @@ export class WorkerService {
     }
   }
 
-  public async findByEmail(email: string) {
+  async findByEmail(email: string) {
     return await this.workerRepository.findOne({ where: { email } });
   }
 

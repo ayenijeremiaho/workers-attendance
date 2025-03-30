@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { DepartmentService } from '../service/department.service';
 import { Department } from '../entity/department.entity';
-import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
+import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { CreateDepartmentDto } from '../dto/create-department.dto';
 import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';

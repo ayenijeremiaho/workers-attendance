@@ -1,13 +1,14 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
-  ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { EventConfig } from './event-config.entity';
-import { RecurringEvent } from './recurring-event.entity';
 
 @Entity({ name: 'events' })
 export class Event {
@@ -33,9 +34,13 @@ export class Event {
   @JoinColumn({ name: 'event_config_id' })
   eventConfig: EventConfig;
 
-  @ManyToOne(() => RecurringEvent, (recurringEvent) => recurringEvent.events, {
-    nullable: true,
-  })
-  @JoinColumn({ name: 'recurring_event_id' })
-  recurringEvent: RecurringEvent;
+  @Column({ nullable: true })
+  @Index()
+  recurringEventId: string;
+
+  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  updatedAt: Date;
 }

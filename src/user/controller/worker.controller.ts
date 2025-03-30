@@ -16,7 +16,7 @@ import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
 import { UserTypeEnum } from '../enums/user-type.enum';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
-import { PaginationResponseDto } from '../../utility/dto/PaginationResponseDto';
+import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/utility.service';
 import { Worker } from '../entity/worker.entity';
 

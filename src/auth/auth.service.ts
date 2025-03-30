@@ -109,7 +109,7 @@ export class AuthService {
     userType: UserTypeEnum,
   ): Promise<Worker | Admin> {
     if (userType == UserTypeEnum.WORKER) {
-      return this.workerService.get(user.id);
+      return this.workerService.get(user.id, true);
     } else {
       return this.adminService.get(user.id);
     }

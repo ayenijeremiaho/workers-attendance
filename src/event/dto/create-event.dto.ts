@@ -53,7 +53,6 @@ export class CreateEventDto {
   @Type(() => RecurrenceDto)
   recurrence?: RecurrenceDto;
 
-  @IsOptional()
   @IsUUID('4', { message: 'invalid eventConfigId' })
   eventConfigId: string;
 }

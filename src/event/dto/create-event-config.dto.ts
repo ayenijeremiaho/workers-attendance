@@ -1,6 +1,15 @@
-import { IsLatitude, IsLongitude, IsNumber, Min } from 'class-validator';
+import {
+  IsLatitude,
+  IsLongitude,
+  IsNotEmpty,
+  IsNumber,
+  Min,
+} from 'class-validator';
 
 export class CreateEventConfigDto {
+  @IsNotEmpty()
+  name: string;
+
   @IsNumber()
   @Min(60)
   checkinStartTimeInSeconds: number;

@@ -4,13 +4,14 @@ import {
   Entity,
   Index,
   JoinColumn,
-  OneToOne,
+  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { EventConfig } from './event-config.entity';
 
 @Entity({ name: 'events' })
+@Index(['startDate', 'endDate'])
 export class Event {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -27,7 +28,7 @@ export class Event {
   @Column({ name: 'end_date' })
   endDate: Date;
 
-  @OneToOne(() => EventConfig, (eventConfig) => eventConfig.event, {
+  @ManyToOne(() => EventConfig, (eventConfig) => eventConfig.events, {
     cascade: true,
     nullable: true,
   })

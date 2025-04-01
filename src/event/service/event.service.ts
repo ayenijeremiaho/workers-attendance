@@ -6,7 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { Event } from '../entity/event.entity';
-import { addDays, addMonths, addWeeks } from 'date-fns';
+import { addDays, addMonths, addWeeks, format } from 'date-fns';
 import { CreateEventDto } from '../dto/create-event.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { UpdateEventDto } from '../dto/update-event.dto';
@@ -14,6 +14,8 @@ import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto
 import { UtilityService } from '../../utility/utility.service';
 import { EventConfigService } from './event-config.service';
 import { EventConfig } from '../entity/event-config.entity';
+import { OrderBy } from '../types/order-by.type';
+import { Order } from '../types/order.type';
 
 @Injectable()
 export class EventService {
@@ -26,10 +28,9 @@ export class EventService {
   async create(createEventDto: CreateEventDto): Promise<Event | Event[]> {
     const { startEvent, endEvent, isRecurring, recurrence } = createEventDto;
 
-    let eventConfig = null;
-    if (createEventDto.eventConfigId) {
-      eventConfig = this.eventConfigService.get(createEventDto.eventConfigId);
-    }
+    const eventConfig = await this.eventConfigService.get(
+      createEventDto.eventConfigId,
+    );
 
     const startDate = new Date(startEvent);
     const endDate = new Date(endEvent);
@@ -38,11 +39,17 @@ export class EventService {
       throw new BadRequestException('Invalid date format');
     }
 
+    if (startDate.getTime() < new Date().getTime()) {
+      throw new BadRequestException('Event start date must be in the future');
+    }
+
     if (startDate.getTime() > endDate.getTime()) {
       throw new BadRequestException(
-        'Invalid date format, startDate should be before endDate',
+        'Invalid date format, event start date should be before event end date',
       );
     }
+
+    await this.checkForOverlappingEvents(startDate, endDate);
 
     if (isRecurring && !recurrence) {
       throw new BadRequestException(
@@ -51,14 +58,14 @@ export class EventService {
     }
 
     if (isRecurring) {
-      const recurrenceEndDate = new Date(endEvent);
+      const recurrenceEndDate = new Date(recurrence.recurrenceEndDate);
       if (isNaN(recurrenceEndDate.getDate())) {
-        throw new BadRequestException('Invalid recurrenceEndDate format');
+        throw new BadRequestException('Invalid recurrence end date format');
       }
 
       if (endDate.getTime() > recurrenceEndDate.getTime()) {
         throw new BadRequestException(
-          'Recurring event endDate must be before event end date',
+          'Recurring event end date must be after event end date',
         );
       }
 
@@ -69,6 +76,11 @@ export class EventService {
         createEventDto,
         eventConfig,
       );
+
+      for (const event of events) {
+        await this.checkForOverlappingEvents(event.startDate, event.endDate);
+      }
+
       return this.eventRepository.save(events);
     }
 
@@ -111,7 +123,7 @@ export class EventService {
       const newEndDate = new Date(updateEventDto.endEvent);
 
       if (isNaN(newEndDate.getTime())) {
-        throw new BadRequestException('Invalid end event date format');
+        throw new BadRequestException('Invalid event end date format');
       }
 
       event.endDate = newEndDate;
@@ -121,19 +133,23 @@ export class EventService {
       const newStartDate = new Date(updateEventDto.startEvent);
 
       if (isNaN(newStartDate.getTime())) {
-        throw new BadRequestException('Invalid start event date format');
+        throw new BadRequestException('Invalid event start date format');
       }
 
-      if (newStartDate.getTime() > event.endDate.getTime()) {
-        throw new BadRequestException(
-          'Invalid date format, startDate should be before endDate',
-        );
-      }
+      event.startDate = newStartDate;
     }
 
-    if (updateEventDto.endEvent) {
-      event.endDate = new Date(updateEventDto.endEvent);
+    if (event.startDate.getTime() < new Date().getTime()) {
+      throw new BadRequestException('Event start date must be in the future');
     }
+
+    if (event.startDate.getTime() > event.endDate.getTime()) {
+      throw new BadRequestException(
+        'Invalid date format, event start date should be before event end date',
+      );
+    }
+
+    await this.checkForOverlappingEvents(event.startDate, event.endDate, id);
 
     return this.eventRepository.save(event);
   }
@@ -141,6 +157,7 @@ export class EventService {
   async get(id: string): Promise<Event> {
     const event = await this.eventRepository.findOne({
       where: { id },
+      relations: { eventConfig: true },
     });
 
     if (!event) {
@@ -153,6 +170,8 @@ export class EventService {
   public async getAll(
     page: number = 1,
     limit: number = 10,
+    orderBy: OrderBy = 'startDate',
+    order: Order = 'DESC',
   ): Promise<PaginationResponseDto<Event>> {
     if (page < 1) {
       throw new BadRequestException('Page number must be greater than 0');
@@ -161,7 +180,7 @@ export class EventService {
     const [events, total] = await this.eventRepository.findAndCount({
       skip: (page - 1) * limit,
       take: limit,
-      order: { createdAt: 'DESC' },
+      order: { [orderBy]: order },
     });
 
     return UtilityService.createPaginationResponse<Event>(
@@ -196,7 +215,7 @@ export class EventService {
 
     if (recurrenceEndDate > oneYearLater) {
       throw new BadRequestException(
-        'recurrenceEndDate must be within one year of startDate',
+        'Recurrence end date must be within one year of event start date',
       );
     }
 
@@ -242,5 +261,29 @@ export class EventService {
     }
 
     return events;
+  }
+
+  private async checkForOverlappingEvents(
+    startDate: Date,
+    endDate: Date,
+    eventId?: string,
+  ): Promise<void> {
+    const overlappingEvents = await this.eventRepository
+      .createQueryBuilder('event')
+      .where('event.id != :eventId', { eventId })
+      .andWhere(
+        '(event.startDate < :endDate AND event.endDate > :startDate) OR ' +
+          '(event.startDate = :startDate AND event.endDate = :endDate)',
+        { startDate, endDate },
+      )
+      .getMany();
+
+    if (overlappingEvents.length > 0) {
+      const formattedStartDate = format(startDate, 'yyyy-MM-dd HH:mm');
+      const formattedEndDate = format(endDate, 'yyyy-MM-dd HH:mm');
+      throw new BadRequestException(
+        `An event already exists within the specified time range: ${formattedStartDate} to ${formattedEndDate}`,
+      );
+    }
   }
 }

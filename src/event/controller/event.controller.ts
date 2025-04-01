@@ -20,6 +20,8 @@ import { Event } from '../entity/event.entity';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
 import { UserTypeEnum } from '../../user/enums/user-type.enum';
+import { OrderBy } from '../types/order-by.type';
+import { Order } from '../types/order.type';
 
 @Controller('events')
 export class EventController {
@@ -54,8 +56,10 @@ export class EventController {
   async findAll(
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('orderBy') orderBy?: OrderBy,
+    @Query('order') order?: Order,
   ): Promise<PaginationResponseDto<EventDto>> {
-    const events = await this.eventService.getAll(page, limit);
+    const events = await this.eventService.getAll(page, limit, orderBy, order);
     return UtilityService.getPaginationResponseDto<Event, EventDto>(
       events,
       EventDto,
@@ -64,7 +68,7 @@ export class EventController {
 
   @UseGuards(RolesGuard)
   @Roles(UserTypeEnum.ADMIN)
-  @Delete('/delete-future')
+  @Delete('/delete-future/:recurringEventId')
   async deleteFutureEvent(
     @Param('recurringEventId') recurringEventId: string,
   ): Promise<void> {

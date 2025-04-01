@@ -66,7 +66,7 @@ export class EventConfigController {
     );
   }
 
-  @Delete()
+  @Delete('/:id')
   async delete(@Param('id') id: string): Promise<void> {
     await this.eventConfigService.delete(id);
   }

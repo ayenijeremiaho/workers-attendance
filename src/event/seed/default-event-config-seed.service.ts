@@ -12,11 +12,10 @@ export class DefaultEventConfigSeed {
   ) {}
 
   async seed() {
-    const count = await this.eventConfigService.count({
-      where: { event: null },
-    });
+    const count = await this.eventConfigService.count({});
     if (count === 0) {
       await this.eventConfigService.create({
+        name: this.configService.get<string>('DEFAULT_EVENT_CONFIG_NAME'),
         checkinStartTimeInSeconds: this.configService.get<number>(
           'DEFAULT_EVENT_START_CHECK_IN_TIME_IN_SECONDS',
         ),

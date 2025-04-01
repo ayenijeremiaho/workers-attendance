@@ -2,7 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  OneToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -13,8 +13,11 @@ export class EventConfig {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => Event, (event) => event.eventConfig, { nullable: true })
-  event: Event | null;
+  @Column({ unique: true })
+  name: string;
+
+  @OneToMany(() => Event, (event) => event.eventConfig, { nullable: true })
+  events: Event[];
 
   @Column({ name: 'checkin_start_time_in_seconds' })
   checkinStartTimeInSeconds: number;

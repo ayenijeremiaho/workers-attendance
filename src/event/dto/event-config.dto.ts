@@ -7,6 +7,9 @@ export class EventConfigDto {
   id: string;
 
   @Expose()
+  name: string;
+
+  @Expose()
   checkinStartTimeInSeconds: number;
 
   @Expose()

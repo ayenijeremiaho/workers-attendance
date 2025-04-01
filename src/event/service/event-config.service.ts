@@ -22,6 +22,13 @@ export class EventConfigService {
   async create(
     createEventConfigDto: CreateEventConfigDto,
   ): Promise<EventConfig> {
+    const alreadyExist = await this.existByName(createEventConfigDto.name);
+    if (alreadyExist) {
+      throw new BadRequestException(
+        'Event config with the provided name already exist',
+      );
+    }
+
     if (
       createEventConfigDto.checkinStartTimeInSeconds <=
         createEventConfigDto.lateComingStartTimeInSeconds ||
@@ -37,9 +44,36 @@ export class EventConfigService {
     return this.eventConfigRepository.save(eventConfig);
   }
 
+  async update(
+    id: string | null,
+    updateEventConfigDto: UpdateEventConfigDto,
+  ): Promise<EventConfig> {
+    const config = await this.get(id);
+
+    if (
+      updateEventConfigDto.name &&
+      updateEventConfigDto.name !== config.name
+    ) {
+      const alreadyExist = await this.existByName(updateEventConfigDto.name);
+      if (alreadyExist) {
+        throw new BadRequestException(
+          'Event config with the provided name already exist',
+        );
+      }
+    }
+
+    Object.keys(updateEventConfigDto).forEach((key) => {
+      if (updateEventConfigDto[key] !== null) {
+        config[key] = updateEventConfigDto[key];
+      }
+    });
+
+    return this.eventConfigRepository.save(config);
+  }
+
   async get(id: string | null): Promise<EventConfig> {
     const config = await this.eventConfigRepository.findOne({
-      where: { event: id == null ? null : { id } },
+      where: { id },
     });
 
     if (!config) {
@@ -73,21 +107,6 @@ export class EventConfigService {
     );
   }
 
-  async update(
-    id: string | null,
-    updateEventConfigDto: UpdateEventConfigDto,
-  ): Promise<EventConfig> {
-    const config = await this.get(id);
-
-    Object.keys(updateEventConfigDto).forEach((key) => {
-      if (updateEventConfigDto[key] !== null) {
-        config[key] = updateEventConfigDto[key];
-      }
-    });
-
-    return this.eventConfigRepository.save(config);
-  }
-
   async delete(id: string): Promise<void> {
     const eventConfig = await this.eventConfigRepository.findOne({
       where: { id },
@@ -98,7 +117,7 @@ export class EventConfigService {
       throw new NotFoundException(`Event Config not found`);
     }
 
-    if (eventConfig.event) {
+    if (eventConfig.events) {
       throw new BadRequestException(
         'Cannot delete Event Config attached to an event',
       );
@@ -109,5 +128,9 @@ export class EventConfigService {
 
   async count(options?: FindManyOptions<EventConfig>): Promise<number> {
     return this.eventConfigRepository.count(options);
+  }
+
+  async existByName(name: string): Promise<boolean> {
+    return !!(await this.eventConfigRepository.count({ where: { name } }));
   }
 }

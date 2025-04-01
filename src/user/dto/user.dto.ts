@@ -18,5 +18,5 @@ export class UserDto {
   phoneNumber: string;
 
   @Expose()
-  changePassword: boolean;
+  changedPassword: boolean;
 }

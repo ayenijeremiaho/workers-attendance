@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsNumber,
   IsOptional,
+  IsUUID,
   Matches,
   Min,
   ValidateIf,
@@ -53,5 +54,6 @@ export class CreateEventDto {
   recurrence?: RecurrenceDto;
 
   @IsOptional()
+  @IsUUID('4', { message: 'invalid eventConfigId' })
   eventConfigId: string;
 }

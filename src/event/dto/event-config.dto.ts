@@ -19,6 +19,9 @@ export class EventConfigDto {
   checkinStopTimeInSeconds: number;
 
   @Expose()
+  allowedDistanceInMeters: number;
+
+  @Expose()
   locationLongitude: number;
 
   @Expose()

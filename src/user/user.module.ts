@@ -14,6 +14,7 @@ import { DefaultAdminSeed } from './seed/default-admin.seed';
   imports: [TypeOrmModule.forFeature([Admin, Worker, Department])],
   providers: [AdminService, WorkerService, DefaultAdminSeed, UtilityService],
   controllers: [AdminController, WorkerController],
+  exports: [AdminService, WorkerService],
 })
 export class UserModule implements OnModuleInit {
   constructor(private readonly defaultAdminSeed: DefaultAdminSeed) {}

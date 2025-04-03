@@ -33,7 +33,7 @@ export class DepartmentController {
     const departments = await this.departmentService.getAll(page, limit);
     return UtilityService.getPaginationResponseDto<Department, DepartmentDto>(
       departments,
-      Department,
+      DepartmentDto,
     );
   }
 

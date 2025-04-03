@@ -209,6 +209,19 @@ export class WorkerService {
     return 'Password changed successfully';
   }
 
+  async getWorkersNotCheckedInForEvent(eventId: string): Promise<Worker[]> {
+    return this.workerRepository
+      .createQueryBuilder('worker')
+      .leftJoin(
+        'attendances',
+        'attendance',
+        'attendance.worker_id = worker.id AND attendance.event_id = :eventId',
+        { eventId },
+      )
+      .where('attendance.id IS NULL')
+      .getMany();
+  }
+
   private async verifyIfDepartmentUpdate(
     worker: Worker,
     newDepartmentId: string,

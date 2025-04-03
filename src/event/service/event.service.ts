@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { Brackets, MoreThanOrEqual, Repository } from 'typeorm';
 import { Event } from '../entity/event.entity';
 import { addDays, addMonths, addWeeks, format } from 'date-fns';
 import { CreateEventDto } from '../dto/create-event.dto';
@@ -201,6 +201,28 @@ export class EventService {
     } else {
       throw new NotFoundException('No future events found');
     }
+  }
+
+  async findByAbsenteesNotUpdated() {
+    const currentTime = new Date();
+
+    return await this.eventRepository
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.eventConfig', 'eventConfig')
+      .where(
+        new Brackets((qb) => {
+          qb.where('event.endDate < :currentTime', { currentTime }).orWhere(
+            `event.startDate + INTERVAL '1 second' * eventConfig.lateComingStartTimeInSeconds < :currentTime`,
+            { currentTime },
+          );
+        }),
+      )
+      .andWhere('event.markedAbsent = false')
+      .getMany();
+  }
+
+  async updateEvent(event: Event): Promise<Event> {
+    return this.eventRepository.save(event);
   }
 
   private calculateRecurringEvents(

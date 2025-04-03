@@ -22,6 +22,10 @@ export class CreateEventConfigDto {
   @Min(180)
   checkinStopTimeInSeconds: number;
 
+  @IsNumber()
+  @Min(5)
+  allowedDistanceInMeters: number;
+
   @IsLatitude()
   locationLatitude: number;
 

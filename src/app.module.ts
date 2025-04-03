@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { LoggerModule } from 'nestjs-pino';
 import { DepartmentModule } from './department/department.module';
 import { EventModule } from './event/event.module';
+import { AttendanceModule } from './attendance/attendance.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { EventModule } from './event/event.module';
     UserModule,
     DepartmentModule,
     EventModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

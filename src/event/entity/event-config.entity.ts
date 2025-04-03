@@ -28,6 +28,9 @@ export class EventConfig {
   @Column({ name: 'checkin_stop_time_in_seconds' })
   checkinStopTimeInSeconds: number;
 
+  @Column({ name: 'allowed_distance_in_meters' })
+  allowedDistanceInMeters: number;
+
   @Column({
     name: 'location_latitude',
     type: 'decimal',

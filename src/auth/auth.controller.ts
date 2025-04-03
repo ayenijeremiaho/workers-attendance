@@ -87,6 +87,15 @@ export class AuthController {
     return this.authService.login(req.user, UserTypeEnum.WORKER);
   }
 
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RefreshJwtAuthGuard, RolesGuard)
+  @Roles(UserTypeEnum.WORKER)
+  @Post('/worker/refresh')
+  async workerRefresh(@Request() req: any): Promise<JwtResponse> {
+    return this.authService.refreshToken(req.user, UserTypeEnum.WORKER);
+  }
+
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
   @Roles(UserTypeEnum.WORKER)

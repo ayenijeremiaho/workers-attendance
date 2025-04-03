@@ -16,6 +16,9 @@ export class DefaultEventConfigSeed {
     if (count === 0) {
       await this.eventConfigService.create({
         name: this.configService.get<string>('DEFAULT_EVENT_CONFIG_NAME'),
+        allowedDistanceInMeters: this.configService.get<number>(
+          'DEFAULT_EVENT_ALLOWED_DISTANCE_IN_METERS',
+        ),
         checkinStartTimeInSeconds: this.configService.get<number>(
           'DEFAULT_EVENT_START_CHECK_IN_TIME_IN_SECONDS',
         ),

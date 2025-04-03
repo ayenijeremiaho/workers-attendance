@@ -12,6 +12,29 @@ export class UtilityService {
 
   constructor(private readonly configService: ConfigService) {}
 
+  public static calculateDistanceInMeters(
+    userLatitude: number,
+    userLongitude: number,
+    eventLatitude: number,
+    eventLongitude: number,
+  ): number {
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = this.deg2rad(eventLatitude - userLatitude);
+    const dLon = this.deg2rad(eventLongitude - userLongitude);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.deg2rad(userLatitude)) *
+        Math.cos(this.deg2rad(eventLatitude)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c * 1000; // Distance in meters
+  }
+
+  private static deg2rad(deg: number): number {
+    return deg * (Math.PI / 180);
+  }
+
   public static createPaginationResponse<T>(
     data: T[],
     page: number,

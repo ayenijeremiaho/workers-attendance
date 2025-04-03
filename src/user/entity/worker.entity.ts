@@ -1,8 +1,9 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { UserTypeEnum } from '../enums/user-type.enum';
 import { User } from './user.entity';
 import { Department } from '../../department/entity/department.entity';
 import { WorkerStatusEnum } from '../enums/worker-status.enum';
+import { Attendance } from '../../attendance/entity/attendance.entity';
 
 @Entity({ name: 'workers' })
 export class Worker extends User {
@@ -16,6 +17,9 @@ export class Worker extends User {
     default: WorkerStatusEnum.ACTIVE,
   })
   status: WorkerStatusEnum;
+
+  @OneToMany(() => Attendance, (attendance) => attendance.event)
+  attendances: Attendance[];
 
   public getType(): UserTypeEnum {
     return UserTypeEnum.WORKER;

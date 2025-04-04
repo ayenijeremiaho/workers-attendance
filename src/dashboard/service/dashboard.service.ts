@@ -12,6 +12,7 @@ import { WorkerDto } from '../../user/dto/worker.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { Attendance } from '../../attendance/entity/attendance.entity';
 import { Event } from '../../event/entity/event.entity';
+import { WorkerStatusCountDto } from '../dto/worker-status-count.dto';
 
 @Injectable()
 export class DashboardService {
@@ -57,8 +58,11 @@ export class DashboardService {
     const totalWorkers = await this.workerService.count();
     const totalAdmins = await this.adminService.count();
 
-    const workerCountByStatus =
+    const workerCountByStatusRaw =
       await this.workerService.getWorkersCountByStatus();
+    const workerCountByStatus = WorkerStatusCountDto.fromJson(
+      workerCountByStatusRaw,
+    );
 
     const attendancePercentage =
       await this.attendanceService.getAttendancePercentage(daysAgo);

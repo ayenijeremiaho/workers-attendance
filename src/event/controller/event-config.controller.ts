@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { EventConfigService } from '../service/event-config.service';
 import { CreateEventConfigDto } from '../dto/create-event-config.dto';
 import { EventConfigDto } from '../dto/event-config.dto';

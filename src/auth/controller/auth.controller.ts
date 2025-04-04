@@ -8,19 +8,19 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AdminLocalAuthGuard } from './guard/admin-local-auth.guard';
-import { JwtResponse } from './interface/auth.interface';
-import { RefreshJwtAuthGuard } from './guard/refresh-jwt-auth.guard';
-import { Public } from './decorator/public.decorator';
-import { UserTypeEnum } from '../user/enums/user-type.enum';
-import { WorkerLocalAuthGuard } from './guard/worker-local-auth.guard';
-import { Roles } from './decorator/roles.decorator';
-import { RolesGuard } from './guard/roles.guard';
+import { AuthService } from '../service/auth.service';
+import { AdminLocalAuthGuard } from '../guard/admin-local-auth.guard';
+import { JwtResponse } from '../interface/auth.interface';
+import { RefreshJwtAuthGuard } from '../guard/refresh-jwt-auth.guard';
+import { Public } from '../decorator/public.decorator';
+import { UserTypeEnum } from '../../user/enums/user-type.enum';
+import { WorkerLocalAuthGuard } from '../guard/worker-local-auth.guard';
+import { Roles } from '../decorator/roles.decorator';
+import { RolesGuard } from '../guard/roles.guard';
 import { plainToInstance } from 'class-transformer';
-import { WorkerDto } from '../user/dto/worker.dto';
-import { AdminDto } from '../user/dto/admin.dto';
-import { UserChangePasswordDto } from '../user/dto/user-change-password.dto';
+import { WorkerDto } from '../../user/dto/worker.dto';
+import { AdminDto } from '../../user/dto/admin.dto';
+import { UserChangePasswordDto } from '../../user/dto/user-change-password.dto';
 
 @Controller('auth')
 export class AuthController {

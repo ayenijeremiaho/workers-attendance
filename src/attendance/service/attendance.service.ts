@@ -2,10 +2,10 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { CheckInDto } from '../dto/check-in.dto';
 import { Attendance } from '../entity/attendance.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { MoreThanOrEqual, Repository, SelectQueryBuilder } from 'typeorm';
 import { WorkerService } from '../../user/service/worker.service';
 import { EventService } from '../../event/service/event.service';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import * as moment from 'moment';
 import { WorkerStatusEnum } from '../../user/enums/worker-status.enum';
 import { ConfigService } from '@nestjs/config';
@@ -227,6 +227,68 @@ export class AttendanceService {
       limit,
       total,
     );
+  }
+
+  async getAttendanceLeaderboard(
+    daysAgo: number = 7,
+    limit: number = 10,
+  ): Promise<any[]> {
+    const dateDaysAgo = new Date();
+    dateDaysAgo.setDate(dateDaysAgo.getDate() - daysAgo);
+
+    const attendances = await this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .select('worker.id', 'workerId')
+      .addSelect('worker.firstname', 'firstname')
+      .addSelect('worker.lastname', 'lastname')
+      .addSelect('department.name', 'departmentName')
+      .addSelect('COUNT(attendance.id)', 'attendanceCount')
+      .innerJoin('attendance.worker', 'worker')
+      .innerJoin('worker.department', 'department')
+      .where('attendance.checkinTime >= :dateDaysAgo', { dateDaysAgo })
+      .groupBy('worker.id, worker.firstname, worker.lastname, department.name')
+      .orderBy('attendanceCount', 'DESC')
+      .limit(limit)
+      .getRawMany();
+
+    const totalDays = daysAgo;
+
+    return attendances.map((attendance, index) => ({
+      rank: index + 1,
+      workerName: `${attendance.firstname} ${attendance.lastname}`,
+      departmentName: attendance.departmentName,
+      presentCount: parseInt(attendance.attendanceCount, 10),
+      absentCount: totalDays - parseInt(attendance.attendanceCount, 10),
+    }));
+  }
+
+  async getAttendancePercentage(
+    daysAgo: number = 7,
+    workerId?: string,
+  ): Promise<number> {
+    const dateDaysAgo = moment().subtract(daysAgo, 'days').toDate();
+
+    const totalWorkers = await this.workerService.count();
+    const whereClause: any = {
+      createdAt: MoreThanOrEqual(dateDaysAgo),
+    };
+
+    if (workerId) {
+      whereClause['worker.id'] = workerId;
+    }
+
+    console.log('whereClause:', whereClause);
+
+    const attendedWorkers = await this.attendanceRepository.count({
+      where: whereClause,
+    });
+
+    if (totalWorkers === 0) {
+      return 0;
+    }
+
+    const attendancePercentage = (attendedWorkers / totalWorkers) * 100;
+    return parseFloat(attendancePercentage.toFixed(2));
   }
 
   private createErrorResponse(message: string) {

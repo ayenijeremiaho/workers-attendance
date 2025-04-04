@@ -11,12 +11,13 @@ import {
 } from '@nestjs/common';
 import { AttendanceService } from '../service/attendance.service';
 import { CheckInDto } from '../dto/check-in.dto';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { Attendance } from '../entity/attendance.entity';
 import { AttendanceDto } from '../dto/attendance.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
 import { UserTypeEnum } from '../../user/enums/user-type.enum';
+import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 
 @Controller('attendances')
 export class AttendanceController {
@@ -30,6 +31,16 @@ export class AttendanceController {
     return this.attendanceService.checkin(req.user, checkInDto);
   }
 
+  @Get('/leaderboard')
+  @UseGuards(RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
+  async leaderboard(
+    @Query('daysAgo') daysAgo?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.attendanceService.getAttendanceLeaderboard(daysAgo, limit);
+  }
+
   @Get('/my-history')
   @UseGuards(RolesGuard)
   @Roles(UserTypeEnum.WORKER)
@@ -38,7 +49,7 @@ export class AttendanceController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('attendanceDate') attendanceDate?: string,
-  ) {
+  ): Promise<PaginationResponseDto<AttendanceDto>> {
     const history = await this.attendanceService.getWorkersCheckinHistory(
       req.user,
       page,
@@ -61,7 +72,7 @@ export class AttendanceController {
     @Query('workerId') workerId?: string,
     @Query('eventId') eventId?: string,
     @Query('attendanceDate') attendanceDate?: string,
-  ) {
+  ): Promise<PaginationResponseDto<AttendanceDto>> {
     const history = await this.attendanceService.getAllCheckInHistory(
       page,
       limit,

@@ -18,7 +18,7 @@ import { UserTypeEnum } from '../enums/user-type.enum';
 import { AdminDto } from '../dto/admin.dto';
 import { UpdateAdminDto } from '../dto/update-admin.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { Admin } from '../entity/admin.entity';
 
 @Controller('admins')

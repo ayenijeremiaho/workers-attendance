@@ -4,14 +4,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, MoreThanOrEqual, Repository } from 'typeorm';
+import {
+  Brackets,
+  LessThan,
+  LessThanOrEqual,
+  MoreThan,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
 import { Event } from '../entity/event.entity';
 import { addDays, addMonths, addWeeks, format } from 'date-fns';
 import { CreateEventDto } from '../dto/create-event.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { UpdateEventDto } from '../dto/update-event.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { EventConfigService } from './event-config.service';
 import { EventConfig } from '../entity/event-config.entity';
 import { OrderBy } from '../types/order-by.type';
@@ -223,6 +230,31 @@ export class EventService {
 
   async updateEvent(event: Event): Promise<Event> {
     return this.eventRepository.save(event);
+  }
+
+  async getTopEventsByDateCondition(
+    condition: 'gte' | 'gt' | 'lte' | 'lt',
+    date: Date = new Date(),
+    limit: number = 5,
+  ): Promise<Event[]> {
+    const operators = {
+      gte: MoreThanOrEqual,
+      gt: MoreThan,
+      lte: LessThanOrEqual,
+      lt: LessThan,
+    };
+
+    const operatorFn = operators[condition];
+
+    if (!operatorFn) {
+      throw new BadRequestException('Invalid date condition');
+    }
+
+    return this.eventRepository.find({
+      where: { startDate: operatorFn(date) },
+      order: { startDate: 'ASC' },
+      take: limit,
+    });
   }
 
   private calculateRecurringEvents(

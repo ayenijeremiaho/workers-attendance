@@ -15,7 +15,7 @@ import { EventService } from '../service/event.service';
 import { EventDto } from '../dto/event.dto';
 import { UpdateEventDto } from '../dto/update-event.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { Event } from '../entity/event.entity';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';

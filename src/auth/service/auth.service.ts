@@ -4,18 +4,19 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { UtilityService } from '../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { JwtService } from '@nestjs/jwt';
-import { JwtPayload, JwtResponse, UserAuth } from './interface/auth.interface';
-import refreshJwtConfig from '../config/refresh.jwt.config';
+import { JwtPayload, JwtResponse, UserAuth } from '../interface/auth.interface';
+import refreshJwtConfig from '../../config/refresh.jwt.config';
 import { ConfigType } from '@nestjs/config';
-import { AdminService } from '../user/service/admin.service';
-import { WorkerService } from '../user/service/worker.service';
-import { UserSessionService } from '../user/service/user-session.service';
-import { UserTypeEnum } from '../user/enums/user-type.enum';
-import { User } from '../user/entity/user.entity';
-import { Admin } from '../user/entity/admin.entity';
-import { UserChangePasswordDto } from '../user/dto/user-change-password.dto';
+import { AdminService } from '../../user/service/admin.service';
+import { WorkerService } from '../../user/service/worker.service';
+import { UserSessionService } from '../../user/service/user-session.service';
+import { UserTypeEnum } from '../../user/enums/user-type.enum';
+import { User } from '../../user/entity/user.entity';
+import { Admin } from '../../user/entity/admin.entity';
+import { UserChangePasswordDto } from '../../user/dto/user-change-password.dto';
+import { Worker } from '../../user/entity/worker.entity';
 
 @Injectable()
 export class AuthService {

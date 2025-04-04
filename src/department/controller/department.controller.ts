@@ -17,7 +17,7 @@ import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
 import { UserTypeEnum } from '../../user/enums/user-type.enum';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { DepartmentDto } from '../dto/department.dto';
 import { plainToInstance } from 'class-transformer';
 

@@ -6,24 +6,20 @@ import { EventService } from '../event/service/event.service';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Attendance } from './entity/attendance.entity';
-import { Worker } from '../user/entity/worker.entity';
-import { Department } from '../department/entity/department.entity';
-import { UtilityService } from '../utility/utility.service';
+import { UtilityService } from '../utility/service/utility.service';
 import { EventConfigService } from '../event/service/event-config.service';
-import { Event } from '../event/entity/event.entity';
-import { EventConfig } from '../event/entity/event-config.entity';
 import { AttendanceJobService } from './job/attendance-job';
+import { UserModule } from '../user/user.module';
+import { DepartmentModule } from '../department/department.module';
+import { EventModule } from '../event/event.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([
-      Attendance,
-      Worker,
-      Department,
-      Event,
-      EventConfig,
-    ]),
+    TypeOrmModule.forFeature([Attendance]),
+    UserModule,
+    DepartmentModule,
+    EventModule,
   ],
   providers: [
     AttendanceService,
@@ -34,5 +30,6 @@ import { AttendanceJobService } from './job/attendance-job';
     EventConfigService,
   ],
   controllers: [AttendanceController],
+  exports: [TypeOrmModule, AttendanceService],
 })
 export class AttendanceModule {}

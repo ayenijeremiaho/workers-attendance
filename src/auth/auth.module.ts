@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
-import { UtilityService } from '../utility/utility.service';
+import { AuthService } from './service/auth.service';
+import { AuthController } from './controller/auth.controller';
+import { UtilityService } from '../utility/service/utility.service';
 import { AdminLocalStrategy } from './strategy/admin.local.strategy';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';

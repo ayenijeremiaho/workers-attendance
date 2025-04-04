@@ -18,7 +18,7 @@ import { Roles } from '../../auth/decorator/roles.decorator';
 import { UserTypeEnum } from '../enums/user-type.enum';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { Worker } from '../entity/worker.entity';
 import { WorkerStatusEnum } from '../enums/worker-status.enum';
 

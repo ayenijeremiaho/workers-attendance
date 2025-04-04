@@ -1,6 +1,6 @@
 import { CheckInStatusEnum } from '../enums/check-in.enum';
 import { EventDto } from '../../event/dto/event.dto';
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude, Expose, Type } from 'class-transformer';
 import { WorkerDto } from '../../user/dto/worker.dto';
 import { ToDateString } from '../../utility/dto/date-converter';
 
@@ -10,9 +10,11 @@ export class AttendanceDto {
   id: string;
 
   @Expose()
+  @Type(() => EventDto)
   event: EventDto;
 
   @Expose()
+  @Type(() => WorkerDto)
   worker: WorkerDto;
 
   @Expose()

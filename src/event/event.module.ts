@@ -13,6 +13,7 @@ import { EventConfigController } from './controller/event-config.controller';
   imports: [TypeOrmModule.forFeature([EventConfig, Event]), ConfigModule],
   providers: [EventService, EventConfigService, DefaultEventConfigSeed],
   controllers: [EventController, EventConfigController],
+  exports: [TypeOrmModule, EventService],
 })
 export class EventModule implements OnModuleInit {
   constructor(private readonly globalEventConfigSeed: DefaultEventConfigSeed) {}

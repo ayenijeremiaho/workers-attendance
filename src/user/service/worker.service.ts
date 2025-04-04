@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { CreateWorkerDto } from '../dto/create-worker.dto';
 import { Worker } from '../entity/worker.entity';
 import { Department } from '../../department/entity/department.entity';
@@ -14,6 +14,7 @@ import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { UserChangePasswordDto } from '../dto/user-change-password.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { WorkerStatusEnum } from '../enums/worker-status.enum';
+import { FindManyOptions } from 'typeorm/find-options/FindManyOptions';
 
 @Injectable()
 export class WorkerService {
@@ -220,6 +221,39 @@ export class WorkerService {
       )
       .where('attendance.id IS NULL')
       .getMany();
+  }
+
+  async getWorkersCountByStatus(): Promise<any[]> {
+    const statuses = Object.values(WorkerStatusEnum);
+
+    const queryBuilder = this.workerRepository
+      .createQueryBuilder('worker')
+      .select('worker.status', 'status')
+      .addSelect('COUNT(worker.id)', 'count')
+      .groupBy('worker.status')
+      .orderBy('worker.status', 'ASC');
+
+    const result = await queryBuilder.getRawMany();
+
+    const statusCountMap = result.reduce((acc, { status, count }) => {
+      acc[status] = parseInt(count, 10);
+      return acc;
+    }, {});
+
+    return statuses.map((status) => ({
+      status,
+      count: statusCountMap[status] || 0,
+    }));
+  }
+
+  async count(
+    options?: FindManyOptions<Worker>,
+    where?: FindManyOptions<Worker>['where'],
+  ): Promise<number> {
+    return this.workerRepository.count({
+      ...options,
+      where: { ...options?.where, ...where }, // Merge conditions dynamically
+    });
   }
 
   private async verifyIfDepartmentUpdate(

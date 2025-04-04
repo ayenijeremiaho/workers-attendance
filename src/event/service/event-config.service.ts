@@ -8,7 +8,7 @@ import { EventConfig } from '../entity/event-config.entity';
 import { Repository } from 'typeorm';
 import { UpdateEventConfigDto } from '../dto/update-event-config.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UtilityService } from '../../utility/utility.service';
+import { UtilityService } from '../../utility/service/utility.service';
 import { CreateEventConfigDto } from '../dto/create-event-config.dto';
 import { FindManyOptions } from 'typeorm/find-options/FindManyOptions';
 

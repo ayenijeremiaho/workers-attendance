@@ -7,6 +7,7 @@ import { TransformInterceptor } from './utility/interceptors/transform.intercept
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors(corsOptions());
   registerNestLogger(app);
   registerGlobalPipes(app);
   registerGlobalFilters(app);
@@ -30,6 +31,16 @@ function registerGlobalFilters(app: INestApplication) {
 
 function registerGlobalInterceptors(app: INestApplication) {
   app.useGlobalInterceptors(new TransformInterceptor());
+}
+
+function corsOptions() {
+  const origins = process.env.CORS_ORIGINS?.split(',');
+  return {
+    origin: origins,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+    preflightContinue: false,
+  };
 }
 
 bootstrap();

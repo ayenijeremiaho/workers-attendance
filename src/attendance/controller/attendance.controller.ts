@@ -66,7 +66,6 @@ export class AttendanceController {
   @UseGuards(RolesGuard)
   @Roles(UserTypeEnum.ADMIN)
   async getAllCheckinHistory(
-    @Request() req: any,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('workerId') workerId?: string,
@@ -82,6 +81,23 @@ export class AttendanceController {
     );
     return UtilityService.getPaginationResponseDto<Attendance, AttendanceDto>(
       history,
+      AttendanceDto,
+    );
+  }
+
+  @Get('/history/department')
+  @UseGuards(RolesGuard)
+  async getDepartmentCheckinHistory(
+    @Request() req: any,
+    @Query('eventId') eventId: string,
+  ): Promise<PaginationResponseDto<AttendanceDto>> {
+    const departmentHistory =
+      await this.attendanceService.getDepartmentCheckinHistory(
+        req.user,
+        eventId,
+      );
+    return UtilityService.getPaginationResponseDto<Attendance, AttendanceDto>(
+      departmentHistory,
       AttendanceDto,
     );
   }

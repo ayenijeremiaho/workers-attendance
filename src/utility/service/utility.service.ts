@@ -88,10 +88,16 @@ export class UtilityService {
     return await argon2.verify(hashedValue, value);
   }
 
-  public sendEmail(to: string | [string], subject: string, body: string) {
+  public sendEmail(
+    to: string | [string],
+    subject: string,
+    body: string,
+    cc?: string | [string],
+  ) {
     const mailOptions: nodemailer.SendMailOptions = {
       from: this.configService.get<string>('EMAIL_USER'),
       to,
+      cc,
       subject,
       html: body,
     };

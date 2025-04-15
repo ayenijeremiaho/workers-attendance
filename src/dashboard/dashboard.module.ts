@@ -10,9 +10,17 @@ import { UserModule } from '../user/user.module';
 import { UtilityModule } from '../utility/utility.module';
 import { AttendanceModule } from '../attendance/attendance.module';
 import { DashboardController } from './controller/dashboard.controller';
+import { DepartmentModule } from '../department/department.module';
+import { DepartmentService } from '../department/service/department.service';
 
 @Module({
-  imports: [EventModule, UserModule, UtilityModule, AttendanceModule],
+  imports: [
+    EventModule,
+    UserModule,
+    UtilityModule,
+    AttendanceModule,
+    DepartmentModule,
+  ],
   providers: [
     DashboardService,
     EventService,
@@ -20,6 +28,7 @@ import { DashboardController } from './controller/dashboard.controller';
     AdminService,
     WorkerService,
     AttendanceService,
+    DepartmentService,
   ],
   controllers: [DashboardController],
 })

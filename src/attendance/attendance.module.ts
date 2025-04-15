@@ -6,12 +6,13 @@ import { EventService } from '../event/service/event.service';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Attendance } from './entity/attendance.entity';
-import { UtilityService } from '../utility/service/utility.service';
 import { EventConfigService } from '../event/service/event-config.service';
 import { AttendanceJobService } from './job/attendance-job';
 import { UserModule } from '../user/user.module';
 import { DepartmentModule } from '../department/department.module';
 import { EventModule } from '../event/event.module';
+import { DepartmentService } from '../department/service/department.service';
+import { UtilityService } from '../utility/service/utility.service';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { EventModule } from '../event/event.module';
     EventService,
     UtilityService,
     EventConfigService,
+    DepartmentService,
   ],
   controllers: [AttendanceController],
   exports: [TypeOrmModule, AttendanceService],

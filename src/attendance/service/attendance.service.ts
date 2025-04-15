@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { CheckInDto } from '../dto/check-in.dto';
 import { Attendance } from '../entity/attendance.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 import { WorkerService } from '../../user/service/worker.service';
 import { EventService } from '../../event/service/event.service';
 import { UtilityService } from '../../utility/service/utility.service';
@@ -14,15 +14,18 @@ import { Worker } from '../../user/entity/worker.entity';
 import { Event } from '../../event/entity/event.entity';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UserAuth } from '../../auth/interface/auth.interface';
+import { DepartmentService } from '../../department/service/department.service';
 
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
 
   constructor(
+    private readonly dataSource: DataSource,
     private readonly eventService: EventService,
     private readonly configService: ConfigService,
     private readonly workerService: WorkerService,
+    private readonly departmentService: DepartmentService,
     @InjectRepository(Attendance)
     private readonly attendanceRepository: Repository<Attendance>,
   ) {}
@@ -105,10 +108,9 @@ export class AttendanceService {
     return this.createSuccessResponse('Check-in successful');
   }
 
-  async markAbsenteesAndSendDepartmentEmail() {
+  async markAbsentees() {
     this.logger.log('Running absence marking job...');
 
-    const currentTime = new Date();
     const events = await this.eventService.findByAbsenteesNotUpdated();
 
     if (events.length === 0) {
@@ -118,38 +120,43 @@ export class AttendanceService {
 
     this.logger.log(`Found ${events.length} events for absence marking`);
 
-    for (const event of events) {
-      this.logger.log(`Processing event: ${event.name}`);
+    const currentTime = new Date();
 
-      const absentees = await this.workerService.getWorkersNotCheckedInForEvent(
-        event.id,
-      );
+    await this.dataSource.transaction(async (manager) => {
+      for (const event of events) {
+        this.logger.log(`Processing event: ${event.name}`);
 
-      if (absentees.length === 0) {
-        this.logger.log(`No absent workers found for event ${event.name}`);
-        continue;
+        const absentees =
+          await this.workerService.getWorkersNotCheckedInForEvent(event.id);
+
+        if (absentees.length === 0) {
+          this.logger.log(`No absent workers found for event ${event.name}`);
+          continue;
+        }
+
+        const attendanceRecords = absentees.map((worker) => ({
+          worker,
+          event,
+          checkinStatus: CheckInStatusEnum.ABSENT,
+          checkinTime: currentTime,
+          workerLocation: { longitude: 0, latitude: 0 },
+        }));
+
+        if (attendanceRecords.length > 0) {
+          await manager.save(
+            this.attendanceRepository.target,
+            attendanceRecords,
+          );
+          this.logger.log(
+            `Marked ${attendanceRecords.length} workers as absent for event ${event.name}`,
+          );
+        }
+
+        event.markedAbsent = true;
+        await manager.save(event);
+        this.logger.log(`Updated event ${event.name} as marked absent`);
       }
-
-      const attendanceRecords = absentees.map((worker) => ({
-        worker,
-        event,
-        checkinStatus: CheckInStatusEnum.ABSENT,
-        checkinTime: currentTime,
-        workerLocation: { longitude: 0, latitude: 0 },
-      }));
-
-      if (attendanceRecords.length > 0) {
-        await this.attendanceRepository.save(attendanceRecords);
-        this.logger.log(
-          `Marked ${attendanceRecords.length} workers as absent for event ${event.name}`,
-        );
-      }
-
-      event.markedAbsent = true;
-      await this.eventService.updateEvent(event);
-
-      this.logger.log(`Updated event ${event.name} as marked absent`);
-    }
+    });
 
     this.logger.log('Absence marking job completed');
   }
@@ -172,7 +179,7 @@ export class AttendanceService {
       .where('attendance.worker.id = :workerId', { workerId })
       .skip((page - 1) * limit)
       .take(limit)
-      .orderBy('attendance.createdAt', 'DESC');
+      .orderBy('attendance.checkinTime', 'DESC');
 
     if (attendanceDate) {
       this.appendAttendanceDate(attendanceDate, queryBuilder);
@@ -205,7 +212,7 @@ export class AttendanceService {
       .leftJoinAndSelect('attendance.worker', 'worker')
       .skip((page - 1) * limit)
       .take(limit)
-      .orderBy('attendance.createdAt', 'DESC');
+      .orderBy('attendance.checkinTime', 'DESC');
 
     if (workerId) {
       queryBuilder.andWhere('worker.id = :workerId', { workerId });
@@ -229,12 +236,42 @@ export class AttendanceService {
     );
   }
 
+  async getDepartmentCheckinHistory(user: UserAuth, eventId: string) {
+    const departmentLead = await this.departmentService.isWorkerDepartmentLead(
+      user.id,
+    );
+    if (!departmentLead) {
+      this.createErrorResponse(
+        'You are not authorized to view this department attendance',
+      );
+    }
+
+    const worker = await this.workerService.get(user.id, true);
+    const departmentId = worker.department.id;
+
+    const queryBuilder = this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.event', 'event')
+      .leftJoinAndSelect('attendance.worker', 'worker')
+      .where('worker.department.id = :departmentId', { departmentId })
+      .andWhere('event.id = :eventId', { eventId })
+      .orderBy('attendance.checkinTime', 'DESC');
+
+    const attendances = await queryBuilder.getMany();
+
+    return UtilityService.createPaginationResponse<Attendance>(
+      attendances,
+      1,
+      attendances.length,
+      attendances.length,
+    );
+  }
+
   async getAttendanceLeaderboard(
     daysAgo: number = 7,
     limit: number = 10,
   ): Promise<any[]> {
-    const dateDaysAgo = new Date();
-    dateDaysAgo.setDate(dateDaysAgo.getDate() - daysAgo);
+    const dateDaysAgo = moment().subtract(daysAgo, 'days').toDate();
 
     const attendances = await this.attendanceRepository
       .createQueryBuilder('attendance')
@@ -242,53 +279,84 @@ export class AttendanceService {
       .addSelect('worker.firstname', 'firstname')
       .addSelect('worker.lastname', 'lastname')
       .addSelect('department.name', 'departmentName')
-      .addSelect('COUNT(attendance.id)', 'attendanceCount')
+      .addSelect(
+        `
+    SUM(CASE WHEN attendance.checkinStatus != :absentStatus THEN 1 ELSE 0 END)
+  `,
+        'presentcount',
+      )
+      .addSelect(
+        `
+    SUM(CASE WHEN attendance.checkinStatus = :absentStatus THEN 1 ELSE 0 END)
+  `,
+        'absentcount',
+      )
       .innerJoin('attendance.worker', 'worker')
       .innerJoin('worker.department', 'department')
       .where('attendance.checkinTime >= :dateDaysAgo', { dateDaysAgo })
+      .setParameter('absentStatus', CheckInStatusEnum.ABSENT)
       .groupBy('worker.id, worker.firstname, worker.lastname, department.name')
-      .orderBy('attendanceCount', 'DESC')
+      .orderBy('presentcount', 'DESC')
       .limit(limit)
       .getRawMany();
 
-    const totalDays = daysAgo;
+    return attendances.map((attendance, index) => {
+      const presentCount = parseInt(attendance.presentcount, 10);
+      const absentCount = parseInt(attendance.absentcount, 10);
 
-    return attendances.map((attendance, index) => ({
-      rank: index + 1,
-      workerName: `${attendance.firstname} ${attendance.lastname}`,
-      departmentName: attendance.departmentName,
-      presentCount: parseInt(attendance.attendanceCount, 10),
-      absentCount: totalDays - parseInt(attendance.attendanceCount, 10),
-    }));
+      return {
+        rank: index + 1,
+        workerName: `${attendance.firstname} ${attendance.lastname}`,
+        departmentName: attendance.departmentName,
+        presentCount,
+        absentCount,
+      };
+    });
   }
 
   async getAttendancePercentage(
-    daysAgo: number = 7,
+    daysAgo = 7,
     workerId?: string,
+    departmentId?: string,
   ): Promise<number> {
     const dateDaysAgo = moment().subtract(daysAgo, 'days').toDate();
 
-    const totalWorkers = await this.workerService.count();
-    const whereClause: any = {
-      createdAt: MoreThanOrEqual(dateDaysAgo),
-    };
-
-    if (workerId) {
-      whereClause['worker.id'] = workerId;
-    }
-
-    console.log('whereClause:', whereClause);
-
-    const attendedWorkers = await this.attendanceRepository.count({
-      where: whereClause,
-    });
+    const totalWorkers = workerId
+      ? 1
+      : await this.workerService.count({
+          where: departmentId ? { department: { id: departmentId } } : {},
+        });
 
     if (totalWorkers === 0) {
       return 0;
     }
 
-    const attendancePercentage = (attendedWorkers / totalWorkers) * 100;
-    return parseFloat(attendancePercentage.toFixed(2));
+    const queryBuilder = this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .innerJoin('attendance.worker', 'worker')
+      .where('attendance.createdAt >= :dateDaysAgo', { dateDaysAgo })
+      .andWhere('attendance.checkinStatus != :absentStatus', {
+        absentStatus: CheckInStatusEnum.ABSENT,
+      });
+
+    if (workerId) {
+      queryBuilder.andWhere('worker.id = :workerId', { workerId });
+    } else if (departmentId) {
+      queryBuilder.andWhere('worker.department.id = :departmentId', {
+        departmentId,
+      });
+    }
+
+    const { distinctWorkerCount } = await queryBuilder
+      .select('COUNT(DISTINCT worker.id)', 'distinctWorkerCount')
+      .getRawOne<{ distinctWorkerCount: string }>();
+
+    const attendedCount = parseInt(distinctWorkerCount ?? '0', 10);
+
+    return Math.min(
+      Number(((attendedCount / totalWorkers) * 100).toFixed(2)),
+      100,
+    );
   }
 
   private createErrorResponse(message: string) {
@@ -396,6 +464,6 @@ export class AttendanceService {
   }
 
   private shouldEnforceDistanceCheck(): boolean {
-    return this.configService.get<boolean>('ENFORCE_DISTANCE_CHECK') === true;
+    return this.configService.get<string>('ENFORCE_DISTANCE_CHECK') === 'true';
   }
 }

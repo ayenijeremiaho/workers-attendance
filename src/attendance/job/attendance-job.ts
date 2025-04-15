@@ -8,6 +8,6 @@ export class AttendanceJobService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async scheduledMarkAbsentees() {
-    await this.attendanceService.markAbsenteesAndSendDepartmentEmail();
+    await this.attendanceService.markAbsentees();
   }
 }

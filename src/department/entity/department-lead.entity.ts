@@ -1,25 +1,38 @@
 import {
+  Column,
   CreateDateColumn,
   Entity,
-  OneToMany,
+  JoinColumn,
+  ManyToOne,
+  OneToOne,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
 import { Worker } from '../../user/entity/worker.entity';
 import { Department } from './department.entity';
+import { DepartmentLeadTypeEnum } from '../enums/department-lead-type.enum';
 
 @Entity({ name: 'department_leads' })
-@Unique(['worker', 'department'])
-export class DepartmentLeads {
+@Unique(['department', 'leadType'])
+export class DepartmentLead {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToMany(() => Worker, (worker) => worker.id)
-  worker: Worker;
+  @OneToOne(() => Worker, (worker) => worker.id)
+  @JoinColumn({ name: 'lead_id' })
+  lead: Worker;
 
-  @OneToMany(() => Department, (department) => department.id)
+  @ManyToOne(() => Department, (department) => department.id)
+  @JoinColumn({ name: 'department_id' })
   department: Department;
+
+  @Column({
+    type: 'enum',
+    enum: DepartmentLeadTypeEnum,
+    enumName: 'lead_type',
+  })
+  leadType: DepartmentLeadTypeEnum;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

@@ -13,6 +13,7 @@ import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto
 import { Attendance } from '../../attendance/entity/attendance.entity';
 import { Event } from '../../event/entity/event.entity';
 import { WorkerStatusCountDto } from '../dto/worker-status-count.dto';
+import { DepartmentService } from '../../department/service/department.service';
 
 @Injectable()
 export class DashboardService {
@@ -20,6 +21,7 @@ export class DashboardService {
     private readonly eventService: EventService,
     private readonly adminService: AdminService,
     private readonly workerService: WorkerService,
+    private readonly departmentService: DepartmentService,
     private readonly attendanceService: AttendanceService,
   ) {}
 
@@ -40,8 +42,25 @@ export class DashboardService {
     const top5FutureEvents: Event[] =
       await this.eventService.getTopEventsByDateCondition('gte', today, 5);
 
+    const isDepartmentLead: boolean =
+      await this.departmentService.isWorkerDepartmentLead(worker.id);
+
+    let departmentAttendancePercentage = null;
+    if (isDepartmentLead) {
+      departmentAttendancePercentage =
+        await this.attendanceService.getAttendancePercentage(
+          daysAgo,
+          null,
+          worker.department.id,
+        );
+    }
+
     return {
       profile: workerDto,
+      isDepartmentLead,
+      ...(departmentAttendancePercentage && {
+        last7DaysDepartmentAttendancePercentage: departmentAttendancePercentage,
+      }),
       attendancePercentage,
       attendanceHistory: attendanceHistory?.data,
       top5FutureEvents,

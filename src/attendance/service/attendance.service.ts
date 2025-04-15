@@ -15,6 +15,7 @@ import { Event } from '../../event/entity/event.entity';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UserAuth } from '../../auth/interface/auth.interface';
 import { DepartmentService } from '../../department/service/department.service';
+import { RequestLeaveService } from '../../request-leave/service/request-leave.service';
 
 @Injectable()
 export class AttendanceService {
@@ -26,6 +27,7 @@ export class AttendanceService {
     private readonly configService: ConfigService,
     private readonly workerService: WorkerService,
     private readonly departmentService: DepartmentService,
+    private readonly requestLeaveService: RequestLeaveService,
     @InjectRepository(Attendance)
     private readonly attendanceRepository: Repository<Attendance>,
   ) {}
@@ -134,13 +136,29 @@ export class AttendanceService {
           continue;
         }
 
-        const attendanceRecords = absentees.map((worker) => ({
-          worker,
-          event,
-          checkinStatus: CheckInStatusEnum.ABSENT,
-          checkinTime: currentTime,
-          workerLocation: { longitude: 0, latitude: 0 },
-        }));
+        const attendanceRecords = [];
+        for (const worker of absentees) {
+          if (worker.status === WorkerStatusEnum.INACTIVE) {
+            continue; // Skip inactive workers
+          }
+
+          const hasApprovedLeave =
+            await this.requestLeaveService.hasApprovedLeave(
+              worker.id,
+              event.startDate,
+              event.endDate,
+            );
+
+          attendanceRecords.push({
+            worker,
+            event,
+            checkinStatus: hasApprovedLeave
+              ? CheckInStatusEnum.ON_LEAVE
+              : CheckInStatusEnum.ABSENT,
+            checkinTime: currentTime,
+            workerLocation: { longitude: 0, latitude: 0 },
+          });
+        }
 
         if (attendanceRecords.length > 0) {
           await manager.save(
@@ -148,7 +166,7 @@ export class AttendanceService {
             attendanceRecords,
           );
           this.logger.log(
-            `Marked ${attendanceRecords.length} workers as absent for event ${event.name}`,
+            `Marked ${attendanceRecords.length} workers as absent or on leave for event ${event.name}`,
           );
         }
 
@@ -281,20 +299,24 @@ export class AttendanceService {
       .addSelect('department.name', 'departmentName')
       .addSelect(
         `
-    SUM(CASE WHEN attendance.checkinStatus != :absentStatus THEN 1 ELSE 0 END)
-  `,
+      SUM(CASE WHEN attendance.checkinStatus != :absentStatus AND attendance.checkinStatus != :onLeaveStatus THEN 1 ELSE 0 END)
+    `,
         'presentcount',
       )
       .addSelect(
         `
-    SUM(CASE WHEN attendance.checkinStatus = :absentStatus THEN 1 ELSE 0 END)
-  `,
+      SUM(CASE WHEN attendance.checkinStatus = :absentStatus THEN 1 ELSE 0 END)
+    `,
         'absentcount',
       )
       .innerJoin('attendance.worker', 'worker')
       .innerJoin('worker.department', 'department')
       .where('attendance.checkinTime >= :dateDaysAgo', { dateDaysAgo })
+      .andWhere('worker.status != :inactiveStatus', {
+        inactiveStatus: WorkerStatusEnum.INACTIVE,
+      })
       .setParameter('absentStatus', CheckInStatusEnum.ABSENT)
+      .setParameter('onLeaveStatus', CheckInStatusEnum.ON_LEAVE)
       .groupBy('worker.id, worker.firstname, worker.lastname, department.name')
       .orderBy('presentcount', 'DESC')
       .limit(limit)
@@ -324,7 +346,10 @@ export class AttendanceService {
     const totalWorkers = workerId
       ? 1
       : await this.workerService.count({
-          where: departmentId ? { department: { id: departmentId } } : {},
+          where: {
+            status: WorkerStatusEnum.ACTIVE,
+            ...(departmentId ? { department: { id: departmentId } } : {}),
+          },
         });
 
     if (totalWorkers === 0) {
@@ -335,8 +360,14 @@ export class AttendanceService {
       .createQueryBuilder('attendance')
       .innerJoin('attendance.worker', 'worker')
       .where('attendance.createdAt >= :dateDaysAgo', { dateDaysAgo })
-      .andWhere('attendance.checkinStatus != :absentStatus', {
-        absentStatus: CheckInStatusEnum.ABSENT,
+      .andWhere('attendance.checkinStatus NOT IN (:...excludedStatuses)', {
+        excludedStatuses: [
+          CheckInStatusEnum.ABSENT,
+          CheckInStatusEnum.ON_LEAVE,
+        ],
+      })
+      .andWhere('worker.status != :inactiveStatus', {
+        inactiveStatus: WorkerStatusEnum.INACTIVE,
       });
 
     if (workerId) {

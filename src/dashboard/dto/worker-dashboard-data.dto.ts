@@ -2,8 +2,10 @@ import { WorkerDto } from '../../user/dto/worker.dto';
 
 export class WorkerDashboardDataDto {
   profile: WorkerDto;
+  departmentLeadDetails: {
+    last7DaysDepartmentAttendancePercentage: number;
+  };
   isDepartmentLead: boolean = false;
-  last7DaysDepartmentAttendancePercentage?: number;
   attendancePercentage: number;
   attendanceHistory: any[];
   top5FutureEvents: any[];

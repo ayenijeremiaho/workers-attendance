@@ -12,6 +12,8 @@ import { DepartmentModule } from './department/department.module';
 import { EventModule } from './event/event.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { RequestLeaveService } from './request-leave/service/request-leave.service';
+import { RequestLeaveModule } from './request-leave/request-leave.module';
 
 @Module({
   imports: [
@@ -31,8 +33,9 @@ import { DashboardModule } from './dashboard/dashboard.module';
     EventModule,
     AttendanceModule,
     DashboardModule,
+    RequestLeaveModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, RequestLeaveService],
 })
 export class AppModule {}

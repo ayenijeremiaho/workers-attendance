@@ -58,8 +58,11 @@ export class DashboardService {
     return {
       profile: workerDto,
       isDepartmentLead,
-      ...(departmentAttendancePercentage && {
-        last7DaysDepartmentAttendancePercentage: departmentAttendancePercentage,
+      ...(isDepartmentLead && {
+        departmentLeadDetails: {
+          last7DaysDepartmentAttendancePercentage:
+            departmentAttendancePercentage,
+        },
       }),
       attendancePercentage,
       attendanceHistory: attendanceHistory?.data,

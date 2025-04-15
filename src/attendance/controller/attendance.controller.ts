@@ -87,6 +87,7 @@ export class AttendanceController {
 
   @Get('/history/department')
   @UseGuards(RolesGuard)
+  @Roles(UserTypeEnum.WORKER)
   async getDepartmentCheckinHistory(
     @Request() req: any,
     @Query('eventId') eventId: string,

@@ -17,6 +17,7 @@ import { User } from '../../user/entity/user.entity';
 import { Admin } from '../../user/entity/admin.entity';
 import { UserChangePasswordDto } from '../../user/dto/user-change-password.dto';
 import { Worker } from '../../user/entity/worker.entity';
+import { WorkerStatusEnum } from '../../user/enums/worker-status.enum';
 
 @Injectable()
 export class AuthService {
@@ -49,6 +50,12 @@ export class AuthService {
 
     if (!passwordMatches)
       throw new UnauthorizedException('Invalid password provided');
+
+    if (userType === UserTypeEnum.WORKER) {
+      const worker = user as Worker;
+      if (worker.status === WorkerStatusEnum.INACTIVE)
+        throw new UnauthorizedException('User is inactive, contact admin');
+    }
 
     return { id: user.id, role: user.getType() };
   }

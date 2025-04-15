@@ -12,6 +12,8 @@ import { AttendanceModule } from '../attendance/attendance.module';
 import { DashboardController } from './controller/dashboard.controller';
 import { DepartmentModule } from '../department/department.module';
 import { DepartmentService } from '../department/service/department.service';
+import { RequestLeaveService } from '../request-leave/service/request-leave.service';
+import { RequestLeaveModule } from '../request-leave/request-leave.module';
 
 @Module({
   imports: [
@@ -20,6 +22,7 @@ import { DepartmentService } from '../department/service/department.service';
     UtilityModule,
     AttendanceModule,
     DepartmentModule,
+    RequestLeaveModule,
   ],
   providers: [
     DashboardService,
@@ -29,6 +32,7 @@ import { DepartmentService } from '../department/service/department.service';
     WorkerService,
     AttendanceService,
     DepartmentService,
+    RequestLeaveService,
   ],
   controllers: [DashboardController],
 })

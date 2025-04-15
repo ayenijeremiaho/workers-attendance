@@ -13,6 +13,8 @@ import { DepartmentModule } from '../department/department.module';
 import { EventModule } from '../event/event.module';
 import { DepartmentService } from '../department/service/department.service';
 import { UtilityService } from '../utility/service/utility.service';
+import { RequestLeaveModule } from '../request-leave/request-leave.module';
+import { RequestLeaveService } from '../request-leave/service/request-leave.service';
 
 @Module({
   imports: [
@@ -21,6 +23,7 @@ import { UtilityService } from '../utility/service/utility.service';
     UserModule,
     DepartmentModule,
     EventModule,
+    RequestLeaveModule,
   ],
   providers: [
     AttendanceService,
@@ -30,6 +33,7 @@ import { UtilityService } from '../utility/service/utility.service';
     UtilityService,
     EventConfigService,
     DepartmentService,
+    RequestLeaveService,
   ],
   controllers: [AttendanceController],
   exports: [TypeOrmModule, AttendanceService],

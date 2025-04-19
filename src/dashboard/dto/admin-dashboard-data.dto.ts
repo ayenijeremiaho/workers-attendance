@@ -8,4 +8,5 @@ export class AdminDashboardDataDto {
   workerCountByStatus: WorkerStatusCountDto;
   attendancePercentage: number;
   top5FutureEvents: any[];
+  totalPendingLeaveRequests: number;
 }

@@ -14,6 +14,7 @@ import { Attendance } from '../../attendance/entity/attendance.entity';
 import { Event } from '../../event/entity/event.entity';
 import { WorkerStatusCountDto } from '../dto/worker-status-count.dto';
 import { DepartmentService } from '../../department/service/department.service';
+import { RequestLeaveService } from '../../request-leave/service/request-leave.service';
 
 @Injectable()
 export class DashboardService {
@@ -23,6 +24,7 @@ export class DashboardService {
     private readonly workerService: WorkerService,
     private readonly departmentService: DepartmentService,
     private readonly attendanceService: AttendanceService,
+    private readonly requesrLeaveService: RequestLeaveService,
   ) {}
 
   async getWorkerDashboardData(
@@ -45,11 +47,20 @@ export class DashboardService {
     const isDepartmentLead: boolean =
       await this.departmentService.isWorkerDepartmentLead(worker.id);
 
+    const totalPendingLeaveRequests =
+      await this.requesrLeaveService.countPendingLeave(worker.id);
+
     let departmentAttendancePercentage = null;
+    let totalDepartmentPendingLeaveRequests = null;
     if (isDepartmentLead) {
       departmentAttendancePercentage =
         await this.attendanceService.getAttendancePercentage(
           daysAgo,
+          null,
+          worker.department.id,
+        );
+      totalDepartmentPendingLeaveRequests =
+        await this.requesrLeaveService.countPendingLeave(
           null,
           worker.department.id,
         );
@@ -62,11 +73,13 @@ export class DashboardService {
         departmentLeadDetails: {
           last7DaysDepartmentAttendancePercentage:
             departmentAttendancePercentage,
+          totalDepartmentPendingLeaveRequests,
         },
       }),
       attendancePercentage,
       attendanceHistory: attendanceHistory?.data,
       top5FutureEvents,
+      totalPendingLeaveRequests,
     };
   }
 
@@ -93,6 +106,9 @@ export class DashboardService {
     const top5FutureEvents: Event[] =
       await this.eventService.getTopEventsByDateCondition('gte', today, 5);
 
+    const totalPendingLeaveRequests =
+      await this.requesrLeaveService.countPendingLeave();
+
     return {
       profile: adminDto,
       totalWorkers,
@@ -100,6 +116,7 @@ export class DashboardService {
       workerCountByStatus,
       attendancePercentage,
       top5FutureEvents,
+      totalPendingLeaveRequests,
     };
   }
 }

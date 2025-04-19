@@ -73,10 +73,12 @@ export class RequestLeaveController {
   async getAllLeaveHistory(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('status') status?: LeaveStatusEnum,
   ): Promise<PaginationResponseDto<RequestLeaveDto>> {
     const leaveRequests = await this.requestLeaveService.getAllLeaveHistory(
       page,
       limit,
+      status,
     );
 
     return UtilityService.getPaginationResponseDto<
@@ -88,9 +90,15 @@ export class RequestLeaveController {
   @Get('department')
   @UseGuards(RolesGuard)
   @Roles(UserTypeEnum.WORKER)
-  async getDepartmentLeaveRequests(@Request() req: any) {
+  async getDepartmentLeaveRequests(
+    @Request() req: any,
+    @Query('status') status?: LeaveStatusEnum,
+  ) {
     const departmentLeaveRequests =
-      await this.requestLeaveService.getDepartmentLeaveRequests(req.user);
+      await this.requestLeaveService.getDepartmentLeaveRequests(
+        req.user,
+        status,
+      );
 
     return departmentLeaveRequests.map((leaveRequest) =>
       plainToInstance(RequestLeaveDto, leaveRequest),
@@ -100,9 +108,12 @@ export class RequestLeaveController {
   @Get('worker')
   @UseGuards(RolesGuard)
   @Roles(UserTypeEnum.WORKER)
-  async getWorkerLeaveHistory(@Request() req: any) {
+  async getWorkerLeaveHistory(
+    @Request() req: any,
+    @Query('status') status?: LeaveStatusEnum,
+  ) {
     const workerLeaveRequests =
-      await this.requestLeaveService.getWorkerLeaveHistory(req.user);
+      await this.requestLeaveService.getWorkerLeaveHistory(req.user, status);
 
     return workerLeaveRequests.map((leaveRequest) =>
       plainToInstance(RequestLeaveDto, leaveRequest),

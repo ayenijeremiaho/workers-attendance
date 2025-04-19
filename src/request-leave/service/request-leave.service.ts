@@ -120,9 +120,17 @@ export class RequestLeaveService {
     return !!leaveRequest;
   }
 
-  async getWorkerLeaveHistory(user: UserAuth): Promise<RequestLeave[]> {
+  async getWorkerLeaveHistory(
+    user: UserAuth,
+    leaveStatus?: LeaveStatusEnum,
+  ): Promise<RequestLeave[]> {
+    const whereCondition: any = { worker: { id: user.id } };
+    if (leaveStatus) {
+      whereCondition.status = leaveStatus;
+    }
+
     return await this.requestLeaveRepository.find({
-      where: { worker: { id: user.id } },
+      where: whereCondition,
       relations: ['worker', 'actionedBy'],
       order: { createdAt: 'DESC' },
     });
@@ -131,13 +139,20 @@ export class RequestLeaveService {
   async getAllLeaveHistory(
     page: number = 1,
     limit: number = 10,
+    leaveStatus?: LeaveStatusEnum,
   ): Promise<PaginationResponseDto<RequestLeave>> {
     if (page < 1) {
       throw new BadRequestException('Page number must be greater than 0');
     }
 
+    const whereCondition: any = {};
+    if (leaveStatus) {
+      whereCondition.status = leaveStatus;
+    }
+
     const [requestLeaves, total] =
       await this.requestLeaveRepository.findAndCount({
+        where: whereCondition,
         skip: (page - 1) * limit,
         take: limit,
         order: { createdAt: 'DESC' },
@@ -152,7 +167,10 @@ export class RequestLeaveService {
     );
   }
 
-  async getDepartmentLeaveRequests(user: UserAuth): Promise<RequestLeave[]> {
+  async getDepartmentLeaveRequests(
+    user: UserAuth,
+    leaveStatus?: LeaveStatusEnum,
+  ): Promise<RequestLeave[]> {
     const departmentLead = await this.departmentService.isWorkerDepartmentLead(
       user.id,
     );
@@ -165,10 +183,40 @@ export class RequestLeaveService {
     const worker = await this.workerService.get(user.id, true);
     const departmentId = worker.department.id;
 
+    const whereCondition: any = {
+      worker: { department: { id: departmentId } },
+    };
+    if (leaveStatus) {
+      whereCondition.status = leaveStatus;
+    }
+
     return await this.requestLeaveRepository.find({
-      where: { worker: { department: { id: departmentId } } },
+      where: whereCondition,
       relations: ['worker', 'worker.department', 'actionedBy'],
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  async countPendingLeave(
+    workerId?: string,
+    departmentId?: string,
+  ): Promise<number> {
+    const currentDate = new Date();
+
+    const whereCondition: any = {
+      status: LeaveStatusEnum.PENDING,
+      dateFrom: MoreThanOrEqual(currentDate),
+      dateTo: MoreThanOrEqual(currentDate),
+    };
+
+    if (workerId) {
+      whereCondition.worker = { id: workerId };
+    } else if (departmentId) {
+      whereCondition.worker = { department: { id: departmentId } };
+    }
+
+    return await this.requestLeaveRepository.count({
+      where: whereCondition,
     });
   }
 }

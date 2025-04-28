@@ -8,7 +8,7 @@ import { UtilityService } from '../../utility/service/utility.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload, JwtResponse, UserAuth } from '../interface/auth.interface';
 import refreshJwtConfig from '../../config/refresh.jwt.config';
-import { ConfigType } from '@nestjs/config';
+import { ConfigService, ConfigType } from '@nestjs/config';
 import { AdminService } from '../../user/service/admin.service';
 import { WorkerService } from '../../user/service/worker.service';
 import { UserSessionService } from '../../user/service/user-session.service';
@@ -25,6 +25,7 @@ export class AuthService {
 
   constructor(
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
     private readonly workerService: WorkerService,
     private readonly adminService: AdminService,
     private readonly userSessionService: UserSessionService,
@@ -153,7 +154,40 @@ export class AuthService {
       hashedRefreshToken,
     );
 
-    return { access_token, refresh_token };
+    return {
+      token_type: 'Bearer',
+      expires_in: this.getTokenExpiry(),
+      access_token,
+      refresh_token,
+    };
+  }
+
+  private getTokenExpiry(): number {
+    const expiry = this.configService.get<string>('JWT_EXPIRY_IN');
+    if (!expiry || typeof expiry !== 'string') {
+      return 0;
+    }
+
+    const match = RegExp(/^(\d+)([smhd])$/i).exec(expiry);
+    if (!match) {
+      return 0;
+    }
+
+    const value = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+
+    switch (unit) {
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 3600;
+      case 'd':
+        return value * 86400;
+      default:
+        return 0;
+    }
   }
 
   private async getRefreshToken(payload: JwtPayload) {

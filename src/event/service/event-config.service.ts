@@ -30,10 +30,10 @@ export class EventConfigService {
     }
 
     if (
-      createEventConfigDto.checkinStartTimeInSeconds <=
-        createEventConfigDto.lateComingStartTimeInSeconds ||
       createEventConfigDto.lateComingStartTimeInSeconds <=
-        createEventConfigDto.checkinStopTimeInSeconds
+        createEventConfigDto.checkinStartTimeInSeconds ||
+      createEventConfigDto.checkinStopTimeInSeconds <=
+        createEventConfigDto.lateComingStartTimeInSeconds
     ) {
       throw new BadRequestException(
         'lateComingStartTimeInSeconds must be greater than checkinStartTimeInSeconds and checkinStopTimeInSeconds must be greater than lateComingStartTimeInSeconds',

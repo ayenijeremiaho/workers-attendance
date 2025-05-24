@@ -14,6 +14,7 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { RequestLeaveService } from './request-leave/service/request-leave.service';
 import { RequestLeaveModule } from './request-leave/request-leave.module';
+import { NotesModule } from './notes/notes.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { RequestLeaveModule } from './request-leave/request-leave.module';
     AttendanceModule,
     DashboardModule,
     RequestLeaveModule,
+    NotesModule,
   ],
   controllers: [AppController],
   providers: [AppService, RequestLeaveService],

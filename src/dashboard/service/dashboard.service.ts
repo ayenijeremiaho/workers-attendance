@@ -24,12 +24,12 @@ export class DashboardService {
     private readonly workerService: WorkerService,
     private readonly departmentService: DepartmentService,
     private readonly attendanceService: AttendanceService,
-    private readonly requesrLeaveService: RequestLeaveService,
+    private readonly requestLeaveService: RequestLeaveService,
   ) {}
 
   async getWorkerDashboardData(
     user: UserAuth,
-    daysAgo: number = 7,
+    daysAgo: number = 30,
   ): Promise<WorkerDashboardDataDto> {
     const worker = await this.workerService.get(user.id, true);
     const workerDto = plainToInstance(WorkerDto, worker);
@@ -48,7 +48,7 @@ export class DashboardService {
       await this.departmentService.isWorkerDepartmentLead(worker.id);
 
     const totalPendingLeaveRequests =
-      await this.requesrLeaveService.countPendingLeave(worker.id);
+      await this.requestLeaveService.countPendingLeave(worker.id);
 
     let departmentAttendancePercentage = null;
     let totalDepartmentPendingLeaveRequests = null;
@@ -60,7 +60,7 @@ export class DashboardService {
           worker.department.id,
         );
       totalDepartmentPendingLeaveRequests =
-        await this.requesrLeaveService.countPendingLeave(
+        await this.requestLeaveService.countPendingLeave(
           null,
           worker.department.id,
         );
@@ -71,7 +71,7 @@ export class DashboardService {
       isDepartmentLead,
       ...(isDepartmentLead && {
         departmentLeadDetails: {
-          last7DaysDepartmentAttendancePercentage:
+          last30DaysDepartmentAttendancePercentage:
             departmentAttendancePercentage,
           totalDepartmentPendingLeaveRequests,
         },
@@ -85,7 +85,7 @@ export class DashboardService {
 
   async getAdminDashboardData(
     user: UserAuth,
-    daysAgo: number = 7,
+    daysAgo: number = 30,
   ): Promise<AdminDashboardDataDto> {
     const admin = await this.adminService.get(user.id);
     const adminDto = plainToInstance(AdminDto, admin);
@@ -107,7 +107,7 @@ export class DashboardService {
       await this.eventService.getTopEventsByDateCondition('gte', today, 5);
 
     const totalPendingLeaveRequests =
-      await this.requesrLeaveService.countPendingLeave();
+      await this.requestLeaveService.countPendingLeave();
 
     return {
       profile: adminDto,

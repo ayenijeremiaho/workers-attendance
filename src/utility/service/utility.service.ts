@@ -5,12 +5,21 @@ import { ConfigService } from '@nestjs/config';
 import { PaginationResponseDto } from '../dto/pagination-response.dto';
 import { plainToInstance } from 'class-transformer';
 import { ClassConstructor } from 'class-transformer/types/interfaces';
+import { Note } from '../../notes/entity/note.entity';
+import { NoteDto } from '../../notes/dto/note.dto';
+import { NotesService } from '../../notes/service/notes.service';
 
 @Injectable()
 export class UtilityService {
   private readonly logger = new Logger(UtilityService.name);
 
   constructor(private readonly configService: ConfigService) {}
+
+  public static isValidDateFormat(date?: string): boolean {
+    if (!date) return false;
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+    return regex.test(date) && !isNaN(new Date(date).getTime());
+  }
 
   public static calculateDistanceInMeters(
     userLatitude: number,
@@ -57,11 +66,17 @@ export class UtilityService {
     response: PaginationResponseDto<I>,
     classConstructor: ClassConstructor<O>,
   ): PaginationResponseDto<O> {
-    const mapToDtos = response.data.map((value) =>
-      plainToInstance(classConstructor, value, {
+    const mapToDtos = response.data.map((value) => {
+      const result: any = plainToInstance(classConstructor, value, {
         excludeExtraneousValues: true,
-      }),
-    );
+      });
+
+      if (result instanceof NoteDto) {
+        NotesService.getNoteDetailsDto(result, value as Note);
+      }
+
+      return result;
+    });
     return {
       ...response,
       data: mapToDtos,

@@ -161,11 +161,14 @@ export class EventService {
     return this.eventRepository.save(event);
   }
 
-  async get(id: string): Promise<Event> {
-    const event = await this.eventRepository.findOne({
-      where: { id },
-      relations: { eventConfig: true },
-    });
+  async get(id: string, relations = true): Promise<Event> {
+    const queryOptions: any = { where: { id } };
+
+    if (relations) {
+      queryOptions.relations = { eventConfig: true };
+    }
+
+    const event = await this.eventRepository.findOne(queryOptions);
 
     if (!event) {
       throw new NotFoundException('Event does not exist');

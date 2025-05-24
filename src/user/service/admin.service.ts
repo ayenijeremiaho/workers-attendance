@@ -120,7 +120,7 @@ export class AdminService {
 
     const newPassword = UtilityService.generateRandomPassword();
     admin.password = await UtilityService.hashValue(newPassword);
-    admin.changedPassword = true;
+    admin.changedPassword = false;
     await this.adminRepository.save(admin);
 
     this.utilityService.sendEmail(

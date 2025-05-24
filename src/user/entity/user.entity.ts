@@ -25,7 +25,7 @@ export abstract class User implements UserTypeI {
   @Column({ nullable: true })
   phoneNumber: string;
 
-  @Column({ default: true })
+  @Column({ default: false })
   changedPassword: boolean;
 
   @Column()

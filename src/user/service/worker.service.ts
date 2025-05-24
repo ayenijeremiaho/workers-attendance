@@ -56,6 +56,9 @@ export class WorkerService {
       ...createWorkerDto,
       department: department,
       password: `${password}`,
+      yearBaptized: new Date(createWorkerDto.yearBaptized),
+      yearBornAgain: new Date(createWorkerDto.yearBornAgain),
+      yearJoinedWorkforce: new Date(createWorkerDto.yearJoinedWorkforce),
     };
 
     const worker = await this.workerRepository.save(createWorker);
@@ -72,7 +75,7 @@ export class WorkerService {
   }
 
   async update(id: string, updateWorkerDto: UpdateWorkerDto): Promise<Worker> {
-    let worker = await this.get(id);
+    let worker = await this.get(id, true);
     await this.verifyIfEmailUpdate(worker, updateWorkerDto.email);
     await this.verifyIfDepartmentUpdate(worker, updateWorkerDto.departmentId);
 
@@ -86,6 +89,20 @@ export class WorkerService {
 
     if (updateWorkerDto.phoneNumber) {
       worker.phoneNumber = updateWorkerDto.phoneNumber;
+    }
+
+    if (updateWorkerDto.yearBaptized) {
+      worker.yearBaptized = new Date(updateWorkerDto.yearBaptized);
+    }
+
+    if (updateWorkerDto.yearBornAgain) {
+      worker.yearBornAgain = new Date(updateWorkerDto.yearBornAgain);
+    }
+
+    if (updateWorkerDto.yearJoinedWorkforce) {
+      worker.yearJoinedWorkforce = new Date(
+        updateWorkerDto.yearJoinedWorkforce,
+      );
     }
 
     worker = await this.workerRepository.save(worker);
@@ -160,7 +177,7 @@ export class WorkerService {
 
     const newPassword = UtilityService.generateRandomPassword();
     worker.password = await UtilityService.hashValue(newPassword);
-    worker.changedPassword = true;
+    worker.changedPassword = false;
     await this.workerRepository.save(worker);
 
     this.utilityService.sendEmail(

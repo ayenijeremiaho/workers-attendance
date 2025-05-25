@@ -1,10 +1,4 @@
-import {
-  IsBoolean,
-  IsEnum,
-  IsNotEmpty,
-  IsUUID,
-  Matches,
-} from 'class-validator';
+import { IsNotEmpty, IsUUID } from 'class-validator';
 import { CreateUserDto } from './create-user.dto';
 import { MaritalStatusEnum } from '../enums/marital-status.enum';
 

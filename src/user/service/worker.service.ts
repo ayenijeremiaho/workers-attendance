@@ -52,13 +52,18 @@ export class WorkerService {
     const unEncryptedPassword = `${createWorkerDto.lastname}`;
     const password = await UtilityService.hashValue(unEncryptedPassword);
 
+    const yearBaptized = createWorkerDto.yearBaptized;
+    const yearBornAgain = createWorkerDto.yearBornAgain;
+    const yearJoinedWorkforce = createWorkerDto.yearJoinedWorkforce;
     const createWorker = {
       ...createWorkerDto,
       department: department,
       password: `${password}`,
-      yearBaptized: new Date(createWorkerDto.yearBaptized),
-      yearBornAgain: new Date(createWorkerDto.yearBornAgain),
-      yearJoinedWorkforce: new Date(createWorkerDto.yearJoinedWorkforce),
+      yearBaptized: yearBaptized ? new Date(yearBaptized) : null,
+      yearBornAgain: yearBaptized ? new Date(yearBornAgain) : null,
+      yearJoinedWorkforce: yearJoinedWorkforce
+        ? new Date(yearJoinedWorkforce)
+        : null,
     };
 
     const worker = await this.workerRepository.save(createWorker);

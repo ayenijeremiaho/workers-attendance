@@ -110,7 +110,7 @@ export class EventConfigService {
   async delete(id: string): Promise<void> {
     const eventConfig = await this.eventConfigRepository.findOne({
       where: { id },
-      relations: ['event'],
+      relations: ['events'],
     });
 
     if (!eventConfig) {

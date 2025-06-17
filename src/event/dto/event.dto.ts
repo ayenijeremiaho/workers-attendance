@@ -1,4 +1,4 @@
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude, Expose, Type } from 'class-transformer';
 import { ToDateString } from '../../utility/dto/date-converter';
 import { EventConfigDto } from './event-config.dto';
 
@@ -22,6 +22,7 @@ export class EventDto {
   endDate: string;
 
   @Expose()
+  @Type(() => EventConfigDto)
   eventConfig: EventConfigDto;
 
   @Expose()

@@ -191,6 +191,7 @@ export class EventService {
       skip: (page - 1) * limit,
       take: limit,
       order: { [orderBy]: order },
+      relations: { eventConfig: true },
     });
 
     return UtilityService.createPaginationResponse<Event>(

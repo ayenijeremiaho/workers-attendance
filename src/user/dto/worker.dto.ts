@@ -4,6 +4,7 @@ import { Exclude, Expose } from 'class-transformer';
 import { WorkerStatusEnum } from '../enums/worker-status.enum';
 import { ToDateString } from '../../utility/dto/date-converter';
 import { MaritalStatusEnum } from '../enums/marital-status.enum';
+import { GenderEnum } from '../enums/gender.enum';
 
 @Exclude()
 export class WorkerDto extends UserDto {
@@ -23,6 +24,9 @@ export class WorkerDto extends UserDto {
 
   @Expose()
   profession: string;
+
+  @Expose()
+  gender: GenderEnum;
 
   @Expose()
   maritalStatus: MaritalStatusEnum;

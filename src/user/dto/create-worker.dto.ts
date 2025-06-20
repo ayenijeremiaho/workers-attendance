@@ -7,6 +7,7 @@ import {
 } from 'class-validator';
 import { CreateUserDto } from './create-user.dto';
 import { MaritalStatusEnum } from '../enums/marital-status.enum';
+import { GenderEnum } from '../enums/gender.enum';
 
 export class CreateWorkerDto extends CreateUserDto {
   @IsNotEmpty()
@@ -25,6 +26,12 @@ export class CreateWorkerDto extends CreateUserDto {
 
   @IsNotEmpty()
   profession: string;
+
+  @IsNotEmpty()
+  @IsEnum(GenderEnum, {
+    message: 'gender must be a valid enum value',
+  })
+  gender: GenderEnum;
 
   @IsNotEmpty()
   @IsEnum(MaritalStatusEnum, {

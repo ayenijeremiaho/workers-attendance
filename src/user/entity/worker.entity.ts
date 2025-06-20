@@ -5,6 +5,7 @@ import { Department } from '../../department/entity/department.entity';
 import { WorkerStatusEnum } from '../enums/worker-status.enum';
 import { Attendance } from '../../attendance/entity/attendance.entity';
 import { MaritalStatusEnum } from '../enums/marital-status.enum';
+import { GenderEnum } from '../enums/gender.enum';
 
 @Entity({ name: 'workers' })
 export class Worker extends User {
@@ -27,6 +28,13 @@ export class Worker extends User {
 
   @Column({ nullable: true })
   profession: string;
+
+  @Column({
+    type: 'enum',
+    enum: GenderEnum,
+    nullable: true,
+  })
+  gender: GenderEnum;
 
   @Column({
     type: 'enum',

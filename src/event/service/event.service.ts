@@ -214,6 +214,18 @@ export class EventService {
     }
   }
 
+  async deleteEvent(eventId: string): Promise<void> {
+    const futureEvents = await this.eventRepository.find({
+      where: { id: eventId, startDate: MoreThanOrEqual(new Date()) },
+    });
+
+    if (futureEvents) {
+      await this.eventRepository.remove(futureEvents);
+    } else {
+      throw new NotFoundException('Past event cannot be deleted');
+    }
+  }
+
   async findByAbsenteesNotUpdated() {
     const currentTime = new Date();
 

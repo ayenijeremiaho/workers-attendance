@@ -96,6 +96,10 @@ export class WorkerService {
       worker.phoneNumber = updateWorkerDto.phoneNumber;
     }
 
+    if (updateWorkerDto.gender) {
+      worker.gender = updateWorkerDto.gender;
+    }
+
     if (updateWorkerDto.yearBaptized) {
       worker.yearBaptized = new Date(updateWorkerDto.yearBaptized);
     }

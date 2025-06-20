@@ -74,4 +74,11 @@ export class EventController {
   ): Promise<void> {
     await this.eventService.deleteFutureEvents(recurringEventId);
   }
+
+  @UseGuards(RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
+  @Delete('/:eventId')
+  async deleteEvent(@Param('eventId') eventId: string): Promise<void> {
+    await this.eventService.deleteEvent(eventId);
+  }
 }

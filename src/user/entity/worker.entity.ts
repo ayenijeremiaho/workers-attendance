@@ -13,6 +13,9 @@ export class Worker extends User {
   @JoinColumn({ name: 'department_id' })
   department: Department;
 
+  @Column({ nullable: true })
+  dateOfBirth: string;
+
   @Column({
     type: 'enum',
     enum: WorkerStatusEnum,
@@ -25,6 +28,9 @@ export class Worker extends User {
 
   @Column({ nullable: true })
   yearBornAgain: Date;
+
+  @Column({ nullable: true })
+  baptizedWithHolyGhost: boolean;
 
   @Column({ nullable: true })
   profession: string;
@@ -42,6 +48,9 @@ export class Worker extends User {
     nullable: true,
   })
   maritalStatus: MaritalStatusEnum;
+
+  @Column({ nullable: true })
+  yearJoinedChurch: Date;
 
   @Column({ nullable: true })
   yearJoinedWorkforce: Date;

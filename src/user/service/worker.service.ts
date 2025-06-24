@@ -55,6 +55,7 @@ export class WorkerService {
     const yearBaptized = createWorkerDto.yearBaptized;
     const yearBornAgain = createWorkerDto.yearBornAgain;
     const yearJoinedWorkforce = createWorkerDto.yearJoinedWorkforce;
+    const yearJoinedChurch = createWorkerDto.yearJoinedChurch;
     const createWorker = {
       ...createWorkerDto,
       department: department,
@@ -64,6 +65,7 @@ export class WorkerService {
       yearJoinedWorkforce: yearJoinedWorkforce
         ? new Date(yearJoinedWorkforce)
         : null,
+      yearJoinedChurch: yearJoinedChurch ? new Date(yearJoinedChurch) : null,
     };
 
     const worker = await this.workerRepository.save(createWorker);
@@ -112,6 +114,14 @@ export class WorkerService {
       worker.yearJoinedWorkforce = new Date(
         updateWorkerDto.yearJoinedWorkforce,
       );
+    }
+
+    if (updateWorkerDto.yearJoinedChurch) {
+      worker.yearJoinedChurch = new Date(updateWorkerDto.yearJoinedChurch);
+    }
+
+    if (updateWorkerDto.dateOfBirth) {
+      worker.dateOfBirth = updateWorkerDto.dateOfBirth;
     }
 
     worker = await this.workerRepository.save(worker);

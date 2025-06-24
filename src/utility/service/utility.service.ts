@@ -8,12 +8,18 @@ import { ClassConstructor } from 'class-transformer/types/interfaces';
 import { Note } from '../../notes/entity/note.entity';
 import { NoteDto } from '../../notes/dto/note.dto';
 import { NotesService } from '../../notes/service/notes.service';
+import { DATE_OF_BIRTH_REGEX } from '../constants/regex.constant';
 
 @Injectable()
 export class UtilityService {
   private readonly logger = new Logger(UtilityService.name);
 
   constructor(private readonly configService: ConfigService) {}
+
+  public static isValidDateOfBirthFormat(date?: string): boolean {
+    if (!date) return false;
+    return DATE_OF_BIRTH_REGEX.test(date);
+  }
 
   public static isValidDateFormat(date?: string): boolean {
     if (!date) return false;

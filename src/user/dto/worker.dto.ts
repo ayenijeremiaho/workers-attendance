@@ -12,6 +12,9 @@ export class WorkerDto extends UserDto {
   department: DepartmentDto;
 
   @Expose()
+  dateOfBirth: string;
+
+  @Expose()
   status: WorkerStatusEnum;
 
   @Expose()
@@ -23,6 +26,9 @@ export class WorkerDto extends UserDto {
   yearBornAgain: string;
 
   @Expose()
+  baptizedWithHolyGhost: boolean;
+
+  @Expose()
   profession: string;
 
   @Expose()
@@ -30,6 +36,10 @@ export class WorkerDto extends UserDto {
 
   @Expose()
   maritalStatus: MaritalStatusEnum;
+
+  @Expose()
+  @ToDateString()
+  yearJoinedChurch: string;
 
   @Expose()
   @ToDateString()

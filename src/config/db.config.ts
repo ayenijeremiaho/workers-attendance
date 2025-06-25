@@ -13,5 +13,8 @@ export default (): PostgresConnectionOptions => ({
     process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
   entities: [path.resolve(__dirname, '..') + '/**/*.entity{.ts,.js}'],
   synchronize: true,
-  logging: true,
+  logging: process.env.DATABASE_LOGGING === 'true',
+  extra: {
+    pool_mode: process.env.DATABASE_POOL ? process.env.DATABASE_POOL : '',
+  },
 });

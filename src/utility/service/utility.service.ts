@@ -109,6 +109,28 @@ export class UtilityService {
     return await argon2.verify(hashedValue, value);
   }
 
+  private sendEmailInternal(
+    mailOptions: Mail.Options,
+    subject: string,
+    to: string | [string],
+  ) {
+    this.getMailTransport()
+      .sendMail(mailOptions)
+      .then(() => {
+        this.logger.log(`SENT ${subject} EMAIL TO ${to}`);
+      })
+      .catch((error) => {
+        this.logger.error(`ERROR SENDING ${subject} EMAIL TO ${to}`, error);
+      });
+  }
+
+  private compileTemplate(template: string, data: Record<string, any>): string {
+    return Object.keys(data).reduce((compiled, key) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      return compiled.replace(regex, data[key]);
+    }, template);
+  }
+
   public sendEmail(
     to: string | [string],
     subject: string,
@@ -122,15 +144,34 @@ export class UtilityService {
       subject,
       html: body,
     };
+    this.sendEmailInternal(mailOptions, subject, to);
+  }
 
-    this.getMailTransport()
-      .sendMail(mailOptions)
-      .then(() => {
-        this.logger.log(`SENT ${subject} EMAIL TO ${to}`);
-      })
-      .catch((error) => {
-        this.logger.error(`ERROR SENDING ${subject} EMAIL TO ${to}`, error);
-      });
+  public sendEmailWithTemplate(
+    to: string | [string],
+    subject: string,
+    templateName: string,
+    templateData: Record<string, any>,
+    cc?: string | [string],
+  ): void {
+    const templatePath = path.resolve(
+      __dirname,
+      '..',
+      'templates',
+      `${templateName}.html`,
+    );
+    const template = fs.readFileSync(templatePath, 'utf-8');
+    const compiledTemplate = this.compileTemplate(template, templateData);
+
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: this.configService.get<string>('EMAIL_USER'),
+      to,
+      cc,
+      subject,
+      html: compiledTemplate,
+    };
+
+    this.sendEmailInternal(mailOptions, subject, to);
   }
 
   private getMailTransport() {

@@ -181,6 +181,7 @@ export class WorkerService {
       skip: (page - 1) * limit,
       take: limit,
       order: { createdAt: 'DESC' },
+      relations: ['department'],
     });
 
     return UtilityService.createPaginationResponse<Worker>(

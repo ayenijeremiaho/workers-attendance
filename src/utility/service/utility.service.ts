@@ -94,7 +94,7 @@ export class UtilityService {
 
   public static capitalizeFirstLetter(name: string): string {
     if (!name) return name;
-    return name.charAt(0).toUpperCase() + name.slice(1);
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
   }
 
   public static generateRandomPassword(): string {

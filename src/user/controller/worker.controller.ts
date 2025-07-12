@@ -74,4 +74,9 @@ export class WorkerController {
   async resetPassword(@Param('id') id: string): Promise<string> {
     return await this.workerService.resetPassword(id);
   }
+
+  @Post('resend-welcome-email/:email')
+  async resendWelcomeEmail(@Param('email') email: string): Promise<string> {
+    return await this.workerService.resendWelcomeEmail(email);
+  }
 }

@@ -72,10 +72,22 @@ export class WorkerService {
 
     this.logger.log('worker created successfully');
 
-    this.utilityService.sendEmail(
+    const capitalizeFirstLetter = UtilityService.capitalizeFirstLetter(
+      worker.firstname,
+    );
+    this.utilityService.sendEmailWithTemplate(
       worker.email,
-      `${UtilityService.capitalizeFirstLetter(worker.firstname)} Account Created`,
-      `Your account has been created successfully. Your password is ${unEncryptedPassword}`,
+      `${capitalizeFirstLetter}, Welcome to RCCG DC Staff App`,
+      'welcome-worker',
+      {
+        login_url: process.env.LOGIN_URL,
+        username: worker.email,
+        password: unEncryptedPassword,
+        name: `${capitalizeFirstLetter} ${worker.lastname[0].toUpperCase()}.`,
+        explainer_video_android_url: process.env.EXPLAINER_VIDEO_ANDROID_URL,
+        explainer_video_ios_url: process.env.EXPLAINER_VIDEO_IOS_URL,
+        support_form_url: process.env.SUPPORT_FORM_URL,
+      },
     );
 
     return worker;
@@ -291,6 +303,30 @@ export class WorkerService {
       ...options,
       where: { ...options?.where, ...where }, // Merge conditions dynamically
     });
+  }
+
+  async resendWelcomeEmail(email: string): Promise<string> {
+    const worker = await this.findByEmail(email);
+    if (!worker) {
+      throw new NotFoundException('Worker not found');
+    }
+
+    this.utilityService.sendEmailWithTemplate(
+      worker.email,
+      `${UtilityService.capitalizeFirstLetter(worker.firstname)}, Welcome to RCCG DC Staff App`,
+      'welcome-worker',
+      {
+        login_url: process.env.LOGIN_URL,
+        username: worker.email,
+        password: `&lt;check previous email for password&gt;`,
+        name: `${UtilityService.capitalizeFirstLetter(worker.firstname)} ${worker.lastname[0].toUpperCase()}.`,
+        explainer_video_android_url: process.env.EXPLAINER_VIDEO_ANDROID_URL,
+        explainer_video_ios_url: process.env.EXPLAINER_VIDEO_IOS_URL,
+        support_form_url: process.env.SUPPORT_FORM_URL,
+      },
+    );
+
+    return 'Welcome email resent successfully';
   }
 
   private async verifyIfDepartmentUpdate(

@@ -9,6 +9,9 @@ import { Note } from '../../notes/entity/note.entity';
 import { NoteDto } from '../../notes/dto/note.dto';
 import { NotesService } from '../../notes/service/notes.service';
 import { DATE_OF_BIRTH_REGEX } from '../constants/regex.constant';
+import Mail from 'nodemailer/lib/mailer';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 
 @Injectable()
 export class UtilityService {

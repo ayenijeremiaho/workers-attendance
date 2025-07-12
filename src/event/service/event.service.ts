@@ -235,7 +235,7 @@ export class EventService {
       .where(
         new Brackets((qb) => {
           qb.where('event.endDate < :currentTime', { currentTime }).orWhere(
-            `event.startDate + INTERVAL '1 second' * eventConfig.lateComingStartTimeInSeconds < :currentTime`,
+            `event.startDate + INTERVAL '1 second' * eventConfig.checkinStopTimeInSeconds < :currentTime`,
             { currentTime },
           );
         }),

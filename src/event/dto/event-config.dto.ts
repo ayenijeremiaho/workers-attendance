@@ -1,5 +1,13 @@
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude, Expose, Type } from 'class-transformer';
 import { ToDateString } from '../../utility/dto/date-converter';
+
+class VenueDto {
+  @Expose() id: string;
+  @Expose() name: string;
+  @Expose() address: string;
+  @Expose() latitude: number;
+  @Expose() longitude: number;
+}
 
 @Exclude()
 export class EventConfigDto {
@@ -10,22 +18,26 @@ export class EventConfigDto {
   name: string;
 
   @Expose()
-  checkinStartTimeInSeconds: number;
+  description: string;
 
   @Expose()
-  lateComingStartTimeInSeconds: number;
+  @Type(() => VenueDto)
+  defaultVenue: VenueDto;
 
   @Expose()
-  checkinStopTimeInSeconds: number;
+  workerCheckinStartOffsetSeconds: number;
+
+  @Expose()
+  workerLateOffsetSeconds: number;
+
+  @Expose()
+  memberCheckinStartOffsetSeconds: number;
+
+  @Expose()
+  checkinStopOffsetSeconds: number;
 
   @Expose()
   allowedDistanceInMeters: number;
-
-  @Expose()
-  locationLongitude: number;
-
-  @Expose()
-  locationLatitude: number;
 
   @Expose()
   @ToDateString()

@@ -9,43 +9,52 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
-import { CheckInStatusEnum } from '../enums/check-in.enum';
-import { Event } from '../../event/entity/event.entity';
-import { Worker } from '../../user/entity/worker.entity';
+import { AttendanceStatusEnum } from '../enums/check-in.enum';
+import { Member } from '../../member/entity/member.entity';
+import { ServiceSlot } from '../../event/entity/service-slot.entity';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 
 @Entity({ name: 'attendances' })
-@Unique(['worker', 'event'])
+@Unique(['member', 'serviceSlot'])
+@Index(['member', 'roleAtCheckin', 'createdAt'])
 export class Attendance {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Index()
-  @ManyToOne(() => Event, (event) => event.attendances)
-  @JoinColumn({ name: 'event_id' })
-  event: Event;
+  @ManyToOne(() => Member, (member) => member.attendances, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'member_id' })
+  member: Member;
 
   @Index()
-  @ManyToOne(() => Worker, (worker) => worker.attendances)
-  @JoinColumn({ name: 'worker_id' })
-  worker: Worker;
+  @ManyToOne(() => ServiceSlot, (slot) => slot.attendances, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'service_slot_id' })
+  serviceSlot: ServiceSlot;
 
   @Index()
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamp', nullable: true })
   checkinTime: Date;
 
+  @Index()
   @Column({
-    enum: CheckInStatusEnum,
     type: 'enum',
-    enumName: 'check_in_status',
+    enum: AttendanceStatusEnum,
+    enumName: 'attendance_status',
   })
-  checkinStatus: CheckInStatusEnum;
+  status: AttendanceStatusEnum;
 
-  @Column({ type: 'json', name: 'worker_location' })
-  workerLocation: {
-    longitude: number;
-    latitude: number;
-  };
+  @Index()
+  @Column({
+    type: 'enum',
+    enum: MemberRoleEnum,
+    enumName: 'attendee_role',
+  })
+  roleAtCheckin: MemberRoleEnum;
 
+  @Column({ type: 'json', name: 'location', nullable: true })
+  location: { longitude: number; latitude: number } | null;
+
+  @Index()
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 

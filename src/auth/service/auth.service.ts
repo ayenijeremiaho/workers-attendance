@@ -4,20 +4,17 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { UtilityService } from '../../utility/service/utility.service';
 import { JwtService } from '@nestjs/jwt';
-import { JwtPayload, JwtResponse, UserAuth } from '../interface/auth.interface';
-import refreshJwtConfig from '../../config/refresh.jwt.config';
 import { ConfigService, ConfigType } from '@nestjs/config';
-import { AdminService } from '../../user/service/admin.service';
-import { WorkerService } from '../../user/service/worker.service';
-import { UserSessionService } from '../../user/service/user-session.service';
-import { UserTypeEnum } from '../../user/enums/user-type.enum';
-import { User } from '../../user/entity/user.entity';
-import { Admin } from '../../user/entity/admin.entity';
-import { UserChangePasswordDto } from '../../user/dto/user-change-password.dto';
-import { Worker } from '../../user/entity/worker.entity';
-import { WorkerStatusEnum } from '../../user/enums/worker-status.enum';
+import { UtilityService } from '../../utility/service/utility.service';
+import { MemberService } from '../../member/service/member.service';
+import { MemberSessionService } from '../../member/service/member-session.service';
+import { MemberStatusEnum } from '../../member/enums/member-status.enum';
+import { JwtPayload, JwtResponse, MemberAuth } from '../interface/auth.interface';
+import refreshJwtConfig from '../../config/refresh.jwt.config';
+import { ChangePasswordDto } from '../../member/dto/change-password.dto';
+import { SignupDto } from '../../member/dto/signup.dto';
+import { Member } from '../../member/entity/member.entity';
 
 @Injectable()
 export class AuthService {
@@ -26,183 +23,114 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly workerService: WorkerService,
-    private readonly adminService: AdminService,
-    private readonly userSessionService: UserSessionService,
+    private readonly memberService: MemberService,
+    private readonly sessionService: MemberSessionService,
+    private readonly utilityService: UtilityService,
     @Inject(refreshJwtConfig.KEY)
     private readonly jwtRefreshConfig: ConfigType<typeof refreshJwtConfig>,
   ) {}
 
-  async validateUser(
-    email: string,
-    password: string,
-    userType: UserTypeEnum,
-  ): Promise<UserAuth> {
-    this.logger.log(`Validating ${userType} user with email: ${email}`);
+  async validateMember(email: string, password: string): Promise<MemberAuth> {
+    const member = await this.memberService.findByEmail(email);
 
-    const user = await this.getUser(userType, email);
+    if (!member) throw new UnauthorizedException('Invalid email or password');
 
-    if (!user) throw new UnauthorizedException('Invalid email address');
+    const passwordMatches = await UtilityService.verifyHashedValue(password, member.password);
+    if (!passwordMatches) throw new UnauthorizedException('Invalid email or password');
 
-    const passwordMatches = await UtilityService.verifyHashedValue(
-      password,
-      user.password,
-    );
-
-    if (!passwordMatches)
-      throw new UnauthorizedException('Invalid password provided');
-
-    if (userType === UserTypeEnum.WORKER) {
-      const worker = user as Worker;
-      if (worker.status === WorkerStatusEnum.INACTIVE)
-        throw new UnauthorizedException('User is inactive, contact admin');
+    if (member.status === MemberStatusEnum.INACTIVE) {
+      throw new UnauthorizedException('Your account is inactive. Contact admin.');
     }
 
-    return { id: user.id, role: user.getType() };
+    return { id: member.id, role: member.role };
   }
 
-  async login(user: UserAuth, userType: UserTypeEnum): Promise<JwtResponse> {
-    return await this.generateTokensAndUpdateUser(user.id, userType);
+  async signup(dto: SignupDto): Promise<Member> {
+    return this.memberService.signup(dto);
   }
 
-  async refreshToken(
-    user: UserAuth,
-    userType: UserTypeEnum,
-  ): Promise<JwtResponse> {
-    return await this.generateTokensAndUpdateUser(user.id, userType);
+  async login(user: MemberAuth): Promise<JwtResponse> {
+    const tokens = await this.generateTokens(user.id, user.role);
+
+    this.memberService.getById(user.id).then((member) => {
+      const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+      const loginTime = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Lagos' });
+      this.utilityService.sendEmailWithTemplate(
+        member.email,
+        `${firstName}, New Login Detected`,
+        'login-notification',
+        { name: firstName, loginTime },
+      );
+    }).catch(() => undefined);
+
+    return tokens;
   }
 
-  async logout(user: UserAuth, userType: UserTypeEnum): Promise<void> {
-    await this.userSessionService.updateUserLogout(user.id, userType);
+  async refreshToken(user: MemberAuth): Promise<JwtResponse> {
+    return this.generateTokens(user.id, user.role);
   }
 
-  async validateRefreshToken(
-    userId: string,
-    userType: UserTypeEnum,
-    refreshToken: string,
-  ): Promise<UserAuth> {
-    const hashedUserRefreshToken =
-      await this.userSessionService.getHashedUserRefreshToken(userId, userType);
-
-    if (!hashedUserRefreshToken) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    const isValid = await UtilityService.verifyHashedValue(
-      refreshToken,
-      hashedUserRefreshToken,
-    );
-
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    return { id: userId, role: userType };
+  async logout(memberId: string): Promise<void> {
+    await this.sessionService.updateLogout(memberId);
   }
 
-  async validateAccessToken(
-    userId: string,
-    userType: UserTypeEnum,
-  ): Promise<UserAuth> {
-    const hashedUserRefreshToken =
-      await this.userSessionService.getHashedUserRefreshToken(userId, userType);
+  async validateRefreshToken(memberId: string, refreshToken: string): Promise<MemberAuth> {
+    const hashed = await this.sessionService.getHashedRefreshToken(memberId);
 
-    if (!hashedUserRefreshToken)
-      throw new UnauthorizedException('Invalid authorization token');
+    if (!hashed) throw new UnauthorizedException('Session not found');
 
-    return { id: userId, role: userType };
+    const isValid = await UtilityService.verifyHashedValue(refreshToken, hashed);
+    if (!isValid) throw new UnauthorizedException('Invalid refresh token');
+
+    const member = await this.memberService.getById(memberId);
+    return { id: member.id, role: member.role };
   }
 
-  async getLoggedInUser(
-    user: UserAuth,
-    userType: UserTypeEnum,
-  ): Promise<Worker | Admin> {
-    if (userType == UserTypeEnum.WORKER) {
-      return this.workerService.get(user.id, true);
-    } else {
-      return this.adminService.get(user.id);
-    }
+  async validateAccessToken(memberId: string): Promise<MemberAuth> {
+    const hashed = await this.sessionService.getHashedRefreshToken(memberId);
+    if (!hashed) throw new UnauthorizedException('Session expired. Please log in again.');
+
+    const member = await this.memberService.getById(memberId);
+    return { id: member.id, role: member.role };
   }
 
-  async changeUserPassword(
-    user: UserAuth,
-    userType: UserTypeEnum,
-    changePasswordDto: UserChangePasswordDto,
-  ): Promise<string> {
-    if (userType === UserTypeEnum.WORKER) {
-      return this.workerService.changePassword(user.id, changePasswordDto);
-    } else {
-      return this.adminService.changePassword(user.id, changePasswordDto);
-    }
+  async getProfile(memberId: string): Promise<Member> {
+    return this.memberService.getById(memberId, [
+      'workerProfile',
+      'workerProfile.department',
+    ]);
   }
 
-  private async generateTokensAndUpdateUser(
-    userId: string,
-    userType: UserTypeEnum,
-  ) {
-    const payload: JwtPayload = { sub: userId, role: userType };
+  async changePassword(memberId: string, dto: ChangePasswordDto): Promise<string> {
+    return this.memberService.changePassword(memberId, dto);
+  }
 
-    const access_token = await this.getAccessToken(payload);
+  private async generateTokens(memberId: string, role: any): Promise<JwtResponse> {
+    const payload: JwtPayload = { sub: memberId, role };
 
-    const refresh_token = await this.getRefreshToken(payload);
+    const [access_token, refresh_token] = await Promise.all([
+      this.jwtService.signAsync(payload),
+      this.jwtService.signAsync(payload, this.jwtRefreshConfig),
+    ]);
 
     const hashedRefreshToken = await UtilityService.hashValue(refresh_token);
-
-    await this.userSessionService.updateUserLogin(
-      userId,
-      userType,
-      hashedRefreshToken,
-    );
+    await this.sessionService.updateLogin(memberId, hashedRefreshToken);
 
     return {
       token_type: 'Bearer',
-      expires_in: this.getTokenExpiry(),
+      expires_in: this.getTokenExpirySeconds(),
       access_token,
       refresh_token,
     };
   }
 
-  private getTokenExpiry(): number {
+  private getTokenExpirySeconds(): number {
     const expiry = this.configService.get<string>('JWT_EXPIRY_IN');
-    if (!expiry || typeof expiry !== 'string') {
-      return 0;
-    }
-
-    const match = RegExp(/^(\d+)([smhd])$/i).exec(expiry);
-    if (!match) {
-      return 0;
-    }
-
-    const value = parseInt(match[1], 10);
-    const unit = match[2].toLowerCase();
-
-    switch (unit) {
-      case 's':
-        return value;
-      case 'm':
-        return value * 60;
-      case 'h':
-        return value * 3600;
-      case 'd':
-        return value * 86400;
-      default:
-        return 0;
-    }
-  }
-
-  private async getRefreshToken(payload: JwtPayload) {
-    return await this.jwtService.signAsync(payload, this.jwtRefreshConfig);
-  }
-
-  private async getAccessToken(payload: JwtPayload) {
-    return await this.jwtService.signAsync(payload);
-  }
-
-  private async getUser(userType: UserTypeEnum, email: string): Promise<User> {
-    if (userType === UserTypeEnum.ADMIN) {
-      return await this.adminService.findByEmail(email);
-    }
-
-    return await this.workerService.findByEmail(email);
+    if (!expiry) return 0;
+    const match = /^(\d+)([smhd])$/i.exec(expiry);
+    if (!match) return 0;
+    const value = Number.parseInt(match[1], 10);
+    const units: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+    return value * (units[match[2].toLowerCase()] ?? 0);
   }
 }

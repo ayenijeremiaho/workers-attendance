@@ -1,41 +1,25 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
+import { Attendance } from './entity/attendance.entity';
 import { AttendanceService } from './service/attendance.service';
 import { AttendanceController } from './controller/attendance.controller';
-import { WorkerService } from '../user/service/worker.service';
-import { EventService } from '../event/service/event.service';
-import { ScheduleModule } from '@nestjs/schedule';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Attendance } from './entity/attendance.entity';
-import { EventConfigService } from '../event/service/event-config.service';
 import { AttendanceJobService } from './job/attendance-job';
-import { UserModule } from '../user/user.module';
-import { DepartmentModule } from '../department/department.module';
+import { ServiceSlot } from '../event/entity/service-slot.entity';
+import { MemberModule } from '../member/member.module';
 import { EventModule } from '../event/event.module';
-import { DepartmentService } from '../department/service/department.service';
-import { UtilityService } from '../utility/service/utility.service';
-import { RequestLeaveModule } from '../request-leave/request-leave.module';
-import { RequestLeaveService } from '../request-leave/service/request-leave.service';
+import { UtilityModule } from '../utility/utility.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([Attendance]),
-    UserModule,
-    DepartmentModule,
+    TypeOrmModule.forFeature([Attendance, ServiceSlot]),
+    MemberModule,
     EventModule,
-    RequestLeaveModule,
-  ],
-  providers: [
-    AttendanceService,
-    AttendanceJobService,
-    WorkerService,
-    EventService,
-    UtilityService,
-    EventConfigService,
-    DepartmentService,
-    RequestLeaveService,
+    UtilityModule,
   ],
   controllers: [AttendanceController],
+  providers: [AttendanceService, AttendanceJobService],
   exports: [TypeOrmModule, AttendanceService],
 })
 export class AttendanceModule {}

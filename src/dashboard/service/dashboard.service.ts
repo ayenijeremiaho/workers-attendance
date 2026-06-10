@@ -1,121 +1,165 @@
-import { Injectable } from '@nestjs/common';
-import { WorkerService } from '../../user/service/worker.service';
-import { AdminService } from '../../user/service/admin.service';
+import { Injectable, Logger } from '@nestjs/common';
+import { MemberAuth } from '../../auth/interface/auth.interface';
+import { MemberService } from '../../member/service/member.service';
 import { AttendanceService } from '../../attendance/service/attendance.service';
-import { AdminDashboardDataDto } from '../dto/admin-dashboard-data.dto';
-import { UserAuth } from '../../auth/interface/auth.interface';
 import { EventService } from '../../event/service/event.service';
-import { WorkerDashboardDataDto } from '../dto/worker-dashboard-data.dto';
-import { plainToInstance } from 'class-transformer';
-import { AdminDto } from '../../user/dto/admin.dto';
-import { WorkerDto } from '../../user/dto/worker.dto';
-import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { Attendance } from '../../attendance/entity/attendance.entity';
-import { Event } from '../../event/entity/event.entity';
-import { WorkerStatusCountDto } from '../dto/worker-status-count.dto';
 import { DepartmentService } from '../../department/service/department.service';
 import { RequestLeaveService } from '../../request-leave/service/request-leave.service';
+import { ClassesService } from '../../classes/service/classes.service';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
+import { AdminDashboardDataDto } from '../dto/admin-dashboard-data.dto';
+import { WorkerDashboardDataDto } from '../dto/worker-dashboard-data.dto';
+import { MemberDashboardDataDto } from '../dto/member-dashboard-data.dto';
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+
   constructor(
-    private readonly eventService: EventService,
-    private readonly adminService: AdminService,
-    private readonly workerService: WorkerService,
-    private readonly departmentService: DepartmentService,
+    private readonly memberService: MemberService,
     private readonly attendanceService: AttendanceService,
+    private readonly eventService: EventService,
+    private readonly departmentService: DepartmentService,
     private readonly requestLeaveService: RequestLeaveService,
+    private readonly classesService: ClassesService,
   ) {}
 
-  async getWorkerDashboardData(
-    user: UserAuth,
-    daysAgo: number = 30,
-  ): Promise<WorkerDashboardDataDto> {
-    const worker = await this.workerService.get(user.id, true);
-    const workerDto = plainToInstance(WorkerDto, worker);
+  async getMemberDashboard(user: MemberAuth, daysAgo = 30): Promise<MemberDashboardDataDto> {
+    this.logger.log(`Fetching member dashboard for member ${user.id}`);
 
-    const attendancePercentage =
-      await this.attendanceService.getAttendancePercentage(daysAgo, user.id);
-
-    const attendanceHistory: PaginationResponseDto<Attendance> =
-      await this.attendanceService.getWorkersCheckinHistory(user, 1, 5);
-
-    const today = new Date();
-    const top5FutureEvents: Event[] =
-      await this.eventService.getTopEventsByDateCondition('gte', today, 5);
-
-    const isDepartmentLead: boolean =
-      await this.departmentService.isWorkerDepartmentLead(worker.id);
-
-    const totalPendingLeaveRequests =
-      await this.requestLeaveService.countPendingLeave(worker.id);
-
-    let departmentAttendancePercentage = null;
-    let totalDepartmentPendingLeaveRequests = null;
-    if (isDepartmentLead) {
-      departmentAttendancePercentage =
-        await this.attendanceService.getAttendancePercentage(
-          daysAgo,
-          null,
-          worker.department.id,
-        );
-      totalDepartmentPendingLeaveRequests =
-        await this.requestLeaveService.countPendingLeave(
-          null,
-          worker.department.id,
-        );
-    }
+    const [
+      profile,
+      personalAttendancePercentage,
+      attendanceStreak,
+      rank,
+      periodStats,
+      recentAttendance,
+      upcomingEvents,
+      enrollments,
+    ] = await Promise.all([
+      this.memberService.getById(user.id),
+      this.attendanceService.getPersonalAttendancePercentage(user.id, daysAgo),
+      this.attendanceService.getAttendanceStreak(user.id, MemberRoleEnum.MEMBER),
+      this.attendanceService.getMemberRank(user.id, daysAgo, MemberRoleEnum.MEMBER),
+      this.attendanceService.getPeriodStats(user.id, daysAgo),
+      this.attendanceService.getMyHistory(user, 1, 5),
+      this.eventService.getUpcomingEvents(5),
+      this.classesService.getMyEnrollments(user.id),
+    ]);
 
     return {
-      profile: workerDto,
-      isDepartmentLead,
-      ...(isDepartmentLead && {
-        departmentLeadDetails: {
-          last30DaysDepartmentAttendancePercentage:
-            departmentAttendancePercentage,
-          totalDepartmentPendingLeaveRequests,
-        },
-      }),
-      attendancePercentage,
-      attendanceHistory: attendanceHistory?.data,
-      top5FutureEvents,
-      totalPendingLeaveRequests,
+      profile,
+      personalAttendancePercentage,
+      attendanceStreak,
+      rank,
+      periodStats,
+      recentAttendance: recentAttendance.data,
+      upcomingEvents,
+      enrollments,
     };
   }
 
-  async getAdminDashboardData(
-    user: UserAuth,
-    daysAgo: number = 30,
-  ): Promise<AdminDashboardDataDto> {
-    const admin = await this.adminService.get(user.id);
-    const adminDto = plainToInstance(AdminDto, admin);
+  async getWorkerDashboard(user: MemberAuth, daysAgo = 30): Promise<WorkerDashboardDataDto> {
+    this.logger.log(`Fetching worker dashboard for worker ${user.id}`);
 
-    const totalWorkers = await this.workerService.count();
-    const totalAdmins = await this.adminService.count();
+    const [
+      profile,
+      personalAttendancePercentage,
+      attendanceStreak,
+      rank,
+      periodStats,
+      recentAttendance,
+      upcomingEvents,
+      isDepartmentLead,
+    ] = await Promise.all([
+      this.memberService.getById(user.id, ['workerProfile', 'workerProfile.department']),
+      this.attendanceService.getPersonalAttendancePercentage(user.id, daysAgo),
+      this.attendanceService.getAttendanceStreak(user.id, MemberRoleEnum.WORKER),
+      this.attendanceService.getMemberRank(user.id, daysAgo, MemberRoleEnum.WORKER),
+      this.attendanceService.getPeriodStats(user.id, daysAgo),
+      this.attendanceService.getMyHistory(user, 1, 5),
+      this.eventService.getUpcomingEvents(5),
+      this.departmentService.isMemberDepartmentLead(user.id),
+    ]);
 
-    const workerCountByStatusRaw =
-      await this.workerService.getWorkersCountByStatus();
-    const workerCountByStatus = WorkerStatusCountDto.fromJson(
-      workerCountByStatusRaw,
-    );
+    const workerProfileId = profile.workerProfile?.id ?? null;
+    const totalPendingLeaveRequests = workerProfileId
+      ? await this.requestLeaveService.countPendingLeave(workerProfileId)
+      : 0;
 
-    const attendancePercentage =
-      await this.attendanceService.getAttendancePercentage(daysAgo);
+    const result: WorkerDashboardDataDto = {
+      profile,
+      isDepartmentLead,
+      personalAttendancePercentage,
+      attendanceStreak,
+      rank,
+      periodStats,
+      recentAttendance: recentAttendance.data,
+      upcomingEvents,
+      totalPendingLeaveRequests,
+    };
 
-    const today = new Date();
-    const top5FutureEvents: Event[] =
-      await this.eventService.getTopEventsByDateCondition('gte', today, 5);
+    if (isDepartmentLead) {
+      const departmentId = profile.workerProfile?.department?.id;
+      result.departmentLeadDetails = {
+        departmentAttendancePercentage: departmentId
+          ? await this.attendanceService.getWorkerAttendancePercentage(daysAgo, departmentId)
+          : 0,
+        totalDepartmentPendingLeaveRequests: departmentId
+          ? await this.requestLeaveService.countPendingLeave(undefined, departmentId)
+          : 0,
+      };
+    }
 
-    const totalPendingLeaveRequests =
-      await this.requestLeaveService.countPendingLeave();
+    return result;
+  }
 
-    return {
-      profile: adminDto,
+  async getAdminDashboard(daysAgo = 30): Promise<AdminDashboardDataDto> {
+    this.logger.log('Fetching admin dashboard');
+
+    const [
+      totalMembers,
       totalWorkers,
       totalAdmins,
-      workerCountByStatus,
-      attendancePercentage,
-      top5FutureEvents,
+      totalCheckInsToday,
+      workerAttendancePercentage,
+      congregationAttendancePercentage,
+      weeklyAttendanceTrend,
+      newMemberRegistrationsTrend,
+      departmentAttendanceSummary,
+      topAbsentWorkers,
+      membersNotSeenRecently,
+      upcomingEvents,
+      totalPendingLeaveRequests,
+    ] = await Promise.all([
+      this.memberService.count({ where: { role: MemberRoleEnum.MEMBER } }),
+      this.memberService.count({ where: { role: MemberRoleEnum.WORKER } }),
+      this.memberService.count({ where: { role: MemberRoleEnum.ADMIN } }),
+      this.attendanceService.getTotalCheckInsToday(),
+      this.attendanceService.getWorkerAttendancePercentage(daysAgo),
+      this.attendanceService.getCongregationAttendancePercentage(daysAgo),
+      this.attendanceService.getWeeklyAttendanceTrend(daysAgo),
+      this.attendanceService.getNewMemberRegistrationsTrend(daysAgo),
+      this.attendanceService.getDepartmentAttendanceSummary(daysAgo),
+      this.attendanceService.getTopAbsentMembers(daysAgo, 10, MemberRoleEnum.WORKER),
+      this.attendanceService.getMembersNotSeenSince(daysAgo, 20),
+      this.eventService.getUpcomingEvents(5),
+      this.requestLeaveService.countPendingLeave(),
+    ]);
+
+    return {
+      totalMembers,
+      totalWorkers,
+      totalAdmins,
+      totalCheckInsToday,
+      workerAttendancePercentage,
+      congregationAttendancePercentage,
+      weeklyAttendanceTrend,
+      newMemberRegistrationsTrend,
+      departmentAttendanceSummary,
+      topAbsentWorkers,
+      membersNotSeenRecently,
+      upcomingEvents,
       totalPendingLeaveRequests,
     };
   }

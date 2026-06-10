@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToOne,
@@ -9,7 +10,7 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
-import { Worker } from '../../user/entity/worker.entity';
+import { WorkerProfile } from '../../member/entity/worker-profile.entity';
 import { Department } from './department.entity';
 import { DepartmentLeadTypeEnum } from '../enums/department-lead-type.enum';
 
@@ -19,9 +20,10 @@ export class DepartmentLead {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => Worker, (worker) => worker.id)
-  @JoinColumn({ name: 'lead_id' })
-  lead: Worker;
+  @Index()
+  @OneToOne(() => WorkerProfile)
+  @JoinColumn({ name: 'worker_profile_id' })
+  workerProfile: WorkerProfile;
 
   @ManyToOne(() => Department, (department) => department.id)
   @JoinColumn({ name: 'department_id' })

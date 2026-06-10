@@ -1,359 +1,274 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  Brackets,
-  LessThan,
-  LessThanOrEqual,
-  MoreThan,
-  MoreThanOrEqual,
-  Repository,
-} from 'typeorm';
+import { Repository } from 'typeorm';
 import { Event } from '../entity/event.entity';
-import { addDays, addMonths, addWeeks, format } from 'date-fns';
-import { CreateEventDto } from '../dto/create-event.dto';
+import { ServiceSlot } from '../entity/service-slot.entity';
+import { EventConfig } from '../entity/event-config.entity';
+import { Venue } from '../../venue/entity/venue.entity';
+import { addDays, addMonths, addWeeks } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
-import { UpdateEventDto } from '../dto/update-event.dto';
+import { CreateEventDto } from '../dto/create-event.dto';
+import { CreateServiceSlotDto } from '../dto/create-service-slot.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
 import { EventConfigService } from './event-config.service';
-import { EventConfig } from '../entity/event-config.entity';
+import { VenueService } from '../../venue/service/venue.service';
 import { OrderBy } from '../types/order-by.type';
 import { Order } from '../types/order.type';
 
+const SLOT_RELATIONS = [
+  'serviceSlots',
+  'serviceSlots.config',
+  'serviceSlots.config.defaultVenue',
+  'serviceSlots.venueOverride',
+];
+
 @Injectable()
 export class EventService {
+  private readonly logger = new Logger(EventService.name);
+
   constructor(
     private readonly eventConfigService: EventConfigService,
+    private readonly venueService: VenueService,
     @InjectRepository(Event)
     private readonly eventRepository: Repository<Event>,
+    @InjectRepository(ServiceSlot)
+    private readonly slotRepository: Repository<ServiceSlot>,
   ) {}
 
-  async create(createEventDto: CreateEventDto): Promise<Event | Event[]> {
-    const { startEvent, endEvent, isRecurring, recurrence } = createEventDto;
+  async create(dto: CreateEventDto): Promise<Event | Event[]> {
+    const eventDate = new Date(dto.eventDate);
+    if (Number.isNaN(eventDate.getTime())) throw new BadRequestException('Invalid eventDate');
 
-    const eventConfig = await this.eventConfigService.get(
-      createEventDto.eventConfigId,
-    );
-
-    const startDate = new Date(startEvent);
-    const endDate = new Date(endEvent);
-
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      throw new BadRequestException('Invalid date format');
+    if (dto.isRecurring) {
+      if (!dto.recurrence) throw new BadRequestException('Recurrence details required for recurring events');
+      return this.createRecurring(dto, eventDate);
     }
 
-    if (startDate.getTime() < new Date().getTime()) {
-      throw new BadRequestException('Event start date must be in the future');
+    return this.createSingle(dto, eventDate);
+  }
+
+  async update(id: string, dto: Partial<CreateEventDto>): Promise<Event> {
+    const event = await this.getById(id);
+
+    if (dto.name) event.name = dto.name;
+    if (dto.description !== undefined) event.description = dto.description;
+    if (dto.eventDate) {
+      const d = new Date(dto.eventDate);
+      if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid eventDate');
+      event.eventDate = d;
     }
 
-    if (startDate.getTime() > endDate.getTime()) {
-      throw new BadRequestException(
-        'Invalid date format, event start date should be before event end date',
-      );
-    }
+    return this.eventRepository.save(event);
+  }
 
-    await this.checkForOverlappingEvents(startDate, endDate);
-
-    if (isRecurring && !recurrence) {
-      throw new BadRequestException(
-        'Recurrence details must be provided for recurring events',
-      );
-    }
-
-    if (isRecurring) {
-      const recurrenceEndDate = new Date(recurrence.recurrenceEndDate);
-      if (isNaN(recurrenceEndDate.getDate())) {
-        throw new BadRequestException('Invalid recurrence end date format');
-      }
-
-      if (endDate.getTime() > recurrenceEndDate.getTime()) {
-        throw new BadRequestException(
-          'Recurring event end date must be after event end date',
-        );
-      }
-
-      const events = this.calculateRecurringEvents(
-        startDate,
-        endDate,
-        recurrenceEndDate,
-        createEventDto,
-        eventConfig,
-      );
-
-      for (const event of events) {
-        await this.checkForOverlappingEvents(event.startDate, event.endDate);
-      }
-
-      return this.eventRepository.save(events);
-    }
-
-    const event = this.eventRepository.create({
-      ...createEventDto,
-      startDate: startDate,
-      endDate: endDate,
-      eventConfig,
+  async getById(id: string): Promise<Event> {
+    const event = await this.eventRepository.findOne({
+      where: { id },
+      relations: SLOT_RELATIONS,
     });
-
-    return this.eventRepository.save(event);
-  }
-
-  async update(id: string, updateEventDto: UpdateEventDto) {
-    const event = await this.get(id);
-
-    if (updateEventDto.name && event.name !== updateEventDto.name) {
-      event.name = updateEventDto.name;
-    }
-
-    if (
-      updateEventDto.description &&
-      event.description !== updateEventDto.description
-    ) {
-      event.description = updateEventDto.description;
-    }
-
-    let eventConfig = event.eventConfig;
-    if (
-      updateEventDto.eventConfigId &&
-      event.eventConfig?.id !== updateEventDto.eventConfigId
-    ) {
-      eventConfig = await this.eventConfigService.get(
-        updateEventDto.eventConfigId,
-      );
-      event.eventConfig = eventConfig;
-    }
-
-    if (updateEventDto.endEvent) {
-      const newEndDate = new Date(updateEventDto.endEvent);
-
-      if (isNaN(newEndDate.getTime())) {
-        throw new BadRequestException('Invalid event end date format');
-      }
-
-      event.endDate = newEndDate;
-    }
-
-    if (updateEventDto.startEvent) {
-      const newStartDate = new Date(updateEventDto.startEvent);
-
-      if (isNaN(newStartDate.getTime())) {
-        throw new BadRequestException('Invalid event start date format');
-      }
-
-      event.startDate = newStartDate;
-    }
-
-    if (event.startDate.getTime() < new Date().getTime()) {
-      throw new BadRequestException('Event start date must be in the future');
-    }
-
-    if (event.startDate.getTime() > event.endDate.getTime()) {
-      throw new BadRequestException(
-        'Invalid date format, event start date should be before event end date',
-      );
-    }
-
-    await this.checkForOverlappingEvents(event.startDate, event.endDate, id);
-
-    return this.eventRepository.save(event);
-  }
-
-  async get(id: string, relations = true): Promise<Event> {
-    const queryOptions: any = { where: { id } };
-
-    if (relations) {
-      queryOptions.relations = { eventConfig: true };
-    }
-
-    const event = await this.eventRepository.findOne(queryOptions);
-
-    if (!event) {
-      throw new NotFoundException('Event does not exist');
-    }
-
+    if (!event) throw new NotFoundException('Event not found');
     return event;
   }
 
-  public async getAll(
-    page: number = 1,
-    limit: number = 10,
-    orderBy: OrderBy = 'startDate',
+  async getAll(
+    page = 1,
+    limit = 10,
+    orderBy: OrderBy = 'eventDate',
     order: Order = 'DESC',
   ): Promise<PaginationResponseDto<Event>> {
-    if (page < 1) {
-      throw new BadRequestException('Page number must be greater than 0');
-    }
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
     const [events, total] = await this.eventRepository.findAndCount({
       skip: (page - 1) * limit,
       take: limit,
       order: { [orderBy]: order },
-      relations: { eventConfig: true },
+      relations: SLOT_RELATIONS,
     });
 
-    return UtilityService.createPaginationResponse<Event>(
-      events,
-      page,
-      limit,
-      total,
-    );
-  }
-
-  async deleteFutureEvents(recurringEventId: string): Promise<void> {
-    const futureEvents = await this.eventRepository.find({
-      where: { recurringEventId, startDate: MoreThanOrEqual(new Date()) },
-    });
-
-    if (futureEvents) {
-      await this.eventRepository.remove(futureEvents);
-    } else {
-      throw new NotFoundException('No future events found');
-    }
+    return UtilityService.createPaginationResponse(events, page, limit, total);
   }
 
   async deleteEvent(eventId: string): Promise<void> {
-    const futureEvents = await this.eventRepository.find({
-      where: { id: eventId, startDate: MoreThanOrEqual(new Date()) },
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ['serviceSlots'],
     });
 
-    if (futureEvents) {
-      await this.eventRepository.remove(futureEvents);
-    } else {
-      throw new NotFoundException('Past event cannot be deleted');
-    }
+    if (!event) throw new NotFoundException('Event not found');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const eventDay = new Date(event.eventDate);
+    eventDay.setHours(0, 0, 0, 0);
+
+    if (eventDay < today) throw new BadRequestException('Past events cannot be deleted');
+    await this.eventRepository.remove(event);
+    this.logger.log(`Deleted event "${event.name}" (${eventId})`);
   }
 
-  async findByAbsenteesNotUpdated() {
-    const currentTime = new Date();
+  async deleteFutureRecurring(recurringEventId: string): Promise<void> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    return await this.eventRepository
+    const events = await this.eventRepository
       .createQueryBuilder('event')
-      .leftJoinAndSelect('event.eventConfig', 'eventConfig')
-      .where(
-        new Brackets((qb) => {
-          qb.where('event.endDate < :currentTime', { currentTime }).orWhere(
-            `event.startDate + INTERVAL '1 second' * eventConfig.checkinStopTimeInSeconds < :currentTime`,
-            { currentTime },
-          );
-        }),
-      )
-      .andWhere('event.markedAbsent = false')
+      .where('event.recurringEventId = :recurringEventId', { recurringEventId })
+      .andWhere('event.eventDate >= :today', { today })
+      .getMany();
+
+    if (!events.length) throw new NotFoundException('No future recurring events found');
+    await this.eventRepository.remove(events);
+  }
+
+  async findSlotsNotMarkedAbsent(): Promise<ServiceSlot[]> {
+    const now = new Date();
+    return this.slotRepository
+      .createQueryBuilder('slot')
+      .leftJoinAndSelect('slot.config', 'config')
+      .leftJoinAndSelect('config.defaultVenue', 'defaultVenue')
+      .leftJoinAndSelect('slot.venueOverride', 'venueOverride')
+      .leftJoinAndSelect('slot.event', 'event')
+      .where('slot.markedAbsent = false')
+      .andWhere('slot.endTime < :now', { now })
       .getMany();
   }
 
-  async updateEvent(event: Event): Promise<Event> {
-    return this.eventRepository.save(event);
-  }
-
-  async getTopEventsByDateCondition(
-    condition: 'gte' | 'gt' | 'lte' | 'lt',
-    date: Date = new Date(),
-    limit: number = 5,
-  ): Promise<Event[]> {
-    const operators = {
-      gte: MoreThanOrEqual,
-      gt: MoreThan,
-      lte: LessThanOrEqual,
-      lt: LessThan,
-    };
-
-    const operatorFn = operators[condition];
-
-    if (!operatorFn) {
-      throw new BadRequestException('Invalid date condition');
-    }
-
+  async getUpcomingEvents(limit = 5): Promise<Event[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     return this.eventRepository.find({
-      where: { startDate: operatorFn(date) },
-      order: { startDate: 'ASC' },
+      where: { eventDate: today } as any,
+      order: { eventDate: 'ASC' },
       take: limit,
+      relations: ['serviceSlots', 'serviceSlots.config', 'serviceSlots.config.defaultVenue', 'serviceSlots.venueOverride'],
     });
   }
 
-  private calculateRecurringEvents(
-    startDate: Date,
-    endDate: Date,
-    recurrenceEndDate: Date,
-    recurringEvent: CreateEventDto,
-    eventConfig: EventConfig | null,
-  ): Event[] {
-    const oneYearLater = new Date(startDate);
-    oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+  async markSlotAbsent(slotId: string): Promise<void> {
+    await this.slotRepository.update(slotId, { markedAbsent: true });
+  }
 
+  resolveSlotConfig(slot: ServiceSlot): {
+    workerCheckinStartOffsetSeconds: number;
+    workerLateOffsetSeconds: number;
+    memberCheckinStartOffsetSeconds: number;
+    checkinStopOffsetSeconds: number;
+    venue: Venue;
+    allowedDistanceInMeters: number;
+  } {
+    const c = slot.config;
+    if (!c) throw new BadRequestException(`Service slot "${slot.name}" has no config`);
+
+    const venue = slot.venueOverride ?? c.defaultVenue;
+    if (!venue) throw new BadRequestException(`Service slot "${slot.name}" has no venue configured`);
+
+    return {
+      workerCheckinStartOffsetSeconds: slot.workerCheckinStartOverride ?? c.workerCheckinStartOffsetSeconds,
+      workerLateOffsetSeconds: slot.workerLateOverride ?? c.workerLateOffsetSeconds,
+      memberCheckinStartOffsetSeconds: slot.memberCheckinStartOverride ?? c.memberCheckinStartOffsetSeconds,
+      checkinStopOffsetSeconds: slot.checkinStopOverride ?? c.checkinStopOffsetSeconds,
+      venue,
+      allowedDistanceInMeters: slot.allowedDistanceOverride ?? c.allowedDistanceInMeters,
+    };
+  }
+
+  private async createSingle(dto: CreateEventDto, eventDate: Date): Promise<Event> {
+    const event = this.eventRepository.create({
+      name: dto.name,
+      description: dto.description,
+      eventDate,
+    });
+
+    event.serviceSlots = await this.buildSlots(dto.serviceSlots);
+    const saved = await this.eventRepository.save(event);
+    this.logger.log(`Created event "${saved.name}" (${saved.id}) on ${eventDate.toISOString().slice(0, 10)}`);
+    return saved;
+  }
+
+  private async createRecurring(dto: CreateEventDto, firstDate: Date): Promise<Event[]> {
+    const recurrenceEndDate = new Date(dto.recurrence.recurrenceEndDate);
+    if (Number.isNaN(recurrenceEndDate.getTime())) throw new BadRequestException('Invalid recurrenceEndDate');
+
+    const oneYearLater = new Date(firstDate);
+    oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
     if (recurrenceEndDate > oneYearLater) {
-      throw new BadRequestException(
-        'Recurrence end date must be within one year of event start date',
-      );
+      throw new BadRequestException('Recurrence end date must be within one year of event start');
     }
 
-    const events: Event[] = [];
-    let currentDate = startDate;
     const recurringEventId = uuidv4();
+    const events: Event[] = [];
+    let currentDate = firstDate;
 
     while (currentDate <= recurrenceEndDate) {
-      const eventEndDate = new Date(
-        currentDate.getTime() + (endDate.getTime() - startDate.getTime()),
-      );
-
       const event = this.eventRepository.create({
-        name: recurringEvent.name,
-        description: recurringEvent.description,
-        startDate: currentDate,
-        endDate: eventEndDate,
+        name: dto.name,
+        description: dto.description,
+        eventDate: new Date(currentDate),
         recurringEventId,
-        eventConfig,
       });
+
+      event.serviceSlots = await this.buildSlots(dto.serviceSlots);
       events.push(event);
 
-      switch (recurringEvent.recurrence.recurrencePattern) {
-        case 'daily':
-          currentDate = addDays(
-            currentDate,
-            recurringEvent.recurrence.recurrenceInterval,
-          );
-          break;
-        case 'weekly':
-          currentDate = addWeeks(
-            currentDate,
-            recurringEvent.recurrence.recurrenceInterval,
-          );
-          break;
-        case 'monthly':
-          currentDate = addMonths(
-            currentDate,
-            recurringEvent.recurrence.recurrenceInterval,
-          );
-          break;
-      }
+      currentDate = this.advanceDate(currentDate, dto.recurrence.recurrencePattern, dto.recurrence.recurrenceInterval);
     }
 
-    return events;
+    const saved = await this.eventRepository.save(events);
+    this.logger.log(`Created ${saved.length} recurring event(s) for "${dto.name}" (recurringId: ${recurringEventId})`);
+    return saved;
   }
 
-  private async checkForOverlappingEvents(
-    startDate: Date,
-    endDate: Date,
-    eventId?: string,
-  ): Promise<void> {
-    const overlappingEvents = await this.eventRepository
-      .createQueryBuilder('event')
-      .where('event.id != :eventId', { eventId })
-      .andWhere(
-        '(event.startDate < :endDate AND event.endDate > :startDate) OR ' +
-          '(event.startDate = :startDate AND event.endDate = :endDate)',
-        { startDate, endDate },
-      )
-      .getMany();
+  private async buildSlots(slotDtos: CreateServiceSlotDto[]): Promise<ServiceSlot[]> {
+    return Promise.all(slotDtos.map((dto) => this.buildSlotFromDto(dto)));
+  }
 
-    if (overlappingEvents.length > 0) {
-      const formattedStartDate = format(startDate, 'yyyy-MM-dd HH:mm');
-      const formattedEndDate = format(endDate, 'yyyy-MM-dd HH:mm');
-      throw new BadRequestException(
-        `An event already exists within the specified time range: ${formattedStartDate} to ${formattedEndDate}`,
-      );
+  private async buildSlotFromDto(dto: CreateServiceSlotDto): Promise<ServiceSlot> {
+    const start = new Date(dto.startTime);
+    const end = new Date(dto.endTime);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid slot startTime or endTime');
+    }
+    if (start >= end) {
+      throw new BadRequestException(`Slot "${dto.name ?? 'Service'}" startTime must be before endTime`);
+    }
+
+    let config: EventConfig | undefined;
+    if (dto.configId) {
+      config = await this.eventConfigService.get(dto.configId);
+    }
+
+    let venueOverride: Venue | null = null;
+    if (dto.venueOverrideId) {
+      venueOverride = await this.venueService.getById(dto.venueOverrideId);
+    }
+
+    return this.slotRepository.create({
+      name: dto.name ?? 'Service',
+      startTime: start,
+      endTime: end,
+      config,
+      workerCheckinStartOverride: dto.workerCheckinStartOverride ?? null,
+      workerLateOverride: dto.workerLateOverride ?? null,
+      memberCheckinStartOverride: dto.memberCheckinStartOverride ?? null,
+      checkinStopOverride: dto.checkinStopOverride ?? null,
+      allowedDistanceOverride: dto.allowedDistanceOverride ?? null,
+      venueOverride,
+    });
+  }
+
+  private advanceDate(date: Date, pattern: string, interval: number): Date {
+    switch (pattern) {
+      case 'daily': return addDays(date, interval);
+      case 'weekly': return addWeeks(date, interval);
+      case 'monthly': return addMonths(date, interval);
+      default: throw new BadRequestException(`Unknown recurrence pattern: ${pattern}`);
     }
   }
 }

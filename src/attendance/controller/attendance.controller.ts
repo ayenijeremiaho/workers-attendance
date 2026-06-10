@@ -4,6 +4,8 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Request,
@@ -11,95 +13,72 @@ import {
 } from '@nestjs/common';
 import { AttendanceService } from '../service/attendance.service';
 import { CheckInDto } from '../dto/check-in.dto';
-import { UtilityService } from '../../utility/service/utility.service';
-import { Attendance } from '../entity/attendance.entity';
-import { AttendanceDto } from '../dto/attendance.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
-import { UserTypeEnum } from '../../user/enums/user-type.enum';
-import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
+import { AttendanceStatusEnum } from '../enums/check-in.enum';
 
 @Controller('attendances')
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   @HttpCode(HttpStatus.OK)
-  @Post('/checkin')
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  async checkin(@Request() req: any, @Body() checkInDto: CheckInDto) {
-    return this.attendanceService.checkin(req.user, checkInDto);
+  @Post('checkin')
+  async checkin(@Request() req: any, @Body() dto: CheckInDto) {
+    return this.attendanceService.checkin(req.user, dto);
   }
 
-  @Get('/leaderboard')
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  async leaderboard(
-    @Query('daysAgo') daysAgo?: number,
-    @Query('limit') limit?: number,
+  @Get('my-history')
+  async getMyHistory(
+    @Request() req: any,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @Query('status') status?: AttendanceStatusEnum,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
-    return this.attendanceService.getAttendanceLeaderboard(daysAgo, limit);
+    return this.attendanceService.getMyHistory(req.user, +page, +limit, status, dateFrom, dateTo);
   }
 
-  @Get('/my-history')
   @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  async getWorkerCheckinHistory(
+  @Roles(MemberRoleEnum.ADMIN)
+  @Get('history')
+  async getAllHistory(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @Query('memberId') memberId?: string,
+    @Query('slotId') slotId?: string,
+    @Query('status') status?: AttendanceStatusEnum,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.attendanceService.getAllHistory(+page, +limit, memberId, slotId, status, dateFrom, dateTo);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.WORKER)
+  @Get('history/department')
+  async getDepartmentHistory(
     @Request() req: any,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('attendanceDate') attendanceDate?: string,
-  ): Promise<PaginationResponseDto<AttendanceDto>> {
-    const history = await this.attendanceService.getWorkersCheckinHistory(
-      req.user,
-      page,
-      limit,
-      attendanceDate,
-    );
-    return UtilityService.getPaginationResponseDto<Attendance, AttendanceDto>(
-      history,
-      AttendanceDto,
-    );
+    @Query('slotId', ParseUUIDPipe) slotId: string,
+  ) {
+    return this.attendanceService.getDepartmentHistory(req.user, slotId);
   }
 
-  @Get('/history')
   @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  async getAllCheckinHistory(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('workerId') workerId?: string,
-    @Query('eventId') eventId?: string,
-    @Query('attendanceDate') attendanceDate?: string,
-  ): Promise<PaginationResponseDto<AttendanceDto>> {
-    const history = await this.attendanceService.getAllCheckInHistory(
-      page,
-      limit,
-      workerId,
-      eventId,
-      attendanceDate,
-    );
-    return UtilityService.getPaginationResponseDto<Attendance, AttendanceDto>(
-      history,
-      AttendanceDto,
-    );
+  @Roles(MemberRoleEnum.ADMIN)
+  @Get('summary/slot/:slotId')
+  async getSlotSummary(@Param('slotId', ParseUUIDPipe) slotId: string) {
+    return this.attendanceService.getSlotSummary(slotId);
   }
 
-  @Get('/history/department')
   @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  async getDepartmentCheckinHistory(
-    @Request() req: any,
-    @Query('eventId') eventId: string,
-  ): Promise<PaginationResponseDto<AttendanceDto>> {
-    const departmentHistory =
-      await this.attendanceService.getDepartmentCheckinHistory(
-        req.user,
-        eventId,
-      );
-    return UtilityService.getPaginationResponseDto<Attendance, AttendanceDto>(
-      departmentHistory,
-      AttendanceDto,
-    );
+  @Roles(MemberRoleEnum.ADMIN)
+  @Get('leaderboard')
+  async getLeaderboard(
+    @Query('daysAgo') daysAgo = 7,
+    @Query('limit') limit = 10,
+  ) {
+    return this.attendanceService.getWorkerLeaderboard(+daysAgo, +limit);
   }
 }

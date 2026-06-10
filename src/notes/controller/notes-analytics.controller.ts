@@ -1,12 +1,15 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { NoteTypeEnum } from '../enums/note-type.enums';
 import { UtilityService } from '../../utility/service/utility.service';
 import { NotesAnalyticsService } from '../service/notes-analytics.service';
+import { JwtAuthGuard } from '../../auth/guard/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
-import { UserTypeEnum } from '../../user/enums/user-type.enum';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(MemberRoleEnum.ADMIN)
 @Controller('notes-analytics')
-@Roles(UserTypeEnum.ADMIN)
 export class NotesAnalyticsController {
   constructor(private readonly noteAnalyticsService: NotesAnalyticsService) {}
 
@@ -16,34 +19,16 @@ export class NotesAnalyticsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    const validFrom = UtilityService.isValidDateFormat(from)
-      ? new Date(from)
-      : undefined;
-    const validTo = UtilityService.isValidDateFormat(to)
-      ? new Date(to)
-      : undefined;
+    const validFrom = UtilityService.isValidDateFormat(from) ? new Date(from) : undefined;
+    const validTo = UtilityService.isValidDateFormat(to) ? new Date(to) : undefined;
 
     switch (type) {
       case NoteTypeEnum.CHILD_NAMING:
-        return this.noteAnalyticsService.getChildNamingAnalytics(
-          validFrom,
-          validTo,
-        );
+        return this.noteAnalyticsService.getChildNamingAnalytics(validFrom, validTo);
       case NoteTypeEnum.CHILD_DEDICATION:
-        return this.noteAnalyticsService.getChildDedicationAnalytics(
-          validFrom,
-          validTo,
-        );
+        return this.noteAnalyticsService.getChildDedicationAnalytics(validFrom, validTo);
       case NoteTypeEnum.MARRIAGE:
-        return this.noteAnalyticsService.getMarriageAnalytics(
-          validFrom,
-          validTo,
-        );
-      case NoteTypeEnum.MEMBER_ATTENDANCE:
-        return this.noteAnalyticsService.getAttendanceAnalytics(
-          validFrom,
-          validTo,
-        );
+        return this.noteAnalyticsService.getMarriageAnalytics(validFrom, validTo);
       default:
         throw new Error('Invalid note type for analytics');
     }

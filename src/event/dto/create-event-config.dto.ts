@@ -1,34 +1,40 @@
 import {
-  IsLatitude,
-  IsLongitude,
+  IsInt,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 
 export class CreateEventConfigDto {
   @IsNotEmpty()
+  @IsString()
   name: string;
 
-  @IsNumber()
-  @Min(60)
-  checkinStartTimeInSeconds: number;
+  @IsOptional()
+  @IsString()
+  description?: string;
 
-  @IsNumber()
-  @Min(120)
-  lateComingStartTimeInSeconds: number;
+  @IsUUID()
+  defaultVenueId: string;
 
-  @IsNumber()
-  @Min(180)
-  checkinStopTimeInSeconds: number;
+  @IsInt()
+  workerCheckinStartOffsetSeconds: number;
+
+  @IsInt()
+  @Min(0)
+  workerLateOffsetSeconds: number;
+
+  @IsInt()
+  memberCheckinStartOffsetSeconds: number;
+
+  @IsInt()
+  @Min(0)
+  checkinStopOffsetSeconds: number;
 
   @IsNumber()
   @Min(5)
   allowedDistanceInMeters: number;
-
-  @IsLatitude()
-  locationLatitude: number;
-
-  @IsLongitude()
-  locationLongitude: number;
 }

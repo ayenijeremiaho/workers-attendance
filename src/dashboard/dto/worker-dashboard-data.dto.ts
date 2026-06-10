@@ -1,14 +1,21 @@
-import { WorkerDto } from '../../user/dto/worker.dto';
-
 export class WorkerDashboardDataDto {
-  profile: WorkerDto;
-  departmentLeadDetails: {
-    last30DaysDepartmentAttendancePercentage: number;
+  profile: any;
+  isDepartmentLead: boolean;
+  departmentLeadDetails?: {
+    departmentAttendancePercentage: number;
     totalDepartmentPendingLeaveRequests: number;
   };
-  isDepartmentLead: boolean = false;
-  attendancePercentage: number;
-  attendanceHistory: any[];
-  top5FutureEvents: any[];
+  personalAttendancePercentage: number;
+  attendanceStreak: number;
+  rank: number;
+  periodStats: {
+    present: number;
+    late: number;
+    absent: number;
+    onLeave: number;
+    total: number;
+  };
+  recentAttendance: any[];
+  upcomingEvents: any[];
   totalPendingLeaveRequests: number;
 }

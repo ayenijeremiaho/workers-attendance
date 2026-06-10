@@ -3,17 +3,13 @@ import {
   CreateDateColumn,
   Entity,
   Index,
-  JoinColumn,
-  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { EventConfig } from './event-config.entity';
-import { Attendance } from '../../attendance/entity/attendance.entity';
+import { ServiceSlot } from './service-slot.entity';
 
 @Entity({ name: 'events' })
-@Index(['startDate', 'endDate'])
 export class Event {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -24,30 +20,16 @@ export class Event {
   @Column({ nullable: true })
   description: string;
 
-  @Column({ name: 'start_date' })
   @Index()
-  startDate: Date;
-
-  @Column({ name: 'end_date' })
-  @Index()
-  endDate: Date;
-
-  @ManyToOne(() => EventConfig, (eventConfig) => eventConfig.events, {
-    cascade: true,
-    nullable: true,
-  })
-  @JoinColumn({ name: 'event_config_id' })
-  eventConfig: EventConfig;
+  @Column({ name: 'event_date', type: 'date' })
+  eventDate: Date;
 
   @Column({ nullable: true })
   @Index()
   recurringEventId: string;
 
-  @Column({ default: false })
-  markedAbsent: boolean;
-
-  @OneToMany(() => Attendance, (attendance) => attendance.event)
-  attendances: Attendance[];
+  @OneToMany(() => ServiceSlot, (slot) => slot.event, { cascade: true })
+  serviceSlots: ServiceSlot[];
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

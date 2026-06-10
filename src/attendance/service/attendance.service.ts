@@ -1,21 +1,34 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { CheckInDto } from '../dto/check-in.dto';
-import { Attendance } from '../entity/attendance.entity';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
-import { WorkerService } from '../../user/service/worker.service';
+import { Between, DataSource, Repository } from 'typeorm';
+import moment from 'moment';
+import { ConfigService } from '@nestjs/config';
+import { Attendance } from '../entity/attendance.entity';
+import { AttendanceStatusEnum } from '../enums/check-in.enum';
+import { CheckInDto } from '../dto/check-in.dto';
+import { MemberAuth } from '../../auth/interface/auth.interface';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
+import { MemberStatusEnum } from '../../member/enums/member-status.enum';
+import { WorkerStatusEnum } from '../../member/enums/worker-status.enum';
+import { Member } from '../../member/entity/member.entity';
+import { MemberService } from '../../member/service/member.service';
+import { ServiceSlot } from '../../event/entity/service-slot.entity';
 import { EventService } from '../../event/service/event.service';
 import { UtilityService } from '../../utility/service/utility.service';
-import * as moment from 'moment';
-import { WorkerStatusEnum } from '../../user/enums/worker-status.enum';
-import { ConfigService } from '@nestjs/config';
-import { CheckInStatusEnum } from '../enums/check-in.enum';
-import { Worker } from '../../user/entity/worker.entity';
-import { Event } from '../../event/entity/event.entity';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UserAuth } from '../../auth/interface/auth.interface';
-import { DepartmentService } from '../../department/service/department.service';
-import { RequestLeaveService } from '../../request-leave/service/request-leave.service';
+
+export interface DepartmentAttendanceSummary {
+  departmentId: string;
+  departmentName: string;
+  totalWorkers: number;
+  attendedWorkers: number;
+  attendancePercentage: number;
+}
 
 @Injectable()
 export class AttendanceService {
@@ -23,478 +36,642 @@ export class AttendanceService {
 
   constructor(
     private readonly dataSource: DataSource,
+    private readonly memberService: MemberService,
     private readonly eventService: EventService,
     private readonly configService: ConfigService,
-    private readonly workerService: WorkerService,
-    private readonly departmentService: DepartmentService,
-    private readonly requestLeaveService: RequestLeaveService,
+    private readonly utilityService: UtilityService,
     @InjectRepository(Attendance)
     private readonly attendanceRepository: Repository<Attendance>,
+    @InjectRepository(ServiceSlot)
+    private readonly slotRepository: Repository<ServiceSlot>,
   ) {}
 
-  async checkin(
-    user: UserAuth,
-    checkInDto: CheckInDto,
-  ): Promise<{ message: string }> {
-    const workerId = user.id;
-    const { eventId, location: userLocation } = checkInDto;
+  async checkin(user: MemberAuth, dto: CheckInDto): Promise<{ message: string }> {
+    const slot = await this.getSlotOrThrow(dto.serviceSlotId);
+    const member = await this.memberService.getById(user.id, ['workerProfile']);
 
-    const checkinDateTime = new Date(checkInDto.checkinTime);
-    if (isNaN(checkinDateTime.getTime())) {
-      this.createErrorResponse('Invalid check-in time format');
+    this.assertMemberActive(member);
+
+    if (await this.alreadyCheckedIn(user.id, dto.serviceSlotId)) {
+      throw new BadRequestException('You have already checked in for this service.');
     }
 
-    if (await this.isAttendanceAlreadyTaken(workerId, eventId)) {
-      this.createErrorResponse('Attendance previously taken');
+    const cfg = this.eventService.resolveSlotConfig(slot);
+    const isWorker = member.role === MemberRoleEnum.WORKER;
+    const now = moment();
+
+    this.validateCheckinWindow(now, slot, cfg, isWorker);
+
+    if (dto.location) {
+      this.validateLocation(dto.location, cfg);
     }
 
-    const worker = await this.workerService.get(workerId);
-    if (worker.status === WorkerStatusEnum.INACTIVE) {
-      this.createErrorResponse(
-        'You cannot check-in, your account is suspended',
-      );
-    }
+    const status = this.resolveStatus(now, slot, cfg, isWorker);
 
-    const event = await this.eventService.get(eventId);
-    const eventConfig = event.eventConfig;
-
-    if (!this.isSameDay(event.startDate, checkinDateTime)) {
-      this.createErrorResponse('Check-in date does not match the event date');
-    }
-
-    const checkInStartTime = this.calculateCheckInStartTime(
-      event.startDate,
-      eventConfig.checkinStartTimeInSeconds,
-    );
-    const lateCheckInStartTime = this.calculateLateCheckInStartTime(
-      event.startDate,
-      eventConfig.lateComingStartTimeInSeconds,
-    );
-    const checkInStopTime = this.calculateCheckInStopTime(
-      event.startDate,
-      eventConfig.checkinStopTimeInSeconds,
+    await this.attendanceRepository.save(
+      this.attendanceRepository.create({
+        member,
+        serviceSlot: slot,
+        checkinTime: now.toDate(),
+        status,
+        roleAtCheckin: member.role,
+        location: dto.location ?? null,
+      }),
     );
 
-    if (moment(checkinDateTime).isBefore(checkInStartTime)) {
-      this.createErrorResponse('Check-in is yet to start');
-    } else if (moment(checkinDateTime).isAfter(checkInStopTime)) {
-      this.createErrorResponse(
-        'You can no longer check-in, check-in is closed',
-      );
-    }
-
-    const checkInStatus = this.getCheckInStatus(
-      lateCheckInStartTime,
-      event.startDate,
-    );
-    const distance = UtilityService.calculateDistanceInMeters(
-      userLocation.latitude,
-      userLocation.longitude,
-      eventConfig.locationLatitude,
-      eventConfig.locationLongitude,
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, Check-in Confirmed`,
+      'checkin-confirmation',
+      {
+        name: firstName,
+        serviceName: slot.name,
+        eventDate: moment(slot.startTime).format('dddd, MMMM D YYYY'),
+        slotTime: moment(slot.startTime).format('h:mm A'),
+        checkinTime: now.format('h:mm A'),
+        status: status === AttendanceStatusEnum.LATE ? 'Late' : 'Present',
+      },
     );
 
-    if (this.isDistanceTooFar(distance, eventConfig.allowedDistanceInMeters)) {
-      this.createErrorResponse(
-        'Check-in location is too far from the event location',
-      );
-    }
-
-    await this.saveAttendance(
-      worker,
-      event,
-      checkinDateTime,
-      checkInStatus,
-      userLocation,
-    );
-    return this.createSuccessResponse('Check-in successful');
+    return { message: 'Check-in successful' };
   }
 
-  async markAbsentees() {
+  async markAbsentees(): Promise<void> {
     this.logger.log('Running absence marking job...');
 
-    const events = await this.eventService.findByAbsenteesNotUpdated();
-
-    if (events.length === 0) {
-      this.logger.log('No events found for absence marking');
+    const slots = await this.eventService.findSlotsNotMarkedAbsent();
+    if (!slots.length) {
+      this.logger.log('No slots pending absence marking');
       return;
     }
 
-    this.logger.log(`Found ${events.length} events for absence marking`);
-
-    const currentTime = new Date();
+    this.logger.log(`Processing ${slots.length} slot(s) for absence marking`);
 
     await this.dataSource.transaction(async (manager) => {
-      for (const event of events) {
-        this.logger.log(`Processing event: ${event.name}`);
+      for (const slot of slots) {
+        this.logger.log(`Processing slot: ${slot.name} (${slot.id})`);
 
-        const absentees =
-          await this.workerService.getWorkersNotCheckedInForEvent(event.id);
+        const [absentMembers, absentWorkers] = await Promise.all([
+          this.memberService.getMembersNotCheckedInForSlot(slot.id),
+          this.memberService.getWorkersNotCheckedInForSlot(slot.id),
+        ]);
 
-        if (absentees.length === 0) {
-          this.logger.log(`No absent workers found for event ${event.name}`);
-          continue;
+        const records: Partial<Attendance>[] = [];
+
+        for (const m of absentMembers) {
+          records.push(this.buildAbsenceRecord(m, slot, MemberRoleEnum.MEMBER, false));
         }
 
-        const attendanceRecords = [];
-        for (const worker of absentees) {
-          if (worker.status === WorkerStatusEnum.INACTIVE) {
-            continue; // Skip inactive workers
-          }
-
-          const hasApprovedLeave =
-            await this.requestLeaveService.hasApprovedLeave(
-              worker.id,
-              event.startDate,
-              event.endDate,
-            );
-
-          attendanceRecords.push({
-            worker,
-            event,
-            checkinStatus: hasApprovedLeave
-              ? CheckInStatusEnum.ON_LEAVE
-              : CheckInStatusEnum.ABSENT,
-            checkinTime: currentTime,
-            workerLocation: { longitude: 0, latitude: 0 },
-          });
+        for (const w of absentWorkers) {
+          const onLeave = await this.hasApprovedLeave(w.id, slot);
+          records.push(this.buildAbsenceRecord(w, slot, MemberRoleEnum.WORKER, onLeave));
         }
 
-        if (attendanceRecords.length > 0) {
-          await manager.save(
-            this.attendanceRepository.target,
-            attendanceRecords,
-          );
-          this.logger.log(
-            `Marked ${attendanceRecords.length} workers as absent or on leave for event ${event.name}`,
-          );
+        if (records.length > 0) {
+          await manager.save(Attendance, records);
+          this.logger.log(`Marked ${records.length} absence(s) for slot "${slot.name}"`);
         }
 
-        event.markedAbsent = true;
-        await manager.save(event);
-        this.logger.log(`Updated event ${event.name} as marked absent`);
+        await manager.update(ServiceSlot, slot.id, { markedAbsent: true });
       }
     });
 
-    this.logger.log('Absence marking job completed');
+    this.logger.log('Absence marking job complete');
   }
 
-  async getWorkersCheckinHistory(
-    user: UserAuth,
-    page: number = 1,
-    limit: number = 10,
-    attendanceDate?: string,
+  async getMyHistory(
+    user: MemberAuth,
+    page = 1,
+    limit = 10,
+    status?: AttendanceStatusEnum,
+    dateFrom?: string,
+    dateTo?: string,
   ): Promise<PaginationResponseDto<Attendance>> {
-    if (page < 1) {
-      throw new BadRequestException('Page number must be greater than 0');
-    }
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
-    const workerId = user.id;
-
-    const queryBuilder = this.attendanceRepository
+    const qb = this.attendanceRepository
       .createQueryBuilder('attendance')
-      .leftJoinAndSelect('attendance.event', 'event')
-      .where('attendance.worker.id = :workerId', { workerId })
+      .leftJoinAndSelect('attendance.serviceSlot', 'slot')
+      .leftJoinAndSelect('slot.event', 'event')
+      .where('attendance.member.id = :memberId', { memberId: user.id })
+      .orderBy('attendance.createdAt', 'DESC')
       .skip((page - 1) * limit)
-      .take(limit)
-      .orderBy('attendance.checkinTime', 'DESC');
+      .take(limit);
 
-    if (attendanceDate) {
-      this.appendAttendanceDate(attendanceDate, queryBuilder);
-    }
+    if (status) qb.andWhere('attendance.status = :status', { status });
+    if (dateFrom) qb.andWhere('attendance.checkinTime >= :dateFrom', { dateFrom: new Date(dateFrom) });
+    if (dateTo) qb.andWhere('attendance.checkinTime <= :dateTo', { dateTo: new Date(dateTo) });
 
-    const [attendances, total] = await queryBuilder.getManyAndCount();
-
-    return UtilityService.createPaginationResponse<Attendance>(
-      attendances,
-      page,
-      limit,
-      total,
-    );
+    const [data, total] = await qb.getManyAndCount();
+    return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 
-  async getAllCheckInHistory(
-    page: number = 1,
-    limit: number = 10,
-    workerId?: string,
-    eventId?: string,
-    attendanceDate?: string,
+  async getAllHistory(
+    page = 1,
+    limit = 10,
+    memberId?: string,
+    slotId?: string,
+    status?: AttendanceStatusEnum,
+    dateFrom?: string,
+    dateTo?: string,
   ): Promise<PaginationResponseDto<Attendance>> {
-    if (page < 1) {
-      throw new BadRequestException('Page number must be greater than 0');
-    }
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
-    const queryBuilder = this.attendanceRepository
+    const qb = this.attendanceRepository
       .createQueryBuilder('attendance')
-      .leftJoinAndSelect('attendance.event', 'event')
-      .leftJoinAndSelect('attendance.worker', 'worker')
+      .leftJoinAndSelect('attendance.member', 'member')
+      .leftJoinAndSelect('member.workerProfile', 'profile')
+      .leftJoinAndSelect('profile.department', 'department')
+      .leftJoinAndSelect('attendance.serviceSlot', 'slot')
+      .leftJoinAndSelect('slot.event', 'event')
+      .orderBy('attendance.createdAt', 'DESC')
       .skip((page - 1) * limit)
-      .take(limit)
-      .orderBy('attendance.checkinTime', 'DESC');
+      .take(limit);
 
-    if (workerId) {
-      queryBuilder.andWhere('worker.id = :workerId', { workerId });
-    }
+    if (memberId) qb.andWhere('member.id = :memberId', { memberId });
+    if (slotId) qb.andWhere('slot.id = :slotId', { slotId });
+    if (status) qb.andWhere('attendance.status = :status', { status });
+    if (dateFrom) qb.andWhere('attendance.checkinTime >= :dateFrom', { dateFrom: new Date(dateFrom) });
+    if (dateTo) qb.andWhere('attendance.checkinTime <= :dateTo', { dateTo: new Date(dateTo) });
 
-    if (eventId) {
-      queryBuilder.andWhere('event.id = :eventId', { eventId });
-    }
-
-    if (attendanceDate) {
-      this.appendAttendanceDate(attendanceDate, queryBuilder);
-    }
-
-    const [attendances, total] = await queryBuilder.getManyAndCount();
-
-    return UtilityService.createPaginationResponse<Attendance>(
-      attendances,
-      page,
-      limit,
-      total,
-    );
+    const [data, total] = await qb.getManyAndCount();
+    return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 
-  async getDepartmentCheckinHistory(user: UserAuth, eventId: string) {
-    const departmentLead = await this.departmentService.isWorkerDepartmentLead(
-      user.id,
-    );
-    if (!departmentLead) {
-      this.createErrorResponse(
-        'You are not authorized to view this department attendance',
-      );
-    }
+  async getDepartmentHistory(user: MemberAuth, slotId: string): Promise<Attendance[]> {
+    const member = await this.memberService.getById(user.id, [
+      'workerProfile',
+      'workerProfile.department',
+    ]);
+    const deptId = member.workerProfile?.department?.id;
+    if (!deptId) throw new BadRequestException('No department assigned to your profile');
 
-    const worker = await this.workerService.get(user.id, true);
-    const departmentId = worker.department.id;
-
-    const queryBuilder = this.attendanceRepository
+    return this.attendanceRepository
       .createQueryBuilder('attendance')
-      .leftJoinAndSelect('attendance.event', 'event')
-      .leftJoinAndSelect('attendance.worker', 'worker')
-      .where('worker.department.id = :departmentId', { departmentId })
-      .andWhere('event.id = :eventId', { eventId })
-      .orderBy('attendance.checkinTime', 'DESC');
-
-    const attendances = await queryBuilder.getMany();
-
-    return UtilityService.createPaginationResponse<Attendance>(
-      attendances,
-      1,
-      attendances.length,
-      attendances.length,
-    );
+      .leftJoinAndSelect('attendance.member', 'member')
+      .leftJoinAndSelect('member.workerProfile', 'profile')
+      .leftJoin('profile.department', 'dept')
+      .leftJoinAndSelect('attendance.serviceSlot', 'slot')
+      .leftJoinAndSelect('slot.event', 'event')
+      .where('dept.id = :deptId', { deptId })
+      .andWhere('slot.id = :slotId', { slotId })
+      .orderBy('attendance.createdAt', 'DESC')
+      .getMany();
   }
 
-  async getAttendanceLeaderboard(
-    daysAgo: number = 7,
-    limit: number = 10,
-  ): Promise<any[]> {
-    const dateDaysAgo = moment().subtract(daysAgo, 'days').toDate();
-
-    const attendances = await this.attendanceRepository
+  async getSlotSummary(slotId: string): Promise<Record<AttendanceStatusEnum, number>> {
+    const rows = await this.attendanceRepository
       .createQueryBuilder('attendance')
-      .select('worker.id', 'workerId')
-      .addSelect('worker.firstname', 'firstname')
-      .addSelect('worker.lastname', 'lastname')
-      .addSelect('department.name', 'departmentName')
-      .addSelect(
-        `
-      SUM(CASE WHEN attendance.checkinStatus != :absentStatus AND attendance.checkinStatus != :onLeaveStatus THEN 1 ELSE 0 END)
-    `,
-        'presentcount',
-      )
-      .addSelect(
-        `
-      SUM(CASE WHEN attendance.checkinStatus = :absentStatus THEN 1 ELSE 0 END)
-    `,
-        'absentcount',
-      )
-      .innerJoin('attendance.worker', 'worker')
-      .innerJoin('worker.department', 'department')
-      .where('attendance.checkinTime >= :dateDaysAgo', { dateDaysAgo })
-      .andWhere('worker.status != :inactiveStatus', {
-        inactiveStatus: WorkerStatusEnum.INACTIVE,
-      })
-      .setParameter('absentStatus', CheckInStatusEnum.ABSENT)
-      .setParameter('onLeaveStatus', CheckInStatusEnum.ON_LEAVE)
-      .groupBy('worker.id, worker.firstname, worker.lastname, department.name')
-      .orderBy('presentcount', 'DESC')
+      .select('attendance.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('attendance.serviceSlot.id = :slotId', { slotId })
+      .groupBy('attendance.status')
+      .getRawMany<{ status: AttendanceStatusEnum; count: string }>();
+
+    const summary: Record<AttendanceStatusEnum, number> = {
+      [AttendanceStatusEnum.PRESENT]: 0,
+      [AttendanceStatusEnum.LATE]: 0,
+      [AttendanceStatusEnum.ABSENT]: 0,
+      [AttendanceStatusEnum.ON_LEAVE]: 0,
+    };
+
+    for (const row of rows) {
+      summary[row.status] = Number.parseInt(row.count, 10);
+    }
+    return summary;
+  }
+
+  async getWorkerLeaderboard(daysAgo = 7, limit = 10): Promise<any[]> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+
+    const rows = await this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .select('member.id', 'memberId')
+      .addSelect('member.firstname', 'firstname')
+      .addSelect('member.lastname', 'lastname')
+      .addSelect('dept.name', 'departmentName')
+      .addSelect(`SUM(CASE WHEN attendance.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)`, 'presentCount')
+      .addSelect(`SUM(CASE WHEN attendance.status = 'ABSENT' THEN 1 ELSE 0 END)`, 'absentCount')
+      .innerJoin('attendance.member', 'member')
+      .innerJoin('member.workerProfile', 'profile')
+      .innerJoin('profile.department', 'dept')
+      .where('attendance.createdAt >= :since', { since })
+      .andWhere('attendance.roleAtCheckin = :role', { role: MemberRoleEnum.WORKER })
+      .andWhere('profile.status = :wStatus', { wStatus: WorkerStatusEnum.ACTIVE })
+      .groupBy('member.id, member.firstname, member.lastname, dept.name')
+      .orderBy('presentCount', 'DESC')
       .limit(limit)
       .getRawMany();
 
-    return attendances.map((attendance, index) => {
-      const presentCount = parseInt(attendance.presentcount, 10);
-      const absentCount = parseInt(attendance.absentcount, 10);
+    return rows.map((r, i) => ({
+      rank: i + 1,
+      name: `${r.firstname} ${r.lastname}`,
+      department: r.departmentName,
+      presentCount: Number.parseInt(r.presentCount, 10),
+      absentCount: Number.parseInt(r.absentCount, 10),
+    }));
+  }
 
+  async getPersonalAttendancePercentage(memberId: string, daysAgo = 30): Promise<number> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+
+    const { total, attended } = await this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .select('COUNT(*)', 'total')
+      .addSelect(`SUM(CASE WHEN attendance.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)`, 'attended')
+      .where('attendance.member_id = :memberId', { memberId })
+      .andWhere('attendance.createdAt >= :since', { since })
+      .getRawOne<{ total: string; attended: string }>();
+
+    const t = Number.parseInt(total ?? '0', 10);
+    const a = Number.parseInt(attended ?? '0', 10);
+    return t === 0 ? 0 : Math.min(Number(((a / t) * 100).toFixed(2)), 100);
+  }
+
+  async getWorkerAttendancePercentage(daysAgo = 30, departmentId?: string): Promise<number> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+
+    const totalWorkers = await this.memberService.count({
+      where: {
+        role: MemberRoleEnum.WORKER,
+        ...(departmentId ? { workerProfile: { department: { id: departmentId } } } : {}),
+      },
+    });
+
+    if (totalWorkers === 0) return 0;
+
+    const qb = this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .innerJoin('attendance.member', 'member')
+      .innerJoin('member.workerProfile', 'profile')
+      .where('attendance.createdAt >= :since', { since })
+      .andWhere(`attendance.status IN ('PRESENT','LATE')`)
+      .andWhere('profile.status = :wStatus', { wStatus: WorkerStatusEnum.ACTIVE });
+
+    if (departmentId) qb.andWhere('profile.department.id = :departmentId', { departmentId });
+
+    const { count } = await qb
+      .select('COUNT(DISTINCT member.id)', 'count')
+      .getRawOne<{ count: string }>();
+
+    const attended = Number.parseInt(count ?? '0', 10);
+    return Math.min(Number(((attended / totalWorkers) * 100).toFixed(2)), 100);
+  }
+
+  async getCongregationAttendancePercentage(daysAgo = 30): Promise<number> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+
+    const totalActive = await this.memberService.count({
+      where: { status: MemberStatusEnum.ACTIVE },
+    });
+    if (totalActive === 0) return 0;
+
+    const { count } = await this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .select('COUNT(DISTINCT attendance.member_id)', 'count')
+      .where('attendance.createdAt >= :since', { since })
+      .andWhere(`attendance.status IN ('PRESENT','LATE')`)
+      .getRawOne<{ count: string }>();
+
+    const attended = Number.parseInt(count ?? '0', 10);
+    return Math.min(Number(((attended / totalActive) * 100).toFixed(2)), 100);
+  }
+
+  async getDepartmentAttendanceSummary(daysAgo = 30): Promise<DepartmentAttendanceSummary[]> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+
+    const rows = await this.dataSource
+      .createQueryBuilder()
+      .select('dept.id', 'departmentId')
+      .addSelect('dept.name', 'departmentName')
+      .addSelect('COUNT(DISTINCT wp.member_id)', 'totalWorkers')
+      .addSelect(
+        `COUNT(DISTINCT CASE WHEN a.status IN ('PRESENT','LATE') THEN a.member_id END)`,
+        'attendedWorkers',
+      )
+      .from('departments', 'dept')
+      .leftJoin('worker_profiles', 'wp', "wp.department_id = dept.id AND wp.status = 'ACTIVE'")
+      .leftJoin(
+        'attendances',
+        'a',
+        "a.member_id = wp.member_id AND a.created_at >= :since AND a.role_at_checkin = 'WORKER'",
+        { since },
+      )
+      .groupBy('dept.id, dept.name')
+      .orderBy('dept.name', 'ASC')
+      .getRawMany<{
+        departmentId: string;
+        departmentName: string;
+        totalWorkers: string;
+        attendedWorkers: string;
+      }>();
+
+    return rows.map((r) => {
+      const total = Number.parseInt(r.totalWorkers, 10);
+      const attended = Number.parseInt(r.attendedWorkers, 10);
       return {
-        rank: index + 1,
-        workerName: `${attendance.firstname} ${attendance.lastname}`,
-        departmentName: attendance.departmentName,
-        presentCount,
-        absentCount,
+        departmentId: r.departmentId,
+        departmentName: r.departmentName,
+        totalWorkers: total,
+        attendedWorkers: attended,
+        attendancePercentage:
+          total === 0 ? 0 : Math.min(Number(((attended / total) * 100).toFixed(2)), 100),
       };
     });
   }
 
-  async getAttendancePercentage(
-    daysAgo = 7,
-    workerId?: string,
-    departmentId?: string,
-  ): Promise<number> {
-    const dateDaysAgo = moment().subtract(daysAgo, 'days').toDate();
+  async getNewMemberRegistrationsTrend(
+    daysAgo = 90,
+  ): Promise<{ week: string; newMembers: number; newWorkers: number }[]> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
 
-    const totalWorkers = workerId
-      ? 1
-      : await this.workerService.count({
-          where: {
-            status: WorkerStatusEnum.ACTIVE,
-            ...(departmentId ? { department: { id: departmentId } } : {}),
-          },
-        });
+    const rows = await this.dataSource
+      .createQueryBuilder()
+      .select("TO_CHAR(DATE_TRUNC('week', m.created_at), 'YYYY-MM-DD')", 'week')
+      .addSelect(`SUM(CASE WHEN m.role = 'MEMBER' THEN 1 ELSE 0 END)`, 'newMembers')
+      .addSelect(`SUM(CASE WHEN m.role = 'WORKER' THEN 1 ELSE 0 END)`, 'newWorkers')
+      .from('members', 'm')
+      .where('m.created_at >= :since', { since })
+      .groupBy("DATE_TRUNC('week', m.created_at)")
+      .orderBy("DATE_TRUNC('week', m.created_at)", 'ASC')
+      .getRawMany<{ week: string; newMembers: string; newWorkers: string }>();
 
-    if (totalWorkers === 0) {
-      return 0;
+    return rows.map((r) => ({
+      week: r.week,
+      newMembers: Number.parseInt(r.newMembers, 10),
+      newWorkers: Number.parseInt(r.newWorkers, 10),
+    }));
+  }
+
+  async getAttendanceStreak(memberId: string, role: MemberRoleEnum): Promise<number> {
+    const records = await this.attendanceRepository.find({
+      where: { member: { id: memberId }, roleAtCheckin: role },
+      order: { createdAt: 'DESC' },
+      select: ['status'],
+    });
+
+    let streak = 0;
+    for (const record of records) {
+      if (
+        record.status === AttendanceStatusEnum.PRESENT ||
+        record.status === AttendanceStatusEnum.LATE ||
+        record.status === AttendanceStatusEnum.ON_LEAVE
+      ) {
+        streak++;
+      } else {
+        break;
+      }
     }
+    return streak;
+  }
 
-    const queryBuilder = this.attendanceRepository
+  async getPeriodStats(
+    memberId: string,
+    daysAgo: number,
+  ): Promise<{ present: number; late: number; absent: number; onLeave: number; total: number }> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+    const rows = await this.attendanceRepository
       .createQueryBuilder('attendance')
-      .innerJoin('attendance.worker', 'worker')
-      .where('attendance.createdAt >= :dateDaysAgo', { dateDaysAgo })
-      .andWhere('attendance.checkinStatus NOT IN (:...excludedStatuses)', {
-        excludedStatuses: [
-          CheckInStatusEnum.ABSENT,
-          CheckInStatusEnum.ON_LEAVE,
-        ],
-      })
-      .andWhere('worker.status != :inactiveStatus', {
-        inactiveStatus: WorkerStatusEnum.INACTIVE,
-      });
+      .select('attendance.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('attendance.member_id = :memberId', { memberId })
+      .andWhere('attendance.createdAt >= :since', { since })
+      .groupBy('attendance.status')
+      .getRawMany<{ status: AttendanceStatusEnum; count: string }>();
 
-    if (workerId) {
-      queryBuilder.andWhere('worker.id = :workerId', { workerId });
-    } else if (departmentId) {
-      queryBuilder.andWhere('worker.department.id = :departmentId', {
-        departmentId,
-      });
+    const stats = { present: 0, late: 0, absent: 0, onLeave: 0, total: 0 };
+    for (const row of rows) {
+      const n = Number.parseInt(row.count, 10);
+      stats.total += n;
+      if (row.status === AttendanceStatusEnum.PRESENT) stats.present = n;
+      if (row.status === AttendanceStatusEnum.LATE) stats.late = n;
+      if (row.status === AttendanceStatusEnum.ABSENT) stats.absent = n;
+      if (row.status === AttendanceStatusEnum.ON_LEAVE) stats.onLeave = n;
     }
-
-    const { distinctWorkerCount } = await queryBuilder
-      .select('COUNT(DISTINCT worker.id)', 'distinctWorkerCount')
-      .getRawOne<{ distinctWorkerCount: string }>();
-
-    const attendedCount = parseInt(distinctWorkerCount ?? '0', 10);
-
-    return Math.min(
-      Number(((attendedCount / totalWorkers) * 100).toFixed(2)),
-      100,
-    );
+    return stats;
   }
 
-  private createErrorResponse(message: string) {
-    throw new BadRequestException(message);
+  async getMemberRank(memberId: string, daysAgo: number, role: MemberRoleEnum): Promise<number> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+    const rows = await this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .select('attendance.member_id', 'memberId')
+      .addSelect(`SUM(CASE WHEN attendance.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)`, 'score')
+      .where('attendance.roleAtCheckin = :role', { role })
+      .andWhere('attendance.createdAt >= :since', { since })
+      .groupBy('attendance.member_id')
+      .orderBy('score', 'DESC')
+      .getRawMany<{ memberId: string; score: string }>();
+
+    const index = rows.findIndex((r) => r.memberId === memberId);
+    return index === -1 ? rows.length + 1 : index + 1;
   }
 
-  private createSuccessResponse(message: string): {
-    message: string;
-  } {
-    return { message };
+  async getWeeklyAttendanceTrend(daysAgo = 90): Promise<{ week: string; present: number; absent: number }[]> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+    const rows = await this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .select("TO_CHAR(DATE_TRUNC('week', attendance.createdAt), 'YYYY-MM-DD')", 'week')
+      .addSelect(`SUM(CASE WHEN attendance.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)`, 'present')
+      .addSelect(`SUM(CASE WHEN attendance.status = 'ABSENT' THEN 1 ELSE 0 END)`, 'absent')
+      .where('attendance.createdAt >= :since', { since })
+      .groupBy("DATE_TRUNC('week', attendance.createdAt)")
+      .orderBy("DATE_TRUNC('week', attendance.createdAt)", 'ASC')
+      .getRawMany<{ week: string; present: string; absent: string }>();
+
+    return rows.map((r) => ({
+      week: r.week,
+      present: Number.parseInt(r.present, 10),
+      absent: Number.parseInt(r.absent, 10),
+    }));
   }
 
-  private calculateCheckInStartTime(
-    eventStartDate: Date,
-    checkinStartTimeInSeconds: number,
-  ): moment.Moment {
-    return moment(eventStartDate).add(checkinStartTimeInSeconds, 'seconds');
+  async getMembersNotSeenSince(daysAgo = 30, limit = 20): Promise<
+    { id: string; name: string; email: string; lastSeen: Date | null }[]
+  > {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+    const rows = await this.dataSource
+      .createQueryBuilder()
+      .select('m.id', 'id')
+      .addSelect('m.firstname', 'firstname')
+      .addSelect('m.lastname', 'lastname')
+      .addSelect('m.email', 'email')
+      .addSelect('MAX(a.checkin_time)', 'lastSeen')
+      .from('members', 'm')
+      .leftJoin(
+        'attendances',
+        'a',
+        "a.member_id = m.id AND a.status IN ('PRESENT','LATE')",
+      )
+      .where('m.status = :status', { status: 'ACTIVE' })
+      .groupBy('m.id, m.firstname, m.lastname, m.email')
+      .having('MAX(a.checkin_time) < :since OR MAX(a.checkin_time) IS NULL', { since })
+      .orderBy('MAX(a.checkin_time)', 'ASC', 'NULLS FIRST')
+      .limit(limit)
+      .getRawMany<{ id: string; firstname: string; lastname: string; email: string; lastSeen: Date | null }>();
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: `${r.firstname} ${r.lastname}`,
+      email: r.email,
+      lastSeen: r.lastSeen ?? null,
+    }));
   }
 
-  private calculateLateCheckInStartTime(
-    eventStartDate: Date,
-    lateComingStartTimeInSeconds: number,
-  ): moment.Moment {
-    return moment(eventStartDate).add(lateComingStartTimeInSeconds, 'seconds');
+  async getTopAbsentMembers(
+    daysAgo = 30,
+    limit = 10,
+    role?: MemberRoleEnum,
+  ): Promise<{ id: string; name: string; department: string | null; absentCount: number }[]> {
+    const since = moment().subtract(daysAgo, 'days').toDate();
+
+    const qb = this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .select('member.id', 'id')
+      .addSelect('member.firstname', 'firstname')
+      .addSelect('member.lastname', 'lastname')
+      .addSelect('dept.name', 'department')
+      .addSelect(`SUM(CASE WHEN attendance.status = 'ABSENT' THEN 1 ELSE 0 END)`, 'absentCount')
+      .innerJoin('attendance.member', 'member')
+      .leftJoin('member.workerProfile', 'profile')
+      .leftJoin('profile.department', 'dept')
+      .where('attendance.createdAt >= :since', { since })
+      .groupBy('member.id, member.firstname, member.lastname, dept.name')
+      .having(`SUM(CASE WHEN attendance.status = 'ABSENT' THEN 1 ELSE 0 END) > 0`)
+      .orderBy('absentCount', 'DESC')
+      .limit(limit);
+
+    if (role) qb.andWhere('attendance.roleAtCheckin = :role', { role });
+
+    const rows = await qb.getRawMany<{
+      id: string; firstname: string; lastname: string; department: string | null; absentCount: string;
+    }>();
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: `${r.firstname} ${r.lastname}`,
+      department: r.department ?? null,
+      absentCount: Number.parseInt(r.absentCount, 10),
+    }));
   }
 
-  private calculateCheckInStopTime(
-    eventStartDate: Date,
-    checkinStopTimeInSeconds: number,
-  ): moment.Moment {
-    return moment(eventStartDate).add(checkinStopTimeInSeconds, 'seconds');
-  }
-
-  private appendAttendanceDate(
-    attendanceDate: string,
-    queryBuilder: SelectQueryBuilder<Attendance>,
-  ) {
-    const attendanceDateTime = new Date(attendanceDate);
-    if (isNaN(attendanceDateTime.getTime())) {
-      throw new BadRequestException('Invalid attendance date format');
-    }
-
-    const startOfDay = moment(attendanceDateTime).startOf('day').toDate();
-    const endOfDay = moment(attendanceDateTime).endOf('day').toDate();
-    queryBuilder.andWhere(
-      'attendance.checkinTime BETWEEN :startOfDay AND :endOfDay',
-      { startOfDay, endOfDay },
-    );
-  }
-
-  private async isAttendanceAlreadyTaken(
-    workerId: string,
-    eventId: string,
-  ): Promise<boolean> {
-    const attendance = await this.attendanceRepository.findOne({
-      where: { worker: { id: workerId }, event: { id: eventId } },
+  async getTotalCheckInsToday(): Promise<number> {
+    const startOfDay = moment().startOf('day').toDate();
+    const endOfDay = moment().endOf('day').toDate();
+    return this.attendanceRepository.count({
+      where: { checkinTime: Between(startOfDay, endOfDay) },
     });
-    return !!attendance;
   }
 
-  private isSameDay(eventDate: Date, checkInTime: Date): boolean {
-    return moment(eventDate)
-      .startOf('day')
-      .isSame(moment(checkInTime).startOf('day'));
-  }
+  // ─── Private helpers ────────────────────────────────────────────────────────
 
-  private getCheckInStatus(
-    lateCheckInStartTime: moment.Moment,
-    checkinTime: Date,
-  ): CheckInStatusEnum {
-    if (moment(checkinTime).isAfter(lateCheckInStartTime)) {
-      return CheckInStatusEnum.LATE;
-    } else {
-      return CheckInStatusEnum.EARLY;
-    }
-  }
-
-  private isDistanceTooFar(distance: number, allowedDistance: number): boolean {
-    this.logger.log('Distance from event location: ' + distance);
-    if (distance > allowedDistance) {
-      this.logger.log(
-        `Check-in location is too far from the event location, allowed distance is
-        ${allowedDistance} meters, actual distance is ${distance} meters`,
-      );
-      return this.shouldEnforceDistanceCheck();
-    }
-    return false;
-  }
-
-  private async saveAttendance(
-    worker: Worker,
-    event: Event,
-    checkinTime: Date,
-    checkinStatus: CheckInStatusEnum,
-    userLocation: any,
-  ): Promise<void> {
-    const attendance = this.attendanceRepository.create({
-      worker,
-      event,
-      checkinTime,
-      checkinStatus,
-      workerLocation: userLocation,
+  private async getSlotOrThrow(slotId: string): Promise<ServiceSlot> {
+    const slot = await this.slotRepository.findOne({
+      where: { id: slotId },
+      relations: ['config', 'config.defaultVenue', 'venueOverride', 'event'],
     });
-    await this.attendanceRepository.save(attendance);
+    if (!slot) throw new NotFoundException('Service slot not found');
+    return slot;
   }
 
-  private shouldEnforceDistanceCheck(): boolean {
+  private assertMemberActive(member: Member): void {
+    if (member.status === MemberStatusEnum.INACTIVE) {
+      throw new BadRequestException('Your account is inactive. Contact admin.');
+    }
+    if (
+      member.role === MemberRoleEnum.WORKER &&
+      member.workerProfile?.status === WorkerStatusEnum.INACTIVE
+    ) {
+      throw new BadRequestException('Your worker account is suspended. Contact admin.');
+    }
+  }
+
+  private validateCheckinWindow(
+    now: moment.Moment,
+    slot: ServiceSlot,
+    cfg: ReturnType<EventService['resolveSlotConfig']>,
+    isWorker: boolean,
+  ): void {
+    const startOffset = isWorker
+      ? cfg.workerCheckinStartOffsetSeconds
+      : cfg.memberCheckinStartOffsetSeconds;
+
+    const openTime = moment(slot.startTime).add(startOffset, 'seconds');
+    const closeTime = moment(slot.startTime).add(cfg.checkinStopOffsetSeconds, 'seconds');
+
+    if (now.isBefore(openTime)) {
+      throw new BadRequestException('Check-in has not opened yet.');
+    }
+    if (now.isAfter(closeTime)) {
+      throw new BadRequestException('Check-in is closed.');
+    }
+  }
+
+  private validateLocation(
+    location: { latitude: number; longitude: number },
+    cfg: ReturnType<EventService['resolveSlotConfig']>,
+  ): void {
+    const distance = UtilityService.calculateDistanceInMeters(
+      location.latitude,
+      location.longitude,
+      cfg.venue.latitude,
+      cfg.venue.longitude,
+    );
+    if (distance > cfg.allowedDistanceInMeters && this.enforceDistance()) {
+      throw new BadRequestException('You are too far from the venue to check in.');
+    }
+  }
+
+  private resolveStatus(
+    now: moment.Moment,
+    slot: ServiceSlot,
+    cfg: ReturnType<EventService['resolveSlotConfig']>,
+    isWorker: boolean,
+  ): AttendanceStatusEnum {
+    if (!isWorker) return AttendanceStatusEnum.PRESENT;
+    const lateThreshold = moment(slot.startTime).add(cfg.workerLateOffsetSeconds, 'seconds');
+    return now.isSameOrAfter(lateThreshold)
+      ? AttendanceStatusEnum.LATE
+      : AttendanceStatusEnum.PRESENT;
+  }
+
+  private buildAbsenceRecord(
+    member: Member,
+    slot: ServiceSlot,
+    role: MemberRoleEnum,
+    onLeave: boolean,
+  ): Partial<Attendance> {
+    return {
+      member,
+      serviceSlot: slot,
+      checkinTime: null,
+      status: onLeave ? AttendanceStatusEnum.ON_LEAVE : AttendanceStatusEnum.ABSENT,
+      roleAtCheckin: role,
+      location: null,
+    };
+  }
+
+  private async alreadyCheckedIn(memberId: string, slotId: string): Promise<boolean> {
+    return this.attendanceRepository.exists({
+      where: { member: { id: memberId }, serviceSlot: { id: slotId } },
+    });
+  }
+
+  private async hasApprovedLeave(memberId: string, slot: ServiceSlot): Promise<boolean> {
+    const result = await this.dataSource
+      .createQueryBuilder()
+      .from('request_leave', 'leave')
+      .innerJoin('worker_profiles', 'profile', 'profile.id = leave.worker_profile_id')
+      .where('profile.member_id = :memberId', { memberId })
+      .andWhere('leave.status = :status', { status: 'APPROVED' })
+      .andWhere('leave.date_from <= :slotEnd', { slotEnd: slot.endTime })
+      .andWhere('leave.date_to >= :slotStart', { slotStart: slot.startTime })
+      .getCount();
+    return result > 0;
+  }
+
+  private enforceDistance(): boolean {
     return this.configService.get<string>('ENFORCE_DISTANCE_CHECK') === 'true';
   }
 }

@@ -4,8 +4,9 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
-  Put,
   Query,
   Request,
   UseGuards,
@@ -13,110 +14,70 @@ import {
 import { RequestLeaveService } from '../service/request-leave.service';
 import { CreateRequestLeaveDto } from '../dto/create-request-leave.dto';
 import { LeaveStatusEnum } from '../enums/leave-status.enum';
-import { RequestLeaveDto } from '../dto/request-leave.dto';
-import { plainToInstance } from 'class-transformer';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
-import { UserTypeEnum } from '../../user/enums/user-type.enum';
-import { UtilityService } from '../../utility/service/utility.service';
-import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { RequestLeave } from '../enitity/request-leave.entity';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 
-@Controller('request-leave')
+@Controller('leave')
 export class RequestLeaveController {
   constructor(private readonly requestLeaveService: RequestLeaveService) {}
 
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.WORKER)
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  async createLeaveRequest(
-    @Request() req: any,
-    @Body() dto: CreateRequestLeaveDto,
-  ): Promise<RequestLeaveDto> {
-    const leaveRequest = await this.requestLeaveService.requestLeave(
-      req.user,
-      dto,
-    );
-    return plainToInstance(RequestLeaveDto, leaveRequest);
+  async requestLeave(@Request() req: any, @Body() dto: CreateRequestLeaveDto) {
+    return this.requestLeaveService.requestLeave(req.user, dto);
   }
 
-  @Put(':id/action')
   @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  async actionLeaveRequest(
+  @Roles(MemberRoleEnum.ADMIN)
+  @Patch(':id/action')
+  async actionLeave(
     @Request() req: any,
-    @Param('id') leaveId: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body('status') status: LeaveStatusEnum,
-  ): Promise<RequestLeaveDto> {
-    const leaveRequest = await this.requestLeaveService.actionLeave(
-      req.user,
-      leaveId,
-      status,
-    );
-
-    return plainToInstance(RequestLeaveDto, leaveRequest);
+  ) {
+    return this.requestLeaveService.actionLeave(req.user, id, status);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.WORKER)
   @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  async deleteLeaveRequest(
+  async deleteLeave(
     @Request() req: any,
-    @Param('id') leaveId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
-    return this.requestLeaveService.deleteLeaveRequest(req.user, leaveId);
+    await this.requestLeaveService.deleteLeaveRequest(req.user, id);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.WORKER)
+  @Get('my-history')
+  async getMyHistory(
+    @Request() req: any,
+    @Query('status') status?: LeaveStatusEnum,
+  ) {
+    return this.requestLeaveService.getMyLeaveHistory(req.user, status);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.ADMIN)
   @Get('history')
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  async getAllLeaveHistory(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
+  async getAllHistory(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
     @Query('status') status?: LeaveStatusEnum,
-  ): Promise<PaginationResponseDto<RequestLeaveDto>> {
-    const leaveRequests = await this.requestLeaveService.getAllLeaveHistory(
-      page,
-      limit,
-      status,
-    );
-
-    return UtilityService.getPaginationResponseDto<
-      RequestLeave,
-      RequestLeaveDto
-    >(leaveRequests, RequestLeaveDto);
+  ) {
+    return this.requestLeaveService.getAllLeaveHistory(+page, +limit, status);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.WORKER)
   @Get('department')
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  async getDepartmentLeaveRequests(
+  async getDepartmentHistory(
     @Request() req: any,
     @Query('status') status?: LeaveStatusEnum,
   ) {
-    const departmentLeaveRequests =
-      await this.requestLeaveService.getDepartmentLeaveRequests(
-        req.user,
-        status,
-      );
-
-    return departmentLeaveRequests.map((leaveRequest) =>
-      plainToInstance(RequestLeaveDto, leaveRequest),
-    );
-  }
-
-  @Get('worker')
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  async getWorkerLeaveHistory(
-    @Request() req: any,
-    @Query('status') status?: LeaveStatusEnum,
-  ) {
-    const workerLeaveRequests =
-      await this.requestLeaveService.getWorkerLeaveHistory(req.user, status);
-
-    return workerLeaveRequests.map((leaveRequest) =>
-      plainToInstance(RequestLeaveDto, leaveRequest),
-    );
+    return this.requestLeaveService.getDepartmentLeaveRequests(req.user, status);
   }
 }

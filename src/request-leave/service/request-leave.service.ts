@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,215 +9,205 @@ import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { RequestLeave } from '../enitity/request-leave.entity';
 import { CreateRequestLeaveDto } from '../dto/create-request-leave.dto';
 import { LeaveStatusEnum } from '../enums/leave-status.enum';
+import { MemberAuth } from '../../auth/interface/auth.interface';
+import { MemberService } from '../../member/service/member.service';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
-import { AdminService } from '../../user/service/admin.service';
-import { WorkerService } from '../../user/service/worker.service';
-import { UserAuth } from '../../auth/interface/auth.interface';
 import { DepartmentService } from '../../department/service/department.service';
 
 @Injectable()
 export class RequestLeaveService {
+  private readonly logger = new Logger(RequestLeaveService.name);
+
   constructor(
     @InjectRepository(RequestLeave)
-    private readonly requestLeaveRepository: Repository<RequestLeave>,
-    private readonly adminService: AdminService,
-    private readonly workerService: WorkerService,
+    private readonly repo: Repository<RequestLeave>,
+    private readonly memberService: MemberService,
     private readonly departmentService: DepartmentService,
+    private readonly utilityService: UtilityService,
   ) {}
 
-  async requestLeave(
-    user: UserAuth,
-    dto: CreateRequestLeaveDto,
-  ): Promise<RequestLeave> {
-    const worker = await this.workerService.get(user.id);
+  async requestLeave(user: MemberAuth, dto: CreateRequestLeaveDto): Promise<RequestLeave> {
+    const member = await this.memberService.getById(user.id, ['workerProfile']);
 
-    const existingPendingLeave = await this.requestLeaveRepository.findOne({
+    if (!member.workerProfile) {
+      throw new BadRequestException('Only workers can request leave');
+    }
+
+    const hasPending = await this.repo.exists({
       where: {
-        worker: { id: worker.id },
+        workerProfile: { id: member.workerProfile.id },
         status: LeaveStatusEnum.PENDING,
       },
     });
 
-    if (existingPendingLeave) {
-      throw new BadRequestException(
-        'You already have a pending leave request. Please wait for it to be processed before requesting another leave.',
-      );
+    if (hasPending) {
+      throw new BadRequestException('You already have a pending leave request');
     }
 
-    const leaveRequest = this.requestLeaveRepository.create({
-      worker,
-      dateFrom: new Date(dto.dateFrom),
-      dateTo: new Date(dto.dateTo),
-      reason: dto.reason,
-      status: LeaveStatusEnum.PENDING,
-    });
+    const saved = await this.repo.save(
+      this.repo.create({
+        workerProfile: member.workerProfile,
+        dateFrom: new Date(dto.dateFrom),
+        dateTo: new Date(dto.dateTo),
+        reason: dto.reason,
+        status: LeaveStatusEnum.PENDING,
+      }),
+    );
+    this.logger.log(`Leave request submitted by worker ${member.email} (${dto.dateFrom} – ${dto.dateTo})`);
 
-    return this.requestLeaveRepository.save(leaveRequest);
-  }
-
-  async actionLeave(
-    user: UserAuth,
-    leaveId: string,
-    status: LeaveStatusEnum,
-  ): Promise<RequestLeave> {
-    const leaveRequest = await this.requestLeaveRepository.findOne({
-      where: { id: leaveId },
-      relations: ['actionedBy'],
-    });
-
-    if (!leaveRequest) throw new NotFoundException('Leave request not found');
-    if (leaveRequest.status !== LeaveStatusEnum.PENDING) {
-      throw new BadRequestException(
-        'Leave request can only be actioned if it is pending',
-      );
-    }
-    if (
-      ![LeaveStatusEnum.APPROVED, LeaveStatusEnum.REJECTED].includes(status)
-    ) {
-      throw new BadRequestException('Invalid status action');
-    }
-
-    const admin = await this.adminService.get(user.id);
-
-    leaveRequest.status = status;
-    leaveRequest.actionedBy = admin;
-
-    return this.requestLeaveRepository.save(leaveRequest);
-  }
-
-  async deleteLeaveRequest(user: UserAuth, leaveId: string): Promise<void> {
-    const leaveRequest = await this.requestLeaveRepository.findOneBy({
-      id: leaveId,
-      worker: { id: user.id },
-    });
-
-    if (!leaveRequest) throw new NotFoundException('Leave request not found');
-
-    if (leaveRequest.status !== LeaveStatusEnum.PENDING) {
-      throw new BadRequestException(
-        'Only pending leave requests can be deleted',
-      );
-    }
-
-    await this.requestLeaveRepository.delete(leaveId);
-  }
-
-  async hasApprovedLeave(
-    workerId: string,
-    dateFrom: Date,
-    dateTo: Date,
-  ): Promise<boolean> {
-    const leaveRequest = await this.requestLeaveRepository.findOne({
-      where: {
-        worker: { id: workerId },
-        status: LeaveStatusEnum.APPROVED,
-        dateFrom: LessThanOrEqual(dateFrom),
-        dateTo: MoreThanOrEqual(dateTo),
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, Leave Request Received`,
+      'leave-submitted',
+      {
+        name: firstName,
+        dateFrom: new Date(dto.dateFrom).toLocaleDateString('en-GB', { dateStyle: 'medium' }),
+        dateTo: new Date(dto.dateTo).toLocaleDateString('en-GB', { dateStyle: 'medium' }),
+        reason: dto.reason,
       },
-      relations: ['worker'],
-    });
+    );
 
-    return !!leaveRequest;
+    return saved;
   }
 
-  async getWorkerLeaveHistory(
-    user: UserAuth,
-    leaveStatus?: LeaveStatusEnum,
-  ): Promise<RequestLeave[]> {
-    const whereCondition: any = { worker: { id: user.id } };
-    if (leaveStatus) {
-      whereCondition.status = leaveStatus;
+  async actionLeave(user: MemberAuth, leaveId: string, status: LeaveStatusEnum): Promise<RequestLeave> {
+    const leave = await this.repo.findOne({
+      where: { id: leaveId },
+      relations: ['workerProfile', 'workerProfile.member'],
+    });
+
+    if (!leave) throw new NotFoundException('Leave request not found');
+    if (leave.status !== LeaveStatusEnum.PENDING) {
+      throw new BadRequestException('Only pending requests can be actioned');
+    }
+    if (![LeaveStatusEnum.APPROVED, LeaveStatusEnum.REJECTED].includes(status)) {
+      throw new BadRequestException('Status must be APPROVED or REJECTED');
     }
 
-    return await this.requestLeaveRepository.find({
-      where: whereCondition,
-      relations: ['worker', 'actionedBy'],
+    const admin = await this.memberService.getById(user.id);
+    leave.status = status;
+    leave.actionedBy = admin;
+
+    const saved = await this.repo.save(leave);
+    this.logger.log(`Leave request ${leaveId} ${status} by admin ${user.id}`);
+
+    const workerMember = leave.workerProfile?.member;
+    if (workerMember?.email) {
+      const firstName = UtilityService.capitalizeFirstLetter(workerMember.firstname);
+      const actionStatus = status === LeaveStatusEnum.APPROVED ? 'Approved' : 'Rejected';
+      this.utilityService.sendEmailWithTemplate(
+        workerMember.email,
+        `${firstName}, Leave Request ${actionStatus}`,
+        'leave-actioned',
+        {
+          name: firstName,
+          actionStatus,
+          dateFrom: leave.dateFrom.toLocaleDateString('en-GB', { dateStyle: 'medium' }),
+          dateTo: leave.dateTo.toLocaleDateString('en-GB', { dateStyle: 'medium' }),
+        },
+      );
+    }
+
+    return saved;
+  }
+
+  async deleteLeaveRequest(user: MemberAuth, leaveId: string): Promise<void> {
+    const member = await this.memberService.getById(user.id, ['workerProfile']);
+
+    if (!member.workerProfile) {
+      throw new BadRequestException('Worker profile not found');
+    }
+
+    const leave = await this.repo.findOneBy({
+      id: leaveId,
+      workerProfile: { id: member.workerProfile.id },
+    });
+
+    if (!leave) throw new NotFoundException('Leave request not found');
+    if (leave.status !== LeaveStatusEnum.PENDING) {
+      throw new BadRequestException('Only pending requests can be deleted');
+    }
+
+    await this.repo.delete(leaveId);
+  }
+
+  async getMyLeaveHistory(user: MemberAuth, status?: LeaveStatusEnum): Promise<RequestLeave[]> {
+    const member = await this.memberService.getById(user.id, ['workerProfile']);
+    if (!member.workerProfile) return [];
+
+    return this.repo.find({
+      where: {
+        workerProfile: { id: member.workerProfile.id },
+        ...(status ? { status } : {}),
+      },
       order: { createdAt: 'DESC' },
     });
   }
 
   async getAllLeaveHistory(
-    page: number = 1,
-    limit: number = 10,
-    leaveStatus?: LeaveStatusEnum,
+    page = 1,
+    limit = 10,
+    status?: LeaveStatusEnum,
   ): Promise<PaginationResponseDto<RequestLeave>> {
-    if (page < 1) {
-      throw new BadRequestException('Page number must be greater than 0');
-    }
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
-    const whereCondition: any = {};
-    if (leaveStatus) {
-      whereCondition.status = leaveStatus;
-    }
+    const [leaves, total] = await this.repo.findAndCount({
+      where: status ? { status } : {},
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { createdAt: 'DESC' },
+      relations: ['workerProfile', 'workerProfile.member', 'actionedBy'],
+    });
 
-    const [requestLeaves, total] =
-      await this.requestLeaveRepository.findAndCount({
-        where: whereCondition,
-        skip: (page - 1) * limit,
-        take: limit,
-        order: { createdAt: 'DESC' },
-        relations: ['worker', 'actionedBy'],
-      });
-
-    return UtilityService.createPaginationResponse<RequestLeave>(
-      requestLeaves,
-      page,
-      limit,
-      total,
-    );
+    return UtilityService.createPaginationResponse(leaves, page, limit, total);
   }
 
   async getDepartmentLeaveRequests(
-    user: UserAuth,
-    leaveStatus?: LeaveStatusEnum,
+    user: MemberAuth,
+    status?: LeaveStatusEnum,
   ): Promise<RequestLeave[]> {
-    const departmentLead = await this.departmentService.isWorkerDepartmentLead(
-      user.id,
-    );
-    if (!departmentLead) {
-      throw new BadRequestException(
-        'You are not authorized to view this department attendance',
-      );
-    }
+    const isLead = await this.departmentService.isMemberDepartmentLead(user.id);
+    if (!isLead) throw new BadRequestException('Not authorised to view department leave requests');
 
-    const worker = await this.workerService.get(user.id, true);
-    const departmentId = worker.department.id;
+    const member = await this.memberService.getById(user.id, [
+      'workerProfile',
+      'workerProfile.department',
+    ]);
+    const deptId = member.workerProfile?.department?.id;
+    if (!deptId) throw new BadRequestException('No department assigned');
 
-    const whereCondition: any = {
-      worker: { department: { id: departmentId } },
-    };
-    if (leaveStatus) {
-      whereCondition.status = leaveStatus;
-    }
-
-    return await this.requestLeaveRepository.find({
-      where: whereCondition,
-      relations: ['worker', 'worker.department', 'actionedBy'],
+    return this.repo.find({
+      where: {
+        workerProfile: { department: { id: deptId } },
+        ...(status ? { status } : {}),
+      },
+      relations: ['workerProfile', 'workerProfile.member', 'actionedBy'],
       order: { createdAt: 'DESC' },
     });
   }
 
-  async countPendingLeave(
-    workerId?: string,
-    departmentId?: string,
-  ): Promise<number> {
-    const currentDate = new Date();
+  async countPendingLeave(workerProfileId?: string, departmentId?: string): Promise<number> {
+    const where: any = { status: LeaveStatusEnum.PENDING };
 
-    const whereCondition: any = {
-      status: LeaveStatusEnum.PENDING,
-      dateFrom: MoreThanOrEqual(currentDate),
-      dateTo: MoreThanOrEqual(currentDate),
-    };
-
-    if (workerId) {
-      whereCondition.worker = { id: workerId };
+    if (workerProfileId) {
+      where.workerProfile = { id: workerProfileId };
     } else if (departmentId) {
-      whereCondition.worker = { department: { id: departmentId } };
+      where.workerProfile = { department: { id: departmentId } };
     }
 
-    return await this.requestLeaveRepository.count({
-      where: whereCondition,
+    return this.repo.count({ where });
+  }
+
+  async hasApprovedLeave(workerProfileId: string, slotStart: Date, slotEnd: Date): Promise<boolean> {
+    return this.repo.exists({
+      where: {
+        workerProfile: { id: workerProfileId },
+        status: LeaveStatusEnum.APPROVED,
+        dateFrom: LessThanOrEqual(slotStart),
+        dateTo: MoreThanOrEqual(slotEnd),
+      },
     });
   }
 }

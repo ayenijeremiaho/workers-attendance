@@ -1,10 +1,12 @@
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
+  IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
-  IsUUID,
+  IsString,
   Matches,
   Min,
   ValidateIf,
@@ -12,10 +14,11 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EventRecurrencePatternEnum } from '../enums/event-recurrence-patterns.enums';
+import { CreateServiceSlotDto } from './create-service-slot.dto';
 
 class RecurrenceDto {
-  @Matches(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/, {
-    message: 'recurrenceEndDate must be in the format YYYY-MM-DD HH:mm',
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'recurrenceEndDate must be YYYY-MM-DD',
   })
   recurrenceEndDate: string;
 
@@ -23,27 +26,27 @@ class RecurrenceDto {
   recurrencePattern: EventRecurrencePatternEnum;
 
   @Min(1)
-  @IsNumber()
+  @IsInt()
   recurrenceInterval: number;
 }
 
 export class CreateEventDto {
   @IsNotEmpty()
+  @IsString()
   name: string;
 
   @IsOptional()
-  @IsNotEmpty()
+  @IsString()
   description?: string;
 
-  @Matches(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/, {
-    message: 'startDate must be in the format YYYY-MM-DD HH:mm',
-  })
-  startEvent: string;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'eventDate must be YYYY-MM-DD' })
+  eventDate: string;
 
-  @Matches(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/, {
-    message: 'endDate must be in the format YYYY-MM-DD HH:mm',
-  })
-  endEvent: string;
+  @IsArray()
+  @ArrayMinSize(1, { message: 'At least one service slot is required' })
+  @ValidateNested({ each: true })
+  @Type(() => CreateServiceSlotDto)
+  serviceSlots: CreateServiceSlotDto[];
 
   @IsBoolean()
   isRecurring: boolean;
@@ -52,7 +55,4 @@ export class CreateEventDto {
   @ValidateNested()
   @Type(() => RecurrenceDto)
   recurrence?: RecurrenceDto;
-
-  @IsUUID('4', { message: 'invalid eventConfigId' })
-  eventConfigId: string;
 }

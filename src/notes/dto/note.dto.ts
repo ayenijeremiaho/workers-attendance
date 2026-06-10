@@ -1,8 +1,8 @@
 import { NoteTypeEnum } from '../enums/note-type.enums';
-import { EventDto } from '../../event/dto/event.dto';
 import { Exclude, Expose } from 'class-transformer';
 import { ToDateString } from '../../utility/dto/date-converter';
-import { NoteDetailsDto } from '../types/note-details.type';
+
+export type NoteDetailsDto = ChildNamingDetailsDto | ChildDedicationDetailsDto | MarriageDetailsDto;
 
 @Exclude()
 export class NoteDto {
@@ -30,14 +30,14 @@ export class ChildNamingDetailsDto {
   type: NoteTypeEnum.CHILD_NAMING;
 
   @Expose()
-  @ToDateString()
-  dateOfBirth: Date;
-
-  @Expose()
   childName: string;
 
   @Expose()
   familyName: string;
+
+  @Expose()
+  @ToDateString()
+  dateOfBirth: Date;
 }
 
 @Exclude()
@@ -46,14 +46,14 @@ export class ChildDedicationDetailsDto {
   type: NoteTypeEnum.CHILD_DEDICATION;
 
   @Expose()
-  @ToDateString()
-  dedicationDate: Date;
-
-  @Expose()
   childName: string;
 
   @Expose()
   familyName: string;
+
+  @Expose()
+  @ToDateString()
+  dedicationDate: Date;
 }
 
 @Exclude()
@@ -70,15 +70,4 @@ export class MarriageDetailsDto {
   @Expose()
   @ToDateString()
   weddingDate: Date;
-}
-
-@Exclude()
-export class MemberAttendanceDetailsDto {
-  @Expose()
-  type: NoteTypeEnum.MEMBER_ATTENDANCE;
-
-  @Expose()
-  totalAttendance: number;
-
-  event: EventDto;
 }

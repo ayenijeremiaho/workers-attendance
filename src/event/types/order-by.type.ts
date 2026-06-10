@@ -1,1 +1,1 @@
-export type OrderBy = 'startDate' | 'endDate' | 'createdAt' | 'updatedAt';
+export type OrderBy = 'eventDate' | 'createdAt' | 'updatedAt';

@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Worker } from '../../user/entity/worker.entity';
+import { WorkerProfile } from '../../member/entity/worker-profile.entity';
 
 @Entity({ name: 'departments' })
 export class Department {
@@ -19,8 +19,8 @@ export class Department {
   @Column()
   description: string;
 
-  @OneToMany(() => Worker, (worker) => worker.id)
-  workers: Worker[];
+  @OneToMany(() => WorkerProfile, (profile) => profile.department)
+  workerProfiles: WorkerProfile[];
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

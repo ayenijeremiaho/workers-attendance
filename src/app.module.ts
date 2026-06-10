@@ -3,18 +3,20 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UtilityModule } from './utility/utility.module';
 import { ConfigModule } from '@nestjs/config';
-import { UserModule } from './user/user.module';
 import dbConfig from './config/db.config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { LoggerModule } from 'nestjs-pino';
+import { MemberModule } from './member/member.module';
 import { DepartmentModule } from './department/department.module';
 import { EventModule } from './event/event.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-import { RequestLeaveService } from './request-leave/service/request-leave.service';
 import { RequestLeaveModule } from './request-leave/request-leave.module';
 import { NotesModule } from './notes/notes.module';
+import { ClassesModule } from './classes/classes.module';
+import { AnnouncementModule } from './announcement/announcement.module';
+import { VenueModule } from './venue/venue.module';
 
 @Module({
   imports: [
@@ -29,15 +31,18 @@ import { NotesModule } from './notes/notes.module';
     }),
     AuthModule,
     UtilityModule,
-    UserModule,
+    MemberModule,
     DepartmentModule,
     EventModule,
     AttendanceModule,
     DashboardModule,
     RequestLeaveModule,
     NotesModule,
+    ClassesModule,
+    AnnouncementModule,
+    VenueModule,
   ],
   controllers: [AppController],
-  providers: [AppService, RequestLeaveService],
+  providers: [AppService],
 })
 export class AppModule {}

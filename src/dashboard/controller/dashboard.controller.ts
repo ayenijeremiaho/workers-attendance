@@ -1,35 +1,39 @@
-import {
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from '../service/dashboard.service';
+import { JwtAuthGuard } from '../../auth/guard/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
-import { UserTypeEnum } from '../../user/enums/user-type.enum';
-import { AdminDashboardDataDto } from '../dto/admin-dashboard-data.dto';
-import { WorkerDashboardDataDto } from '../dto/worker-dashboard-data.dto';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
+import { CurrentUser } from '../../auth/decorator/current-user.decorator';
+import { MemberAuth } from '../../auth/interface/auth.interface';
 
+@UseGuards(JwtAuthGuard)
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  @Get('/admin')
-  async admin(@Request() req: any): Promise<AdminDashboardDataDto> {
-    return this.dashboardService.getAdminDashboardData(req.user);
+  @Get('member')
+  getMemberDashboard(
+    @CurrentUser() user: MemberAuth,
+    @Query('daysAgo') daysAgo = 30,
+  ) {
+    return this.dashboardService.getMemberDashboard(user, Number(daysAgo));
   }
 
-  @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  @Get('/worker')
-  async worker(@Request() req: any): Promise<WorkerDashboardDataDto> {
-    return this.dashboardService.getWorkerDashboardData(req.user);
+  @Roles(MemberRoleEnum.WORKER, MemberRoleEnum.ADMIN)
+  @Get('worker')
+  getWorkerDashboard(
+    @CurrentUser() user: MemberAuth,
+    @Query('daysAgo') daysAgo = 30,
+  ) {
+    return this.dashboardService.getWorkerDashboard(user, Number(daysAgo));
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.ADMIN)
+  @Get('admin')
+  getAdminDashboard(@Query('daysAgo') daysAgo = 30) {
+    return this.dashboardService.getAdminDashboard(Number(daysAgo));
   }
 }

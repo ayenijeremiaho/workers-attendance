@@ -26,15 +26,7 @@ export class RefreshJwtStrategy extends PassportStrategy(
   }
 
   async validate(request: Request, payload: JwtPayload) {
-    const refreshToken = request
-      .get('Authorization')
-      .replace('Bearer ', '')
-      .trim();
-
-    return this.authService.validateRefreshToken(
-      payload.sub,
-      payload.role,
-      refreshToken,
-    );
+    const refreshToken = request.get('Authorization').replace('Bearer ', '').trim();
+    return this.authService.validateRefreshToken(payload.sub, refreshToken);
   }
 }

@@ -1,29 +1,22 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './service/auth.service';
 import { AuthController } from './controller/auth.controller';
-import { UtilityService } from '../utility/service/utility.service';
-import { AdminLocalStrategy } from './strategy/admin.local.strategy';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
-import jwtConfig from '../config/jwt.config';
 import { ConfigModule } from '@nestjs/config';
-import { JwtStrategy } from './strategy/jwt.strategy';
-import refreshJwtConfig from '../config/refresh.jwt.config';
-import { RefreshJwtStrategy } from './strategy/refresh.jwt.strategy';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './guard/jwt-auth.guard';
-import { Admin } from '../user/entity/admin.entity';
-import { Worker } from '../user/entity/worker.entity';
-import { UserSession } from '../user/entity/user-session.entity';
-import { UserSessionService } from '../user/service/user-session.service';
-import { AdminService } from '../user/service/admin.service';
-import { WorkerService } from '../user/service/worker.service';
-import { WorkerLocalStrategy } from './strategy/worker.local.strategy';
-import { Department } from '../department/entity/department.entity';
+import { JwtStrategy } from './strategy/jwt.strategy';
+import { RefreshJwtStrategy } from './strategy/refresh.jwt.strategy';
+import { LocalStrategy } from './strategy/local.strategy';
+import jwtConfig from '../config/jwt.config';
+import refreshJwtConfig from '../config/refresh.jwt.config';
+import { MemberModule } from '../member/member.module';
+import { UtilityModule } from '../utility/utility.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Admin, Department, Worker, UserSession]),
+    MemberModule,
+    UtilityModule,
     JwtModule.registerAsync(jwtConfig.asProvider()),
     ConfigModule.forFeature(jwtConfig),
     ConfigModule.forFeature(refreshJwtConfig),
@@ -31,18 +24,14 @@ import { Department } from '../department/entity/department.entity';
   controllers: [AuthController],
   providers: [
     AuthService,
-    AdminService,
-    WorkerService,
-    UtilityService,
-    AdminLocalStrategy,
-    WorkerLocalStrategy,
+    LocalStrategy,
     JwtStrategy,
     RefreshJwtStrategy,
-    UserSessionService,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
   ],
+  exports: [AuthService],
 })
 export class AuthModule {}

@@ -9,125 +9,71 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from '../service/auth.service';
-import { AdminLocalAuthGuard } from '../guard/admin-local-auth.guard';
-import { JwtResponse } from '../interface/auth.interface';
-import { RefreshJwtAuthGuard } from '../guard/refresh-jwt-auth.guard';
 import { Public } from '../decorator/public.decorator';
-import { UserTypeEnum } from '../../user/enums/user-type.enum';
-import { WorkerLocalAuthGuard } from '../guard/worker-local-auth.guard';
-import { Roles } from '../decorator/roles.decorator';
+import { LocalAuthGuard } from '../guard/local-auth.guard';
+import { RefreshJwtAuthGuard } from '../guard/refresh-jwt-auth.guard';
 import { RolesGuard } from '../guard/roles.guard';
+import { Roles } from '../decorator/roles.decorator';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
+import { JwtResponse } from '../interface/auth.interface';
+import { SignupDto } from '../../member/dto/signup.dto';
+import { ChangePasswordDto } from '../../member/dto/change-password.dto';
 import { plainToInstance } from 'class-transformer';
-import { WorkerDto } from '../../user/dto/worker.dto';
-import { AdminDto } from '../../user/dto/admin.dto';
-import { UserChangePasswordDto } from '../../user/dto/user-change-password.dto';
+import { MemberDto } from '../../member/dto/member.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(AdminLocalAuthGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  @Post('/admin/login')
-  async adminLogin(@Request() req: any): Promise<JwtResponse> {
-    return this.authService.login(req.user, UserTypeEnum.ADMIN);
+  @Post('signup')
+  async signup(@Body() dto: SignupDto): Promise<MemberDto> {
+    const member = await this.authService.signup(dto);
+    return plainToInstance(MemberDto, member, { excludeExtraneousValues: true });
   }
 
   @Public()
   @HttpCode(HttpStatus.OK)
-  @UseGuards(RefreshJwtAuthGuard, RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  @Post('/admin/refresh')
-  async adminRefresh(@Request() req: any): Promise<JwtResponse> {
-    return this.authService.refreshToken(req.user, UserTypeEnum.ADMIN);
+  @UseGuards(LocalAuthGuard)
+  @Post('login')
+  async login(@Request() req: any): Promise<JwtResponse> {
+    return this.authService.login(req.user);
   }
 
+  @Public()
   @HttpCode(HttpStatus.OK)
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  @Post('/admin/logout')
-  async adminLogout(@Request() req: any): Promise<void> {
-    await this.authService.logout(req.user, UserTypeEnum.ADMIN);
+  @UseGuards(RefreshJwtAuthGuard)
+  @Post('refresh')
+  async refresh(@Request() req: any): Promise<JwtResponse> {
+    return this.authService.refreshToken(req.user);
   }
 
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  @Get('/admin/profile')
-  async adminProfile(@Request() req: any): Promise<AdminDto> {
-    const admin = await this.authService.getLoggedInUser(
-      req.user,
-      UserTypeEnum.ADMIN,
-    );
-    return plainToInstance(AdminDto, admin);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('logout')
+  async logout(@Request() req: any): Promise<void> {
+    await this.authService.logout(req.user.id);
   }
 
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.ADMIN)
-  @Post('/admin/change-password')
-  async changeAdminPassword(
+  @Get('me')
+  async getProfile(@Request() req: any): Promise<MemberDto> {
+    const member = await this.authService.getProfile(req.user.id);
+    return plainToInstance(MemberDto, member, { excludeExtraneousValues: true });
+  }
+
+  @Post('change-password')
+  async changePassword(
     @Request() req: any,
-    @Body() changePasswordDto: UserChangePasswordDto,
-  ): Promise<string> {
-    return this.authService.changeUserPassword(
-      req.user,
-      UserTypeEnum.ADMIN,
-      changePasswordDto,
-    );
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const message = await this.authService.changePassword(req.user.id, dto);
+    return { message };
   }
 
-  @Public()
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(WorkerLocalAuthGuard)
-  @Post('/worker/login')
-  async workerLogin(@Request() req: any): Promise<JwtResponse> {
-    return this.authService.login(req.user, UserTypeEnum.WORKER);
-  }
-
-  @Public()
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(RefreshJwtAuthGuard, RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  @Post('/worker/refresh')
-  async workerRefresh(@Request() req: any): Promise<JwtResponse> {
-    return this.authService.refreshToken(req.user, UserTypeEnum.WORKER);
-  }
-
-  @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  @Post('/worker/logout')
-  async workerLogout(@Request() req: any): Promise<void> {
-    await this.authService.logout(req.user, UserTypeEnum.WORKER);
-  }
-
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  @Get('/worker/profile')
-  async workerProfile(@Request() req: any): Promise<WorkerDto> {
-    const worker = await this.authService.getLoggedInUser(
-      req.user,
-      UserTypeEnum.WORKER,
-    );
-    return plainToInstance(WorkerDto, worker);
-  }
-
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(RolesGuard)
-  @Roles(UserTypeEnum.WORKER)
-  @Post('/worker/change-password')
-  async changeWorkerPassword(
-    @Request() req: any,
-    @Body() changePasswordDto: UserChangePasswordDto,
-  ): Promise<string> {
-    return this.authService.changeUserPassword(
-      req.user,
-      UserTypeEnum.WORKER,
-      changePasswordDto,
-    );
+  @Roles(MemberRoleEnum.ADMIN)
+  @Get('admin/profile')
+  async adminProfile(@Request() req: any): Promise<MemberDto> {
+    const member = await this.authService.getProfile(req.user.id);
+    return plainToInstance(MemberDto, member, { excludeExtraneousValues: true });
   }
 }

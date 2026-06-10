@@ -1,8 +1,8 @@
-import { UserTypeEnum } from '../../user/enums/user-type.enum';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 
 export interface JwtPayload {
   sub: string;
-  role: UserTypeEnum;
+  role: MemberRoleEnum;
 }
 
 export interface JwtResponse {
@@ -12,7 +12,7 @@ export interface JwtResponse {
   token_type: string;
 }
 
-export interface UserAuth {
+export interface MemberAuth {
   id: string;
-  role: UserTypeEnum;
+  role: MemberRoleEnum;
 }

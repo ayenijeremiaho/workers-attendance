@@ -5,9 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { PaginationResponseDto } from '../dto/pagination-response.dto';
 import { plainToInstance } from 'class-transformer';
 import { ClassConstructor } from 'class-transformer/types/interfaces';
-import { Note } from '../../notes/entity/note.entity';
-import { NoteDto } from '../../notes/dto/note.dto';
-import { NotesService } from '../../notes/service/notes.service';
 import { DATE_OF_BIRTH_REGEX } from '../constants/regex.constant';
 import Mail from 'nodemailer/lib/mailer';
 import * as path from 'node:path';
@@ -79,10 +76,6 @@ export class UtilityService {
       const result: any = plainToInstance(classConstructor, value, {
         excludeExtraneousValues: true,
       });
-
-      if (result instanceof NoteDto) {
-        NotesService.getNoteDetailsDto(result, value as Note);
-      }
 
       return result;
     });

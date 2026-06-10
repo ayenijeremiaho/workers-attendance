@@ -1,13 +1,17 @@
 import { Module } from '@nestjs/common';
-import { DepartmentController } from './controller/department.controller';
-import { DepartmentService } from './service/department.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Worker } from '../user/entity/worker.entity';
 import { Department } from './entity/department.entity';
 import { DepartmentLead } from './entity/department-lead.entity';
+import { DepartmentService } from './service/department.service';
+import { DepartmentController } from './controller/department.controller';
+import { WorkerProfile } from '../member/entity/worker-profile.entity';
+import { UtilityModule } from '../utility/utility.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Department, DepartmentLead, Worker])],
+  imports: [
+    TypeOrmModule.forFeature([Department, DepartmentLead, WorkerProfile]),
+    UtilityModule,
+  ],
   controllers: [DepartmentController],
   providers: [DepartmentService],
   exports: [TypeOrmModule, DepartmentService],

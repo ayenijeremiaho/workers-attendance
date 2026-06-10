@@ -1,10 +1,11 @@
 import {
   IsLatitude,
   IsLongitude,
-  IsNotEmpty,
+  IsOptional,
   IsUUID,
-  Matches,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 class CheckinLocationDto {
   @IsLongitude()
@@ -15,14 +16,11 @@ class CheckinLocationDto {
 }
 
 export class CheckInDto {
-  @IsUUID('4', { message: 'invalid event' })
-  eventId: string;
+  @IsUUID('4', { message: 'Invalid serviceSlotId' })
+  serviceSlotId: string;
 
-  @IsNotEmpty()
-  location: CheckinLocationDto;
-
-  @Matches(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/, {
-    message: 'checkInTime must be in the format YYYY-MM-DD HH:mm',
-  })
-  checkinTime: Date;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CheckinLocationDto)
+  location?: CheckinLocationDto;
 }

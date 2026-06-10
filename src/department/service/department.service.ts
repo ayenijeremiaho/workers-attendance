@@ -7,291 +7,159 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Department } from '../entity/department.entity';
-import { CreateDepartmentDto } from '../dto/create-department.dto';
-import { UpdateDepartmentDto } from '../dto/update-department.dto';
-import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UtilityService } from '../../utility/service/utility.service';
-import { Worker } from '../../user/entity/worker.entity';
-import { AssignDepartmentHodDto } from '../dto/assign-department-hod.dto';
-import { RemoveDepartmentHodDto } from '../dto/remove-department-hod.dto';
 import { DepartmentLead } from '../entity/department-lead.entity';
 import { DepartmentLeadTypeEnum } from '../enums/department-lead-type.enum';
+import { WorkerProfile } from '../../member/entity/worker-profile.entity';
+import { CreateDepartmentDto } from '../dto/create-department.dto';
+import { UpdateDepartmentDto } from '../dto/update-department.dto';
+import { AssignDepartmentHodDto } from '../dto/assign-department-hod.dto';
+import { RemoveDepartmentHodDto } from '../dto/remove-department-hod.dto';
+import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
+import { UtilityService } from '../../utility/service/utility.service';
 
 @Injectable()
 export class DepartmentService {
-  private readonly logger: Logger = new Logger(DepartmentService.name);
+  private readonly logger = new Logger(DepartmentService.name);
 
   constructor(
-    @InjectRepository(Worker)
-    private readonly workerRepository: Repository<Worker>,
     @InjectRepository(Department)
     private readonly departmentRepository: Repository<Department>,
     @InjectRepository(DepartmentLead)
-    private readonly departmentLeadRepository: Repository<DepartmentLead>,
+    private readonly leadRepository: Repository<DepartmentLead>,
+    @InjectRepository(WorkerProfile)
+    private readonly workerProfileRepository: Repository<WorkerProfile>,
   ) {}
 
-  async create(createDepartmentDto: CreateDepartmentDto): Promise<Department> {
-    await this.validateDepartmentIsValid(createDepartmentDto.name);
-
-    const department = { ...createDepartmentDto };
-    return this.departmentRepository.save(department);
+  async create(dto: CreateDepartmentDto): Promise<Department> {
+    await this.assertNameUnique(dto.name);
+    return this.departmentRepository.save({ ...dto });
   }
 
   async getOne(id: string): Promise<Department> {
-    return await this.getDepartment(id);
+    return this.getDepartmentOrThrow(id);
   }
 
-  async getAll(
-    page: number = 1,
-    limit: number = 10,
-  ): Promise<PaginationResponseDto<Department>> {
-    if (page < 1) {
-      throw new BadRequestException('Page number must be greater than 0');
-    }
-
+  async getAll(page = 1, limit = 10): Promise<PaginationResponseDto<Department>> {
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
     const [departments, total] = await this.departmentRepository.findAndCount({
       skip: (page - 1) * limit,
       take: limit,
       order: { createdAt: 'DESC' },
     });
-
-    return UtilityService.createPaginationResponse<Department>(
-      departments,
-      page,
-      limit,
-      total,
-    );
+    return UtilityService.createPaginationResponse(departments, page, limit, total);
   }
 
-  async update(
-    id: string,
-    updateDepartmentDto: UpdateDepartmentDto,
-  ): Promise<Department> {
-    const department = await this.getDepartment(id);
+  async update(id: string, dto: UpdateDepartmentDto): Promise<Department> {
+    const department = await this.getDepartmentOrThrow(id);
 
-    let changesMade = false;
-    if (
-      updateDepartmentDto.name &&
-      updateDepartmentDto.name != department.name
-    ) {
-      await this.validateDepartmentIsValid(updateDepartmentDto.name);
-      department.name = updateDepartmentDto.name;
-      changesMade = true;
+    if (dto.name && dto.name !== department.name) {
+      await this.assertNameUnique(dto.name);
+      department.name = dto.name;
     }
+    if (dto.description) department.description = dto.description;
 
-    if (updateDepartmentDto.description) {
-      department.description = updateDepartmentDto.description;
-      changesMade = true;
-    }
-
-    if (changesMade) {
-      return this.departmentRepository.save(department);
-    }
-    return department;
+    return this.departmentRepository.save(department);
   }
 
   async delete(id: string): Promise<void> {
-    const department = await this.getDepartment(id);
+    const department = await this.getDepartmentOrThrow(id);
 
-    const isAttachedToWorker = await this.isAttachedToWorker(id);
-
-    if (isAttachedToWorker) {
-      this.logger.error(
-        `${department.name} department is attached to a worker`,
-      );
+    const hasWorkers = await this.workerProfileRepository.exists({
+      where: { department: { id } },
+    });
+    if (hasWorkers) {
       throw new BadRequestException(
-        `${department.name} department is attached to a worker, cannot be deleted`,
+        `${department.name} has workers assigned and cannot be deleted`,
       );
     }
 
     await this.departmentRepository.delete(id);
   }
 
-  async assignHod(assignHodDto: AssignDepartmentHodDto): Promise<Department> {
-    const { departmentId, workerId, type } = assignHodDto;
+  async assignLead(dto: AssignDepartmentHodDto): Promise<Department> {
+    const { departmentId, workerId, type } = dto;
 
-    const department = await this.getDepartment(departmentId);
+    const department = await this.getDepartmentOrThrow(departmentId);
 
-    const workerExist = await this.workerRepository.findOne({
+    const profile = await this.workerProfileRepository.findOne({
       where: { id: workerId, department: { id: departmentId } },
     });
+    if (!profile) throw new NotFoundException('Worker not found in this department');
 
-    if (!workerExist) {
-      this.logger.error('Worker not found in the department');
-      throw new NotFoundException('Worker not found in the department');
-    }
+    const leadType = type === 'head' ? DepartmentLeadTypeEnum.HOD : DepartmentLeadTypeEnum.D_HOD;
 
-    const leads = await this.departmentLeadRepository.find({
-      where: { department: { id: departmentId } },
-      relations: ['lead'],
+    const existing = await this.leadRepository.findOne({
+      where: { department: { id: departmentId }, leadType },
+      relations: ['workerProfile'],
     });
 
-    if (type === 'head') {
-      const currentHod = leads.find(
-        (lead) => lead.leadType === DepartmentLeadTypeEnum.HOD,
-      );
-
-      if (currentHod?.lead.id === workerId) {
-        this.logger.error('Worker is already the head of the department');
-        throw new BadRequestException(
-          'Worker is already the head of the department',
-        );
-      }
-
-      if (currentHod) {
-        await this.departmentLeadRepository.remove(currentHod);
-      }
-
-      const newHod = this.departmentLeadRepository.create({
-        lead: workerExist,
-        department,
-        leadType: DepartmentLeadTypeEnum.HOD,
-      });
-
-      await this.departmentLeadRepository.save(newHod);
-    } else if (type === 'assistant') {
-      const currentAsstHod = leads.find(
-        (lead) => lead.leadType === DepartmentLeadTypeEnum.D_HOD,
-      );
-
-      if (currentAsstHod?.lead.id === workerId) {
-        this.logger.error(
-          'Worker is already the assistant head of the department',
-        );
-        throw new BadRequestException(
-          'Worker is already the assistant head of the department',
-        );
-      }
-
-      if (currentAsstHod) {
-        await this.departmentLeadRepository.remove(currentAsstHod);
-      }
-
-      const newAsstHod = this.departmentLeadRepository.create({
-        lead: workerExist,
-        department,
-        leadType: DepartmentLeadTypeEnum.D_HOD,
-      });
-
-      await this.departmentLeadRepository.save(newAsstHod);
-    } else {
-      this.logger.error('Invalid request type provided', type);
-      throw new BadRequestException('Invalid request type provided');
+    if (existing?.workerProfile.id === workerId) {
+      throw new BadRequestException('This worker is already assigned to that lead role');
     }
+
+    if (existing) await this.leadRepository.remove(existing);
+
+    await this.leadRepository.save(
+      this.leadRepository.create({ workerProfile: profile, department, leadType }),
+    );
 
     return department;
   }
 
-  async removeHod(removeHodDto: RemoveDepartmentHodDto): Promise<Department> {
-    const { departmentId, type } = removeHodDto;
+  async removeLead(dto: RemoveDepartmentHodDto): Promise<Department> {
+    const { departmentId, type } = dto;
+    const department = await this.getDepartmentOrThrow(departmentId);
 
-    const department = await this.getDepartment(departmentId);
-
-    const leads = await this.departmentLeadRepository.find({
-      where: { department: { id: departmentId } },
-      relations: ['lead'],
+    const leadType = type === 'head' ? DepartmentLeadTypeEnum.HOD : DepartmentLeadTypeEnum.D_HOD;
+    const lead = await this.leadRepository.findOne({
+      where: { department: { id: departmentId }, leadType },
     });
 
-    if (type === 'head') {
-      const currentHod = leads.find(
-        (lead) => lead.leadType === DepartmentLeadTypeEnum.HOD,
-      );
+    if (!lead) throw new BadRequestException(`No ${type} assigned to this department`);
 
-      if (!currentHod) {
-        this.logger.error('Department does not have a head');
-        throw new BadRequestException('Department does not have a head');
-      }
-
-      await this.departmentLeadRepository.remove(currentHod);
-    } else if (type === 'assistant') {
-      const currentAsstHod = leads.find(
-        (lead) => lead.leadType === DepartmentLeadTypeEnum.D_HOD,
-      );
-
-      if (!currentAsstHod) {
-        this.logger.error('Department does not have an assistant head');
-        throw new BadRequestException(
-          'Department does not have an assistant head',
-        );
-      }
-
-      await this.departmentLeadRepository.remove(currentAsstHod);
-    } else {
-      this.logger.error('Invalid request type provided', type);
-      throw new BadRequestException('Invalid request type provided');
-    }
-
+    await this.leadRepository.remove(lead);
     return department;
   }
 
-  async getDepartmentHods(
-    departmentId: string,
-  ): Promise<{ name: string; head: Worker | null; assistant: Worker | null }> {
-    const department = await this.getDepartment(departmentId);
+  async getDepartmentLeads(departmentId: string) {
+    const department = await this.getDepartmentOrThrow(departmentId);
 
-    const leads = await this.departmentLeadRepository.find({
+    const leads = await this.leadRepository.find({
       where: { department: { id: departmentId } },
-      relations: ['lead'],
+      relations: ['workerProfile', 'workerProfile.member'],
     });
 
-    const head =
-      leads.find((lead) => lead.leadType === DepartmentLeadTypeEnum.HOD)
-        ?.lead || null;
-
-    const assistant =
-      leads.find((lead) => lead.leadType === DepartmentLeadTypeEnum.D_HOD)
-        ?.lead || null;
+    const find = (t: DepartmentLeadTypeEnum) =>
+      leads.find((l) => l.leadType === t)?.workerProfile ?? null;
 
     return {
       name: department.name,
-      head,
-      assistant,
+      head: find(DepartmentLeadTypeEnum.HOD),
+      assistant: find(DepartmentLeadTypeEnum.D_HOD),
     };
   }
 
-  async getAllHods(): Promise<DepartmentLead[]> {
-    return this.departmentLeadRepository.find({
-      relations: ['lead', 'department'],
+  async getAllLeads(): Promise<DepartmentLead[]> {
+    return this.leadRepository.find({
+      relations: ['workerProfile', 'workerProfile.member', 'department'],
     });
   }
 
-  async isWorkerDepartmentLead(workerId: string): Promise<boolean> {
-    const lead = await this.departmentLeadRepository.findOne({
-      where: { lead: { id: workerId } },
+  async isMemberDepartmentLead(memberId: string): Promise<boolean> {
+    return this.leadRepository.exists({
+      where: { workerProfile: { member: { id: memberId } } },
     });
-    return !!lead;
   }
 
-  private async getDepartment(id: string) {
-    const department = await this.departmentRepository.findOne({
-      where: { id },
-    });
-
-    if (!department) {
-      this.logger.error('Department not found');
-      throw new NotFoundException('Department not found');
-    }
-    return department;
+  private async getDepartmentOrThrow(id: string): Promise<Department> {
+    const dept = await this.departmentRepository.findOneBy({ id });
+    if (!dept) throw new NotFoundException('Department not found');
+    return dept;
   }
 
-  private isAttachedToWorker(departmentId: string): Promise<boolean> {
-    this.logger.log('Checking if department is attached to a worker');
-
-    return this.departmentRepository
-      .createQueryBuilder('worker')
-      .where('worker.department = :departmentId', { departmentId })
-      .limit(1)
-      .getExists();
-  }
-
-  private async validateDepartmentIsValid(name: string): Promise<void> {
-    const isExist = await this.departmentRepository.existsBy({ name: name });
-
-    if (isExist) {
-      this.logger.error('Department with the provided name already exist');
-      throw new BadRequestException(
-        'Department with the provided name already exist',
-      );
+  private async assertNameUnique(name: string): Promise<void> {
+    if (await this.departmentRepository.existsBy({ name })) {
+      throw new BadRequestException('Department name already exists');
     }
   }
 }

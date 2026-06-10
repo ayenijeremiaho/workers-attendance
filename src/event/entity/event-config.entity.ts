@@ -2,11 +2,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Event } from './event.entity';
+import { ServiceSlot } from './service-slot.entity';
+import { Venue } from '../../venue/entity/venue.entity';
 
 @Entity({ name: 'event_config' })
 export class EventConfig {
@@ -16,36 +19,41 @@ export class EventConfig {
   @Column({ unique: true })
   name: string;
 
-  @OneToMany(() => Event, (event) => event.eventConfig, { nullable: true })
-  events: Event[];
+  @Column({ nullable: true })
+  description: string;
 
-  @Column({ name: 'checkin_start_time_in_seconds' })
-  checkinStartTimeInSeconds: number;
+  /**
+   * Default venue for any slot that uses this config and has no venueOverride.
+   * Deleting a venue that is a defaultVenue on any config will be rejected by the DB FK constraint.
+   */
+  @ManyToOne(() => Venue, { nullable: false, eager: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'default_venue_id' })
+  defaultVenue: Venue;
 
-  @Column({ name: 'late_coming_start_time_in_seconds' })
-  lateComingStartTimeInSeconds: number;
+  /**
+   * Seconds before slot startTime that workers can begin checking in.
+   * Negative value = check-in opens before the service starts.
+   */
+  @Column({ name: 'worker_checkin_start_offset_seconds' })
+  workerCheckinStartOffsetSeconds: number;
 
-  @Column({ name: 'checkin_stop_time_in_seconds' })
-  checkinStopTimeInSeconds: number;
+  /** Seconds after slot startTime at which a worker check-in is considered late. */
+  @Column({ name: 'worker_late_offset_seconds' })
+  workerLateOffsetSeconds: number;
+
+  /** Seconds before/after slot startTime that members can begin checking in. */
+  @Column({ name: 'member_checkin_start_offset_seconds' })
+  memberCheckinStartOffsetSeconds: number;
+
+  /** Seconds after slot startTime when check-in closes for everyone. */
+  @Column({ name: 'checkin_stop_offset_seconds' })
+  checkinStopOffsetSeconds: number;
 
   @Column({ name: 'allowed_distance_in_meters' })
   allowedDistanceInMeters: number;
 
-  @Column({
-    name: 'location_latitude',
-    type: 'decimal',
-    precision: 10,
-    scale: 8,
-  })
-  locationLongitude: number;
-
-  @Column({
-    name: 'location_longitude',
-    type: 'decimal',
-    precision: 11,
-    scale: 8,
-  })
-  locationLatitude: number;
+  @OneToMany(() => ServiceSlot, (slot) => slot.config, { nullable: true })
+  serviceSlots: ServiceSlot[];
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

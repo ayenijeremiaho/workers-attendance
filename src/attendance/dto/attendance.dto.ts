@@ -1,7 +1,5 @@
-import { CheckInStatusEnum } from '../enums/check-in.enum';
-import { EventDto } from '../../event/dto/event.dto';
-import { Exclude, Expose, Type } from 'class-transformer';
-import { WorkerDto } from '../../user/dto/worker.dto';
+import { AttendanceStatusEnum } from '../enums/check-in.enum';
+import { Exclude, Expose } from 'class-transformer';
 import { ToDateString } from '../../utility/dto/date-converter';
 
 @Exclude()
@@ -10,25 +8,20 @@ export class AttendanceDto {
   id: string;
 
   @Expose()
-  @Type(() => EventDto)
-  event: EventDto;
+  serviceSlotId: string;
 
   @Expose()
-  @Type(() => WorkerDto)
-  worker: WorkerDto;
+  memberId: string;
 
   @Expose()
   @ToDateString()
   checkinTime: Date;
 
   @Expose()
-  checkinStatus: CheckInStatusEnum;
+  status: AttendanceStatusEnum;
 
   @Expose()
-  workerLocation: {
-    longitude: number;
-    latitude: number;
-  };
+  location: { longitude: number; latitude: number } | null;
 
   @Expose()
   @ToDateString()

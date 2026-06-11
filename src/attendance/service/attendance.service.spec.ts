@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import moment from 'moment';
@@ -14,6 +14,8 @@ import { UtilityService } from '../../utility/service/utility.service';
 import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 import { MemberStatusEnum } from '../../member/enums/member-status.enum';
 import { WorkerStatusEnum } from '../../member/enums/worker-status.enum';
+import { DepartmentService } from '../../department/service/department.service';
+import { DateService } from '../../utility/service/date.service';
 
 const makeQb = () => ({
   where: jest.fn().mockReturnThis(),
@@ -42,11 +44,13 @@ const makeQb = () => ({
 const mockAttendanceRepo = {
   save: jest.fn(),
   create: jest.fn(),
+  find: jest.fn(),
   exists: jest.fn(),
   createQueryBuilder: jest.fn(),
 };
 
 const mockSlotRepo = {
+  find: jest.fn(),
   findOne: jest.fn(),
 };
 
@@ -69,6 +73,12 @@ const mockConfigService = {
 const mockDataSource = {
   transaction: jest.fn(),
   createQueryBuilder: jest.fn(),
+};
+
+const mockDepartmentService = {
+  getDepartmentIdForLead: jest.fn(),
+  getWorkersInDepartment: jest.fn(),
+  isMemberDepartmentLead: jest.fn(),
 };
 
 const defaultVenue = { id: 'venue-1', name: 'Main Auditorium', latitude: 6.5244, longitude: 3.3792 };
@@ -122,7 +132,9 @@ describe('AttendanceService', () => {
         { provide: EventService, useValue: mockEventService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: DepartmentService, useValue: mockDepartmentService },
         { provide: UtilityService, useValue: { sendEmailWithTemplate: jest.fn() } },
+        { provide: DateService, useValue: new DateService() },
       ],
     }).compile();
 
@@ -130,7 +142,7 @@ describe('AttendanceService', () => {
   });
 
   describe('checkin', () => {
-    const user = { id: 'member-1', role: MemberRoleEnum.MEMBER };
+    const user = { id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false };
     const dto = { serviceSlotId: 'slot-1' };
 
     it('should throw NotFoundException if slot not found', async () => {
@@ -189,7 +201,7 @@ describe('AttendanceService', () => {
       mockAttendanceRepo.save.mockResolvedValue({ id: 'att-1', status: AttendanceStatusEnum.PRESENT });
       mockConfigService.get.mockReturnValue('false');
 
-      const result = await service.checkin({ id: 'member-1', role: MemberRoleEnum.MEMBER }, dto as any);
+      const result = await service.checkin({ id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false }, dto as any);
 
       expect(result).toEqual({ message: 'Check-in successful' });
       expect(mockAttendanceRepo.create).toHaveBeenCalledWith(
@@ -217,7 +229,7 @@ describe('AttendanceService', () => {
       mockAttendanceRepo.save.mockResolvedValue({ id: 'att-1', status: AttendanceStatusEnum.PRESENT });
       mockConfigService.get.mockReturnValue('false');
 
-      const result = await service.checkin({ id: 'worker-1', role: MemberRoleEnum.WORKER }, dto as any);
+      const result = await service.checkin({ id: 'worker-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false }, dto as any);
 
       expect(result).toEqual({ message: 'Check-in successful' });
       expect(mockAttendanceRepo.create).toHaveBeenCalledWith(
@@ -249,7 +261,7 @@ describe('AttendanceService', () => {
       mockAttendanceRepo.save.mockResolvedValue({ id: 'att-1', status: AttendanceStatusEnum.LATE });
       mockConfigService.get.mockReturnValue('false');
 
-      const result = await service.checkin({ id: 'worker-1', role: MemberRoleEnum.WORKER }, dto as any);
+      const result = await service.checkin({ id: 'worker-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false }, dto as any);
 
       expect(result).toEqual({ message: 'Check-in successful' });
       expect(mockAttendanceRepo.create).toHaveBeenCalledWith(
@@ -261,7 +273,7 @@ describe('AttendanceService', () => {
   describe('getMyHistory', () => {
     it('should throw BadRequestException if page < 1', async () => {
       await expect(
-        service.getMyHistory({ id: 'member-1', role: MemberRoleEnum.MEMBER }, 0),
+        service.getMyHistory({ id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false }, 0),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -277,7 +289,7 @@ describe('AttendanceService', () => {
         totalPages: 1,
       });
 
-      const result = await service.getMyHistory({ id: 'member-1', role: MemberRoleEnum.MEMBER }, 1, 10);
+      const result = await service.getMyHistory({ id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false }, 1, 10);
 
       expect(result.data).toHaveLength(1);
       expect(result.page).toBe(1);
@@ -296,7 +308,7 @@ describe('AttendanceService', () => {
       });
 
       await service.getMyHistory(
-        { id: 'member-1', role: MemberRoleEnum.MEMBER },
+        { id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false },
         1,
         10,
         AttendanceStatusEnum.PRESENT,
@@ -362,6 +374,106 @@ describe('AttendanceService', () => {
       const result = await service.getPersonalAttendancePercentage('member-1', 30);
 
       expect(result).toBe(80);
+    });
+  });
+
+  describe('getDepartmentHistory', () => {
+    const user = { id: 'member-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false };
+
+    it('should throw ForbiddenException if user is not a department lead', async () => {
+      mockDepartmentService.getDepartmentIdForLead.mockResolvedValue(null);
+
+      await expect(service.getDepartmentHistory(user, 'slot-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should return attendance records filtered by department and slot', async () => {
+      mockDepartmentService.getDepartmentIdForLead.mockResolvedValue('dept-1');
+      const records = [{ id: 'att-1' }, { id: 'att-2' }];
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue(records);
+      mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.getDepartmentHistory(user, 'slot-1');
+
+      expect(result).toEqual(records);
+      expect(qb.where).toHaveBeenCalledWith('dept.id = :deptId', { deptId: 'dept-1' });
+      expect(qb.andWhere).toHaveBeenCalledWith('slot.id = :slotId', { slotId: 'slot-1' });
+    });
+  });
+
+  describe('getDepartmentEventAttendance', () => {
+    const user = { id: 'member-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false };
+
+    it('should throw ForbiddenException if user is not a department lead', async () => {
+      mockDepartmentService.getDepartmentIdForLead.mockResolvedValue(null);
+
+      await expect(service.getDepartmentEventAttendance(user, 'event-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should throw NotFoundException if event has no slots', async () => {
+      mockDepartmentService.getDepartmentIdForLead.mockResolvedValue('dept-1');
+      mockSlotRepo.findOne = jest.fn();
+      mockDepartmentService.getWorkersInDepartment.mockResolvedValue([]);
+      mockSlotRepo.find = jest.fn().mockResolvedValue([]);
+
+      await expect(service.getDepartmentEventAttendance(user, 'event-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should return attendance matrix with null status for absent workers', async () => {
+      mockDepartmentService.getDepartmentIdForLead.mockResolvedValue('dept-1');
+
+      const event = { id: 'event-1', name: 'Sunday Service' };
+      const slots = [
+        { id: 'slot-1', name: 'First Service', startTime: new Date('2026-06-01T08:00:00'), event },
+        { id: 'slot-2', name: 'Second Service', startTime: new Date('2026-06-01T10:00:00'), event },
+      ];
+      const workers = [
+        { id: 'wp-1', member: { id: 'member-2', firstname: 'John', lastname: 'Doe' } },
+      ];
+
+      mockSlotRepo.find = jest.fn().mockResolvedValue(slots);
+      mockDepartmentService.getWorkersInDepartment.mockResolvedValue(workers);
+      mockAttendanceRepo.find = jest.fn().mockResolvedValue([
+        {
+          member: { id: 'member-2' },
+          serviceSlot: { id: 'slot-1' },
+          status: AttendanceStatusEnum.PRESENT,
+          checkinTime: new Date('2026-06-01T07:55:00'),
+        },
+      ]);
+
+      const result = await service.getDepartmentEventAttendance(user, 'event-1');
+
+      expect(result.eventId).toBe('event-1');
+      expect(result.eventName).toBe('Sunday Service');
+      expect(result.slots).toHaveLength(2);
+      expect(result.workers).toHaveLength(1);
+      expect(result.workers[0].name).toBe('John Doe');
+      // slot-1: attended
+      expect(result.workers[0].attendance[0].status).toBe(AttendanceStatusEnum.PRESENT);
+      // slot-2: not yet recorded
+      expect(result.workers[0].attendance[1].status).toBeNull();
+    });
+
+    it('should return empty workers array when department has no workers', async () => {
+      mockDepartmentService.getDepartmentIdForLead.mockResolvedValue('dept-1');
+
+      const slots = [
+        { id: 'slot-1', name: 'Service', startTime: new Date(), event: { id: 'event-1', name: 'Test' } },
+      ];
+      mockSlotRepo.find = jest.fn().mockResolvedValue(slots);
+      mockDepartmentService.getWorkersInDepartment.mockResolvedValue([]);
+
+      const result = await service.getDepartmentEventAttendance(user, 'event-1');
+
+      expect(result.workers).toHaveLength(0);
+      expect(mockAttendanceRepo.find).not.toHaveBeenCalled();
     });
   });
 });

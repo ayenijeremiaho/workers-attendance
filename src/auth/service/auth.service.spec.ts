@@ -116,7 +116,7 @@ describe('AuthService', () => {
 
       const result = await service.validateMember('active@test.com', 'correct_pass');
 
-      expect(result).toEqual({ id: 'member-1', role: MemberRoleEnum.MEMBER });
+      expect(result).toEqual({ id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false });
     });
   });
 
@@ -127,7 +127,7 @@ describe('AuthService', () => {
       mockSessionService.updateLogin.mockResolvedValue(undefined);
       mockConfigService.get.mockReturnValue('1h');
 
-      const result = await service.login({ id: 'member-1', role: MemberRoleEnum.MEMBER });
+      const result = await service.login({ id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false });
 
       expect(result).toMatchObject({
         access_token: 'mock-token',
@@ -143,7 +143,7 @@ describe('AuthService', () => {
       mockSessionService.updateLogin.mockResolvedValue(undefined);
       mockConfigService.get.mockReturnValue('1h');
 
-      await service.login({ id: 'member-1', role: MemberRoleEnum.MEMBER });
+      await service.login({ id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false });
 
       expect(mockSessionService.updateLogin).toHaveBeenCalledWith('member-1', 'hashed_refresh_token');
     });
@@ -154,10 +154,10 @@ describe('AuthService', () => {
       mockSessionService.updateLogin.mockResolvedValue(undefined);
       mockConfigService.get.mockReturnValue('30m');
 
-      await service.login({ id: 'worker-id', role: MemberRoleEnum.WORKER });
+      await service.login({ id: 'worker-id', role: MemberRoleEnum.WORKER, requiresPasswordChange: false });
 
       expect(mockJwtService.signAsync).toHaveBeenCalledWith(
-        { sub: 'worker-id', role: MemberRoleEnum.WORKER },
+        { sub: 'worker-id', role: MemberRoleEnum.WORKER, requiresPasswordChange: false },
       );
     });
   });
@@ -208,11 +208,13 @@ describe('AuthService', () => {
       mockMemberService.getById.mockResolvedValue({
         id: 'member-1',
         role: MemberRoleEnum.WORKER,
+        status: MemberStatusEnum.ACTIVE,
+        workerProfile: { id: 'wp-1', status: 'ACTIVE' },
       });
 
       const result = await service.validateRefreshToken('member-1', 'valid-refresh-token');
 
-      expect(result).toEqual({ id: 'member-1', role: MemberRoleEnum.WORKER });
+      expect(result).toEqual({ id: 'member-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false });
     });
   });
 
@@ -228,20 +230,21 @@ describe('AuthService', () => {
       mockMemberService.getById.mockResolvedValue({
         id: 'member-1',
         role: MemberRoleEnum.ADMIN,
+        status: MemberStatusEnum.ACTIVE,
       });
 
       const result = await service.validateAccessToken('member-1');
 
-      expect(result).toEqual({ id: 'member-1', role: MemberRoleEnum.ADMIN });
+      expect(result).toEqual({ id: 'member-1', role: MemberRoleEnum.ADMIN, requiresPasswordChange: false });
     });
 
     it('should call getById with memberId to retrieve member details', async () => {
       mockSessionService.getHashedRefreshToken.mockResolvedValue('hashed');
-      mockMemberService.getById.mockResolvedValue({ id: 'member-1', role: MemberRoleEnum.MEMBER });
+      mockMemberService.getById.mockResolvedValue({ id: 'member-1', role: MemberRoleEnum.MEMBER, status: MemberStatusEnum.ACTIVE });
 
       await service.validateAccessToken('member-1');
 
-      expect(mockMemberService.getById).toHaveBeenCalledWith('member-1');
+      expect(mockMemberService.getById).toHaveBeenCalledWith('member-1', expect.any(Array));
     });
   });
 });

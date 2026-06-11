@@ -1,20 +1,20 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
-  UpdateDateColumn,
 } from 'typeorm';
 import { EnrollmentStatusEnum } from '../enum/enrollment-status.enum';
 import { Member } from '../../member/entity/member.entity';
 import { ChurchClass } from './church-class.entity';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity('class_enrollments')
 @Unique(['member', 'churchClass'])
-export class ClassEnrollment {
+@Index(['status', 'completedAt'])
+export class ClassEnrollment extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -28,7 +28,8 @@ export class ClassEnrollment {
   @Column({ type: 'enum', enum: EnrollmentStatusEnum, default: EnrollmentStatusEnum.IN_PROGRESS })
   status: EnrollmentStatusEnum;
 
-  @CreateDateColumn()
+  @Index()
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   enrolledAt: Date;
 
   @Column({ type: 'timestamptz', nullable: true })
@@ -36,7 +37,4 @@ export class ClassEnrollment {
 
   @Column({ type: 'timestamptz', nullable: true })
   cancelledAt: Date | null;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 }

@@ -1,18 +1,17 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   ManyToOne,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { AnnouncementAudienceEnum } from '../enum/announcement-audience.enum';
 import { Member } from '../../member/entity/member.entity';
 import { Department } from '../../department/entity/department.entity';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity('announcements')
-export class Announcement {
+export class Announcement extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -29,9 +28,11 @@ export class Announcement {
   @Column({ type: 'enum', enum: AnnouncementAudienceEnum, default: AnnouncementAudienceEnum.ALL })
   audience: AnnouncementAudienceEnum;
 
+  @Index()
   @ManyToOne(() => Department, { nullable: true, onDelete: 'SET NULL' })
   department: Department | null;
 
+  @Index()
   @ManyToOne(() => Member, { nullable: true, onDelete: 'SET NULL' })
   targetMember: Member | null;
 
@@ -42,10 +43,4 @@ export class Announcement {
   @Index()
   @Column({ type: 'timestamptz', nullable: true })
   expiresAt: Date | null;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 }

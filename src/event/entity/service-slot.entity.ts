@@ -1,23 +1,24 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { Event } from './event.entity';
 import { EventConfig } from './event-config.entity';
 import { Venue } from '../../venue/entity/venue.entity';
+import { Attendance } from '../../attendance/entity/attendance.entity';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity({ name: 'service_slots' })
-export class ServiceSlot {
+export class ServiceSlot extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Index()
   @ManyToOne(() => Event, (event) => event.serviceSlots, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'event_id' })
   event: Event;
@@ -73,12 +74,6 @@ export class ServiceSlot {
   @Column({ default: false })
   markedAbsent: boolean;
 
-  @OneToMany('Attendance', (attendance: any) => attendance.serviceSlot)
-  attendances: any[];
-
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updatedAt: Date;
+  @OneToMany(() => Attendance, (attendance) => attendance.serviceSlot)
+  attendances: Attendance[];
 }

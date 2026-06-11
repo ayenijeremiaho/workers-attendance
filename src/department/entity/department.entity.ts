@@ -1,15 +1,15 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   OneToMany,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
+import { DepartmentKeyEnum } from '../enums/department-key.enum';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity({ name: 'departments' })
-export class Department {
+export class Department extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -19,12 +19,21 @@ export class Department {
   @Column()
   description: string;
 
+  /**
+   * Access category key. Multiple departments can share the same key, granting
+   * workers in all of them access to features gated on that key.
+   * e.g. "Technical Media" and "Social Media" can both carry key=MEDIA.
+   * Null means no system-level access category is assigned.
+   */
+  @Column({
+    type: 'enum',
+    enum: DepartmentKeyEnum,
+    enumName: 'department_key',
+    nullable: true,
+    default: null,
+  })
+  key: DepartmentKeyEnum | null;
+
   @OneToMany(() => WorkerProfile, (profile) => profile.department)
   workerProfiles: WorkerProfile[];
-
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updatedAt: Date;
 }

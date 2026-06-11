@@ -17,6 +17,8 @@ import { NotesModule } from './notes/notes.module';
 import { ClassesModule } from './classes/classes.module';
 import { AnnouncementModule } from './announcement/announcement.module';
 import { VenueModule } from './venue/venue.module';
+import { SundaySchoolModule } from './sunday-school/sunday-school.module';
+import { ChildrenChurchModule } from './children-church/children-church.module';
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { VenueModule } from './venue/venue.module';
     ClassesModule,
     AnnouncementModule,
     VenueModule,
+    SundaySchoolModule,
+    ChildrenChurchModule,
   ],
   controllers: [AppController],
   providers: [AppService],

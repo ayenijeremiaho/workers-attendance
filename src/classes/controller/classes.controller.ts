@@ -67,6 +67,7 @@ export class ClassesController {
   @UseGuards(RolesGuard)
   @Roles(MemberRoleEnum.ADMIN)
   @Post('enroll')
+
   enroll(@Body() dto: EnrollMemberDto) {
     return this.classesService.enrollMember(dto);
   }

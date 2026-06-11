@@ -1,25 +1,54 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { Department } from '../entity/department.entity';
 import { DepartmentLead } from '../entity/department-lead.entity';
 import { DepartmentLeadTypeEnum } from '../enums/department-lead-type.enum';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
+import { WorkerStatusEnum } from '../../member/enums/worker-status.enum';
+import { RequestLeave } from '../../request-leave/enitity/request-leave.entity';
+import { LeaveStatusEnum } from '../../request-leave/enums/leave-status.enum';
+import { Attendance } from '../../attendance/entity/attendance.entity';
 import { CreateDepartmentDto } from '../dto/create-department.dto';
 import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { AssignDepartmentHodDto } from '../dto/assign-department-hod.dto';
 import { RemoveDepartmentHodDto } from '../dto/remove-department-hod.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
+import { ConfigService } from '@nestjs/config';
+import { MemberAuth } from '../../auth/interface/auth.interface';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
+import { CacheService } from '../../utility/service/cache.service';
+
+export interface DepartmentSummary {
+  departmentId: string;
+  departmentName: string;
+  myLeadRole: 'head' | 'assistant' | 'admin';
+  totalWorkers: number;
+  activeWorkers: number;
+  inactiveWorkers: number;
+  attendancePercentage: number;
+  workersOnLeave: {
+    workerProfileId: string;
+    memberId: string;
+    name: string;
+    status: LeaveStatusEnum;
+    dateFrom: Date;
+    dateTo: Date;
+  }[];
+}
 
 @Injectable()
 export class DepartmentService {
   private readonly logger = new Logger(DepartmentService.name);
+  private static readonly CACHE_KEY = 'departments:all';
+  private readonly cacheTtl: number;
 
   constructor(
     @InjectRepository(Department)
@@ -28,11 +57,22 @@ export class DepartmentService {
     private readonly leadRepository: Repository<DepartmentLead>,
     @InjectRepository(WorkerProfile)
     private readonly workerProfileRepository: Repository<WorkerProfile>,
-  ) {}
+    @InjectRepository(RequestLeave)
+    private readonly leaveRepository: Repository<RequestLeave>,
+    @InjectRepository(Attendance)
+    private readonly attendanceRepository: Repository<Attendance>,
+    private readonly cacheService: CacheService,
+    private readonly configService: ConfigService,
+  ) {
+    this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS', 300);
+  }
 
   async create(dto: CreateDepartmentDto): Promise<Department> {
     await this.assertNameUnique(dto.name);
-    return this.departmentRepository.save({ ...dto });
+    const dept = await this.departmentRepository.save({ ...dto });
+    this.cacheService.del(DepartmentService.CACHE_KEY);
+    this.logger.log(`Department created: ${dept.name} (${dept.id})`);
+    return dept;
   }
 
   async getOne(id: string): Promise<Department> {
@@ -41,12 +81,14 @@ export class DepartmentService {
 
   async getAll(page = 1, limit = 10): Promise<PaginationResponseDto<Department>> {
     if (page < 1) throw new BadRequestException('Page must be greater than 0');
-    const [departments, total] = await this.departmentRepository.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
-    return UtilityService.createPaginationResponse(departments, page, limit, total);
+    let all = this.cacheService.get<Department[]>(DepartmentService.CACHE_KEY);
+    if (!all) {
+      all = await this.departmentRepository.find({ order: { createdAt: 'DESC' } });
+      this.cacheService.set(DepartmentService.CACHE_KEY, all, this.cacheTtl);
+    }
+    const total = all.length;
+    const slice = all.slice((page - 1) * limit, page * limit);
+    return UtilityService.createPaginationResponse(slice, page, limit, total);
   }
 
   async update(id: string, dto: UpdateDepartmentDto): Promise<Department> {
@@ -57,32 +99,41 @@ export class DepartmentService {
       department.name = dto.name;
     }
     if (dto.description) department.description = dto.description;
+    if ('key' in dto) department.key = dto.key ?? null;
 
-    return this.departmentRepository.save(department);
+    const updated = await this.departmentRepository.save(department);
+    this.cacheService.del(DepartmentService.CACHE_KEY);
+    this.logger.log(`Department updated: ${updated.name} (${updated.id})`);
+    return updated;
   }
 
   async delete(id: string): Promise<void> {
     const department = await this.getDepartmentOrThrow(id);
 
-    const hasWorkers = await this.workerProfileRepository.exists({
-      where: { department: { id } },
-    });
-    if (hasWorkers) {
+    const [hasPrimaryWorkers, hasSecondaryWorkers] = await Promise.all([
+      this.workerProfileRepository.exists({ where: { department: { id } } }),
+      this.workerProfileRepository.exists({ where: { secondaryDepartment: { id } } }),
+    ]);
+    if (hasPrimaryWorkers || hasSecondaryWorkers) {
       throw new BadRequestException(
         `${department.name} has workers assigned and cannot be deleted`,
       );
     }
 
     await this.departmentRepository.delete(id);
+    this.cacheService.del(DepartmentService.CACHE_KEY);
+    this.logger.log(`Department deleted: ${department.name} (${id})`);
   }
 
   async assignLead(dto: AssignDepartmentHodDto): Promise<Department> {
-    const { departmentId, workerId, type } = dto;
+    const { departmentId, memberId, type } = dto;
 
     const department = await this.getDepartmentOrThrow(departmentId);
 
+    // HOD/D-HOD can only be assigned from the worker's primary department.
+    // Secondary department membership intentionally does not qualify here.
     const profile = await this.workerProfileRepository.findOne({
-      where: { id: workerId, department: { id: departmentId } },
+      where: { member: { id: memberId }, department: { id: departmentId } },
     });
     if (!profile) throw new NotFoundException('Worker not found in this department');
 
@@ -93,7 +144,7 @@ export class DepartmentService {
       relations: ['workerProfile'],
     });
 
-    if (existing?.workerProfile.id === workerId) {
+    if (existing?.workerProfile.id === profile.id) {
       throw new BadRequestException('This worker is already assigned to that lead role');
     }
 
@@ -103,6 +154,7 @@ export class DepartmentService {
       this.leadRepository.create({ workerProfile: profile, department, leadType }),
     );
 
+    this.logger.log(`${type} lead assigned to department ${departmentId} (member: ${memberId})`);
     return department;
   }
 
@@ -118,6 +170,7 @@ export class DepartmentService {
     if (!lead) throw new BadRequestException(`No ${type} assigned to this department`);
 
     await this.leadRepository.remove(lead);
+    this.logger.log(`${type} lead removed from department ${departmentId}`);
     return department;
   }
 
@@ -149,6 +202,145 @@ export class DepartmentService {
     return this.leadRepository.exists({
       where: { workerProfile: { member: { id: memberId } } },
     });
+  }
+
+  async getDepartmentIdForLead(memberId: string): Promise<string | null> {
+    const lead = await this.leadRepository.findOne({
+      where: { workerProfile: { member: { id: memberId } } },
+      relations: ['department'],
+    });
+    return lead?.department?.id ?? null;
+  }
+
+  async getWorkersInDepartment(departmentId: string): Promise<WorkerProfile[]> {
+    return this.workerProfileRepository.find({
+      where: { department: { id: departmentId } },
+      relations: ['member'],
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async getWorkersByDepartment(
+    departmentId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<PaginationResponseDto<WorkerProfile & { leadRole: 'head' | 'assistant' | null }>> {
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
+
+    await this.getDepartmentOrThrow(departmentId);
+
+    const [[profiles, total], leads] = await Promise.all([
+      this.workerProfileRepository.findAndCount({
+        where: { department: { id: departmentId } },
+        relations: ['member'],
+        skip: (page - 1) * limit,
+        take: limit,
+        order: { createdAt: 'ASC' },
+      }),
+      this.leadRepository.find({
+        where: { department: { id: departmentId } },
+        relations: ['workerProfile'],
+      }),
+    ]);
+
+    const leadMap = new Map<string, 'head' | 'assistant'>();
+    for (const lead of leads) {
+      leadMap.set(
+        lead.workerProfile.id,
+        lead.leadType === DepartmentLeadTypeEnum.HOD ? 'head' : 'assistant',
+      );
+    }
+
+    const annotated = profiles.map((p) => ({
+      ...p,
+      leadRole: leadMap.get(p.id) ?? null,
+    })) as (WorkerProfile & { leadRole: 'head' | 'assistant' | null })[];
+
+    return UtilityService.createPaginationResponse(annotated, page, limit, total);
+  }
+
+  async getDepartmentSummary(user: MemberAuth, departmentId?: string): Promise<DepartmentSummary> {
+    let deptId: string;
+    let myLeadRole: DepartmentSummary['myLeadRole'];
+    let departmentName: string;
+
+    if (user.role === MemberRoleEnum.ADMIN) {
+      if (!departmentId) throw new BadRequestException('departmentId is required for admin');
+      const dept = await this.getDepartmentOrThrow(departmentId);
+      deptId = dept.id;
+      departmentName = dept.name;
+      myLeadRole = 'admin';
+    } else {
+      const lead = await this.leadRepository.findOne({
+        where: { workerProfile: { member: { id: user.id } } },
+        relations: ['department'],
+      });
+      if (!lead) throw new ForbiddenException('You are not a department lead');
+      deptId = lead.department.id;
+      departmentName = lead.department.name;
+      myLeadRole = lead.leadType === DepartmentLeadTypeEnum.HOD ? 'head' : 'assistant';
+    }
+
+    const today = new Date();
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+
+    const [totalWorkers, activeWorkers, onLeave, attendanceResult] = await Promise.all([
+      this.workerProfileRepository.count({ where: { department: { id: deptId } } }),
+      this.workerProfileRepository.count({
+        where: { department: { id: deptId }, status: WorkerStatusEnum.ACTIVE },
+      }),
+      this.leaveRepository.find({
+        where: [
+          {
+            workerProfile: { department: { id: deptId } },
+            status: LeaveStatusEnum.PENDING,
+          },
+          {
+            workerProfile: { department: { id: deptId } },
+            status: LeaveStatusEnum.APPROVED,
+            dateTo: MoreThanOrEqual(today),
+          },
+        ],
+        relations: ['workerProfile', 'workerProfile.member'],
+        order: { createdAt: 'DESC' },
+      }),
+      this.attendanceRepository
+        .createQueryBuilder('a')
+        .select('COUNT(DISTINCT a.member_id)', 'attended')
+        .innerJoin(
+          'worker_profiles',
+          'wp',
+          "wp.member_id = a.member_id AND wp.status = 'ACTIVE'",
+        )
+        .where('wp.department_id = :deptId', { deptId })
+        .andWhere("a.status IN ('PRESENT', 'LATE')")
+        .andWhere('a.createdAt >= :since', { since })
+        .andWhere('a.roleAtCheckin = :role', { role: 'WORKER' })
+        .getRawOne<{ attended: string }>(),
+    ]);
+
+    const attended = Number.parseInt(attendanceResult?.attended ?? '0', 10);
+    const attendancePercentage =
+      activeWorkers === 0 ? 0 : Math.min(Number(((attended / activeWorkers) * 100).toFixed(2)), 100);
+
+    return {
+      departmentId: deptId,
+      departmentName,
+      myLeadRole,
+      totalWorkers,
+      activeWorkers,
+      inactiveWorkers: totalWorkers - activeWorkers,
+      attendancePercentage,
+      workersOnLeave: onLeave.map((l) => ({
+        workerProfileId: l.workerProfile.id,
+        memberId: l.workerProfile.member.id,
+        name: `${l.workerProfile.member.firstname} ${l.workerProfile.member.lastname}`,
+        status: l.status,
+        dateFrom: l.dateFrom,
+        dateTo: l.dateTo,
+      })),
+    };
   }
 
   private async getDepartmentOrThrow(id: string): Promise<Department> {

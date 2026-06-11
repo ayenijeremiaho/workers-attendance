@@ -1,4 +1,5 @@
-import { IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
+import { DepartmentKeyEnum } from '../enums/department-key.enum';
 
 export class CreateDepartmentDto {
   @IsNotEmpty()
@@ -6,4 +7,8 @@ export class CreateDepartmentDto {
 
   @IsNotEmpty()
   description: string;
+
+  @IsOptional()
+  @IsEnum(DepartmentKeyEnum)
+  key?: DepartmentKeyEnum;
 }

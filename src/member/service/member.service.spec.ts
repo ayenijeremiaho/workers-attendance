@@ -5,6 +5,8 @@ import { MemberService } from './member.service';
 import { Member } from '../entity/member.entity';
 import { WorkerProfile } from '../entity/worker-profile.entity';
 import { Department } from '../../department/entity/department.entity';
+import { DepartmentLead } from '../../department/entity/department-lead.entity';
+import { SundaySchoolClass } from '../../sunday-school/entity/sunday-school-class.entity';
 import { UtilityService } from '../../utility/service/utility.service';
 import { MemberRoleEnum } from '../enums/member-role.enum';
 import { MemberStatusEnum } from '../enums/member-status.enum';
@@ -18,6 +20,9 @@ const mockMemberRepo = {
   exists: jest.fn(),
   count: jest.fn(),
   createQueryBuilder: jest.fn(),
+  manager: {
+    transaction: jest.fn(),
+  },
 };
 
 const mockWorkerProfileRepo = {
@@ -29,6 +34,14 @@ const mockWorkerProfileRepo = {
 
 const mockDepartmentRepo = {
   findOneBy: jest.fn(),
+};
+
+const mockDepartmentLeadRepo = {
+  delete: jest.fn(),
+};
+
+const mockSundaySchoolClassRepo = {
+  update: jest.fn(),
 };
 
 const mockUtilityService = {
@@ -48,6 +61,8 @@ describe('MemberService', () => {
         { provide: getRepositoryToken(Member), useValue: mockMemberRepo },
         { provide: getRepositoryToken(WorkerProfile), useValue: mockWorkerProfileRepo },
         { provide: getRepositoryToken(Department), useValue: mockDepartmentRepo },
+        { provide: getRepositoryToken(DepartmentLead), useValue: mockDepartmentLeadRepo },
+        { provide: getRepositoryToken(SundaySchoolClass), useValue: mockSundaySchoolClassRepo },
         { provide: UtilityService, useValue: mockUtilityService },
       ],
     }).compile();
@@ -146,7 +161,7 @@ describe('MemberService', () => {
       } as any);
 
       expect(mockMemberRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ role: MemberRoleEnum.ADMIN }),
+        expect.objectContaining({ role: MemberRoleEnum.ADMIN, requiresPasswordChange: false }),
       );
       expect(result.role).toBe(MemberRoleEnum.ADMIN);
     });
@@ -218,14 +233,14 @@ describe('MemberService', () => {
       mockDepartmentRepo.findOneBy.mockResolvedValue(department);
       mockWorkerProfileRepo.create.mockReturnValue(workerProfile);
       mockWorkerProfileRepo.save.mockResolvedValue(workerProfile);
-      mockMemberRepo.save.mockResolvedValue({ ...member, role: MemberRoleEnum.WORKER });
+      mockMemberRepo.save.mockResolvedValue({ ...member, role: MemberRoleEnum.WORKER, requiresPasswordChange: false });
       jest.spyOn(UtilityService, 'capitalizeFirstLetter').mockReturnValue('Jane');
 
       const result = await service.promoteToWorker('member-1', { departmentId: 'dept-1' } as any);
 
       expect(mockWorkerProfileRepo.save).toHaveBeenCalled();
       expect(mockMemberRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ role: MemberRoleEnum.WORKER }),
+        expect.objectContaining({ role: MemberRoleEnum.WORKER, requiresPasswordChange: false }),
       );
       expect(result.role).toBe(MemberRoleEnum.WORKER);
     });
@@ -247,15 +262,28 @@ describe('MemberService', () => {
         role: MemberRoleEnum.WORKER,
         workerProfile,
       };
+      const mockTxManager = {
+        delete: jest.fn().mockResolvedValue(undefined),
+        update: jest.fn().mockResolvedValue(undefined),
+        remove: jest.fn().mockResolvedValue(undefined),
+        save: jest.fn().mockResolvedValue(undefined),
+      };
       mockMemberRepo.findOne.mockResolvedValue(member);
-      mockWorkerProfileRepo.remove.mockResolvedValue(undefined);
-      mockMemberRepo.save.mockResolvedValue({ ...member, role: MemberRoleEnum.MEMBER, workerProfile: null });
+      mockMemberRepo.manager.transaction.mockImplementation(
+        async (cb: (em: typeof mockTxManager) => Promise<void>) => cb(mockTxManager),
+      );
 
       await service.revokeWorker('member-1');
 
-      expect(mockWorkerProfileRepo.remove).toHaveBeenCalledWith(workerProfile);
-      expect(mockMemberRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ role: MemberRoleEnum.MEMBER }),
+      expect(mockTxManager.delete).toHaveBeenCalledWith(DepartmentLead, { workerProfile: { id: 'wp-1' } });
+      expect(mockTxManager.update).toHaveBeenCalledWith(
+        SundaySchoolClass,
+        { teacher: { id: 'member-1' } },
+        { teacher: null },
+      );
+      expect(mockTxManager.remove).toHaveBeenCalledWith(workerProfile);
+      expect(mockTxManager.save).toHaveBeenCalledWith(
+        expect.objectContaining({ role: MemberRoleEnum.MEMBER, requiresPasswordChange: false }),
       );
     });
 
@@ -350,7 +378,7 @@ describe('MemberService', () => {
     });
 
     it('should return member when found', async () => {
-      const member = { id: 'member-1', email: 'test@test.com', role: MemberRoleEnum.MEMBER };
+      const member = { id: 'member-1', email: 'test@test.com', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false };
       mockMemberRepo.findOne.mockResolvedValue(member);
 
       const result = await service.getById('member-1');

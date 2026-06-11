@@ -44,10 +44,13 @@ const mockRequestLeaveService = {
 
 const mockClassesService = {
   getMyEnrollments: jest.fn(),
+  countActiveEnrollments: jest.fn(),
+  getClassEnrollmentBreakdown: jest.fn(),
+  getClassCompletionsTrend: jest.fn(),
 };
 
-const mockUser = { id: 'member-1', role: MemberRoleEnum.MEMBER };
-const mockWorkerUser = { id: 'worker-1', role: MemberRoleEnum.WORKER };
+const mockUser = { id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false };
+const mockWorkerUser = { id: 'worker-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false };
 
 const mockMember = {
   id: 'member-1',
@@ -102,15 +105,18 @@ describe('DashboardService', () => {
       mockAttendanceService.getNewMemberRegistrationsTrend.mockResolvedValue([]);
       mockEventService.getUpcomingEvents.mockResolvedValue([]);
       mockRequestLeaveService.countPendingLeave.mockResolvedValue(2);
+      mockClassesService.countActiveEnrollments.mockResolvedValue(12);
+      mockClassesService.getClassEnrollmentBreakdown.mockResolvedValue([]);
+      mockClassesService.getClassCompletionsTrend.mockResolvedValue([]);
     });
 
     it('should call memberService.count three times for MEMBER, WORKER, and ADMIN roles', async () => {
       await service.getAdminDashboard();
 
       expect(mockMemberService.count).toHaveBeenCalledTimes(3);
-      expect(mockMemberService.count).toHaveBeenCalledWith({ where: { role: MemberRoleEnum.MEMBER } });
-      expect(mockMemberService.count).toHaveBeenCalledWith({ where: { role: MemberRoleEnum.WORKER } });
-      expect(mockMemberService.count).toHaveBeenCalledWith({ where: { role: MemberRoleEnum.ADMIN } });
+      expect(mockMemberService.count).toHaveBeenCalledWith({ where: { role: MemberRoleEnum.MEMBER, requiresPasswordChange: false } });
+      expect(mockMemberService.count).toHaveBeenCalledWith({ where: { role: MemberRoleEnum.WORKER, requiresPasswordChange: false } });
+      expect(mockMemberService.count).toHaveBeenCalledWith({ where: { role: MemberRoleEnum.ADMIN, requiresPasswordChange: false } });
     });
 
     it('should return merged result with all admin dashboard data', async () => {
@@ -150,6 +156,23 @@ describe('DashboardService', () => {
       expect(mockAttendanceService.getWorkerAttendancePercentage).toHaveBeenCalledWith(60);
       expect(mockAttendanceService.getCongregationAttendancePercentage).toHaveBeenCalledWith(60);
       expect(mockAttendanceService.getDepartmentAttendanceSummary).toHaveBeenCalledWith(60);
+    });
+
+    it('should include class analytics in the result', async () => {
+      const breakdown = [
+        { classId: 'c-1', className: 'Alpha', inProgress: 3, completed: 6, cancelled: 2, completionRate: 75 },
+      ];
+      const trend = [{ week: '2026-06-01', completions: 5 }];
+      mockClassesService.countActiveEnrollments.mockResolvedValue(8);
+      mockClassesService.getClassEnrollmentBreakdown.mockResolvedValue(breakdown);
+      mockClassesService.getClassCompletionsTrend.mockResolvedValue(trend);
+
+      const result = await service.getAdminDashboard();
+
+      expect(result.totalActiveEnrollments).toBe(8);
+      expect(result.classEnrollmentBreakdown).toEqual(breakdown);
+      expect(result.classCompletionsTrend).toEqual(trend);
+      expect(mockClassesService.getClassCompletionsTrend).toHaveBeenCalledWith(30);
     });
   });
 

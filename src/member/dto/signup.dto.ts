@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { GenderEnum } from '../enums/gender.enum';
 import { MaritalStatusEnum } from '../enums/marital-status.enum';
+import { NormalizeEmail } from '../../utility/decorators/normalize-email.decorator';
 
 export class SignupDto {
   @IsString()
@@ -17,6 +18,7 @@ export class SignupDto {
   @IsString()
   lastname: string;
 
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 

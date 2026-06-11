@@ -1,0 +1,4472 @@
+{
+  "info": {
+    "name": "Discovery Hub API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Complete API reference for the Discovery Hub platform."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "memberId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "memberId2",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "departmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "eventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "slotId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "configId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "classId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "enrollmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "announcementId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "leaveId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "noteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "venueId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ssClassId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ssSessionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ageGroupId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "classGroupId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "childId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "guardianId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "checkinId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Sign Up",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstname\": \"John\",\n  \"lastname\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"gender\": \"MALE\",\n  \"dateOfBirth\": \"1990-05-15\",\n  \"maritalStatus\": \"MARRIED\",\n  \"yearBornAgain\": \"2010\",\n  \"yearBaptized\": \"2011\",\n  \"baptizedWithHolyGhost\": true,\n  \"yearJoinedChurch\": \"2012\",\n  \"joinWorkforce\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "Register a new church member. All fields except firstname, lastname, email and password are optional. Set joinWorkforce=true to flag interest in joining the workforce (admin must still formally promote the member)."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"uuid\",\n  \"firstname\": \"John\",\n  \"lastname\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"role\": \"MEMBER\",\n  \"status\": \"ACTIVE\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token)  pm.collectionVariables.set('accessToken',  res.access_token);",
+                  "if (res.refresh_token) pm.collectionVariables.set('refreshToken', res.refresh_token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticate any user (MEMBER, WORKER, ADMIN). The test script auto-saves access_token and refresh_token to collection variables."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"token_type\": \"Bearer\",\n  \"access_token\": \"eyJ...\",\n  \"refresh_token\": \"eyJ...\",\n  \"expires_in\": 3600\n}"
+            },
+            {
+              "name": "401 Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Invalid email or password\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{refreshToken}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Exchange a refresh token for a new access token. Pass the refresh token in the Authorization header."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"token_type\": \"Bearer\",\n  \"access_token\": \"eyJ...\",\n  \"refresh_token\": \"eyJ...\",\n  \"expires_in\": 3600\n}"
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Invalidate current session. Returns 204 No Content."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Returns the authenticated user's profile including workerProfile and department if applicable."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"uuid\",\n  \"firstname\": \"John\",\n  \"lastname\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"role\": \"WORKER\",\n  \"status\": \"ACTIVE\",\n  \"workerProfile\": {\n    \"id\": \"uuid\",\n    \"department\": { \"id\": \"uuid\", \"name\": \"Ushering\" },\n    \"status\": \"ACTIVE\",\n    \"profession\": \"Engineer\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"OldPass123!\",\n  \"newPassword\": \"NewPass456!\",\n  \"confirmPassword\": \"NewPass456!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"message\": \"Password changed successfully\" }"
+            }
+          ]
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"member@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "Request a 6-digit OTP reset code. Rate-limited (default 3 attempts/hr). Always returns the same message regardless of whether the email exists, to avoid account enumeration."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"member@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewPass1!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Verify OTP and set a new password. Marks the OTP as used, invalidates the current session, and sends a confirmation email. The user must log in fresh after this."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin \u2014 Get Own Profile",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "admin",
+                "profile"
+              ]
+            },
+            "description": "ADMIN only. Returns the admin's own profile."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Members",
+      "description": "All endpoints require ADMIN role unless noted.",
+      "item": [
+        {
+          "name": "Create Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstname\": \"Jane\",\n  \"lastname\": \"Smith\",\n  \"email\": \"jane.admin@example.com\",\n  \"password\": \"Admin123!\",\n  \"phoneNumber\": \"+2348099887766\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/admins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "admins"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"uuid\", \"role\": \"ADMIN\", ... }"
+            }
+          ]
+        },
+        {
+          "name": "Get All Members",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/members?page=1&limit=10&role=MEMBER",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page (default: 10)"
+                },
+                {
+                  "key": "role",
+                  "value": "MEMBER",
+                  "description": "Filter by role: MEMBER | WORKER | ADMIN (optional)"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [{ \"id\": \"uuid\", \"firstname\": \"John\", \"role\": \"MEMBER\", ... }],\n  \"page\": 1,\n  \"limit\": 10,\n  \"totalCount\": 42,\n  \"totalPages\": 5\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get All Workers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/members/workers?page=1&limit=10&status=ACTIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "workers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "description": "Filter by worker status: ACTIVE | INACTIVE (optional)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Member by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "{{memberId}}"
+              ],
+              "variable": [
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Member",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstname\": \"Johnny\",\n  \"lastname\": \"Doe\",\n  \"phoneNumber\": \"+2348011223344\",\n  \"gender\": \"MALE\",\n  \"dateOfBirth\": \"1990-05-15\",\n  \"maritalStatus\": \"MARRIED\",\n  \"yearBornAgain\": \"2010\",\n  \"yearBaptized\": \"2011\",\n  \"baptizedWithHolyGhost\": true,\n  \"yearJoinedChurch\": \"2012\",\n  \"email\": \"newemail@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "{{memberId}}"
+              ],
+              "variable": [
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            },
+            "description": "All fields are optional. Only provided fields are updated."
+          }
+        },
+        {
+          "name": "Promote Member to Worker",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": \"{{departmentId}}\",\n  \"profession\": \"Software Engineer\",\n  \"yearJoinedWorkforce\": \"2020\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}/promote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "{{memberId}}",
+                "promote"
+              ],
+              "variable": [
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            },
+            "description": "Creates a WorkerProfile for the member, assigns them to a department and sets role to WORKER. departmentId is required; profession and yearJoinedWorkforce are optional."
+          }
+        },
+        {
+          "name": "Revoke Worker Role",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}/revoke-worker",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "{{memberId}}",
+                "revoke-worker"
+              ],
+              "variable": [
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            },
+            "description": "Removes the WorkerProfile and resets the member's role back to MEMBER. Returns 204 No Content."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Update Worker Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": \"{{departmentId}}\",\n  \"status\": \"ACTIVE\",\n  \"profession\": \"Accountant\",\n  \"yearJoinedWorkforce\": \"2021\",\n  \"completedSOD\": true,\n  \"completedBibleCollege\": false,\n  \"secondaryDepartmentId\": \"{{secondaryDepartmentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}/worker-profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "{{memberId}}",
+                "worker-profile"
+              ],
+              "variable": [
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            },
+            "description": "Update a worker's profile fields. All fields are optional. Pass `\"secondaryDepartmentId\": null` to remove the secondary department assignment. Omitting `secondaryDepartmentId` entirely leaves the current value unchanged. ADMIN only."
+          }
+        },
+        {
+          "name": "Change Member Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "{{memberId}}",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            },
+            "description": "Activate or deactivate a member. status: ACTIVE | INACTIVE. Returns 204."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Reset Member Password",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "{{memberId}}",
+                "reset-password"
+              ],
+              "variable": [
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            },
+            "description": "Generates a new random password and emails it to the member. The member will need to change it on next login."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"message\": \"Password reset successfully\" }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Attendance",
+      "item": [
+        {
+          "name": "Check In",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceSlotId\": \"{{slotId}}\",\n  \"location\": {\n    \"latitude\": 6.5244,\n    \"longitude\": 3.3792\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendances/checkin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "checkin"
+              ]
+            },
+            "description": "Any authenticated user (MEMBER or WORKER) can check in. location is optional for members. Workers providing location will have distance validated if ENFORCE_DISTANCE_CHECK=true. Members are always marked PRESENT; workers are PRESENT or LATE depending on workerLateOffsetSeconds."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"message\": \"Check-in successful\" }"
+            },
+            {
+              "name": "400 Already checked in",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"You have already checked in for this service.\" }"
+            },
+            {
+              "name": "400 Window not open",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"Check-in has not opened yet.\" }"
+            },
+            {
+              "name": "400 Window closed",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"Check-in is closed.\" }"
+            }
+          ]
+        },
+        {
+          "name": "My Attendance History",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendances/my-history?page=1&limit=10&status=PRESENT&dateFrom=2025-01-01&dateTo=2025-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "my-history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "PRESENT",
+                  "description": "PRESENT | LATE | ABSENT | ON_LEAVE (optional)"
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "2025-01-01",
+                  "description": "Filter from date YYYY-MM-DD (optional)"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2025-12-31",
+                  "description": "Filter to date YYYY-MM-DD (optional)"
+                }
+              ]
+            },
+            "description": "Returns the authenticated user's own attendance records. Available to all roles."
+          }
+        },
+        {
+          "name": "All Attendance History (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendances/history?page=1&limit=10&memberId=&slotId=&status=ABSENT&dateFrom=2025-01-01&dateTo=2025-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "memberId",
+                  "value": "",
+                  "description": "Filter by member UUID (optional)"
+                },
+                {
+                  "key": "slotId",
+                  "value": "",
+                  "description": "Filter by service slot UUID (optional)"
+                },
+                {
+                  "key": "status",
+                  "value": "ABSENT",
+                  "description": "PRESENT | LATE | ABSENT | ON_LEAVE (optional)"
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2025-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Department Attendance History (Worker / Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendances/history/department?slotId={{slotId}}&departmentId={{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "history",
+                "department"
+              ],
+              "query": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}",
+                  "description": "Required. UUID of the service slot."
+                },
+                {
+                  "key": "departmentId",
+                  "value": "{{departmentId}}",
+                  "description": "Optional for WORKER (auto-resolved from profile). Required for ADMIN.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "WORKER only (department lead). Returns attendance for their department for a given slot."
+          }
+        },
+        {
+          "name": "Slot Summary (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendances/summary/slot/{{slotId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "summary",
+                "slot",
+                "{{slotId}}"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}"
+                }
+              ]
+            },
+            "description": "Returns PRESENT/LATE/ABSENT/ON_LEAVE counts for a single service slot."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"PRESENT\": 45,\n  \"LATE\": 12,\n  \"ABSENT\": 8,\n  \"ON_LEAVE\": 3\n}"
+            }
+          ]
+        },
+        {
+          "name": "Worker Leaderboard (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendances/leaderboard?daysAgo=30&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "leaderboard"
+              ],
+              "query": [
+                {
+                  "key": "daysAgo",
+                  "value": "30",
+                  "description": "Look-back window in days (default: 7)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Number of workers to return (default: 10)"
+                }
+              ]
+            },
+            "description": "Returns top workers ranked by present+late count within the time window."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  { \"rank\": 1, \"name\": \"John Doe\", \"department\": \"Ushering\", \"presentCount\": 8, \"absentCount\": 0 },\n  { \"rank\": 2, \"name\": \"Jane Smith\", \"department\": \"Choir\", \"presentCount\": 7, \"absentCount\": 1 }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Department Event Attendance (Worker / Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendances/department/event/{{eventId}}?departmentId={{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "department",
+                "event",
+                "{{eventId}}"
+              ],
+              "query": [
+                {
+                  "key": "departmentId",
+                  "value": "{{departmentId}}",
+                  "description": "Optional for WORKER (auto-resolved from profile). Required for ADMIN.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns attendance records for the caller's department for a specific event. Includes all service slots within that event. WORKER only (resolves the caller's department from their profile)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Create Event (Single)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sunday Service\",\n  \"description\": \"Regular Sunday morning service\",\n  \"eventDate\": \"2026-06-15\",\n  \"isRecurring\": false,\n  \"serviceSlots\": [\n    {\n      \"name\": \"First Service\",\n      \"startTime\": \"2026-06-15T07:00:00.000Z\",\n      \"endTime\": \"2026-06-15T09:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    },\n    {\n      \"name\": \"Second Service\",\n      \"startTime\": \"2026-06-15T10:00:00.000Z\",\n      \"endTime\": \"2026-06-15T12:00:00.000Z\",\n      \"configId\": \"{{configId}}\",\n      \"venueOverrideId\": \"{{venueId}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events"
+              ]
+            },
+            "description": "ADMIN only. Each slot references a configId (which carries a defaultVenue). Supply an optional venueOverrideId on individual slots to override the config venue for just that slot."
+          }
+        },
+        {
+          "name": "Create Event (Single, Minimal Slots)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mid-week Service\",\n  \"description\": \"Wednesday evening service\",\n  \"eventDate\": \"2026-06-18\",\n  \"isRecurring\": false,\n  \"serviceSlots\": [\n    {\n      \"name\": \"Service\",\n      \"startTime\": \"2026-06-18T18:00:00.000Z\",\n      \"endTime\": \"2026-06-18T20:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events"
+              ]
+            },
+            "description": "Minimal single-event example \u2014 one slot with a configId. At least one serviceSlot is required; slots without a configId will fail at check-in time."
+          }
+        },
+        {
+          "name": "Create Event (Recurring Weekly)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sunday Service\",\n  \"description\": \"Weekly Sunday service\",\n  \"eventDate\": \"2026-07-06\",\n  \"isRecurring\": true,\n  \"recurrence\": {\n    \"recurrencePattern\": \"weekly\",\n    \"recurrenceInterval\": 1,\n    \"recurrenceEndDate\": \"2026-12-31\"\n  },\n  \"serviceSlots\": [\n    {\n      \"name\": \"First Service\",\n      \"startTime\": \"2026-07-06T07:00:00.000Z\",\n      \"endTime\": \"2026-07-06T09:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    },\n    {\n      \"name\": \"Second Service\",\n      \"startTime\": \"2026-07-06T10:00:00.000Z\",\n      \"endTime\": \"2026-07-06T12:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events"
+              ]
+            },
+            "description": "Creates one event record per recurrence date up to recurrenceEndDate (max 1 year ahead). serviceSlots are required (at least one) and must include a configId. The same slot template is stamped on every occurrence \u2014 all share the same config. Delete future occurrences in bulk via DELETE /events/recurring/:recurringEventId."
+          }
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sunday Service \\u2014 Updated\",\n  \"description\": \"Updated description\",\n  \"eventDate\": \"2026-06-22\",\n  \"serviceSlots\": [\n    {\n      \"name\": \"First Service\",\n      \"startTime\": \"2026-06-22T07:00:00.000Z\",\n      \"endTime\": \"2026-06-22T09:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "{{eventId}}"
+              ],
+              "variable": [
+                {
+                  "key": "eventId",
+                  "value": "{{eventId}}"
+                }
+              ]
+            },
+            "description": "Updates event metadata. When `serviceSlots` is provided (min 1 entry), ALL existing slots are replaced with the new ones \u2014 include `configId` on each slot to preserve config linkage. Omit `serviceSlots` entirely to leave existing slots unchanged. ADMIN only."
+          }
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "{{eventId}}"
+              ],
+              "variable": [
+                {
+                  "key": "eventId",
+                  "value": "{{eventId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Events",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/events?page=1&limit=10&orderBy=eventDate&order=DESC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "orderBy",
+                  "value": "eventDate",
+                  "description": "eventDate | createdAt | updatedAt"
+                },
+                {
+                  "key": "order",
+                  "value": "DESC",
+                  "description": "ASC | DESC"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Event",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "{{eventId}}"
+              ],
+              "variable": [
+                {
+                  "key": "eventId",
+                  "value": "{{eventId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. Cannot delete past events."
+          }
+        },
+        {
+          "name": "Delete Future Recurring Events",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/events/recurring/{{recurringEventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "recurring",
+                "{{recurringEventId}}"
+              ],
+              "variable": [
+                {
+                  "key": "recurringEventId",
+                  "value": "",
+                  "description": "The shared recurringEventId UUID from the event series"
+                }
+              ]
+            },
+            "description": "ADMIN only. Deletes all future events in a recurring series (today and after)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Event Config",
+      "description": "All endpoints ADMIN only.",
+      "item": [
+        {
+          "name": "Create Event Config",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Default Sunday Config\",\n  \"description\": \"Standard check-in config for Sunday services\",\n  \"defaultVenueId\": \"{{venueId}}\",\n  \"workerCheckinStartOffsetSeconds\": -5400,\n  \"workerLateOffsetSeconds\": 0,\n  \"memberCheckinStartOffsetSeconds\": -1800,\n  \"checkinStopOffsetSeconds\": 3600,\n  \"allowedDistanceInMeters\": 150\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/event-config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "event-config"
+              ]
+            },
+            "description": "Offsets are in seconds relative to slot startTime. Negative = before slot starts. Constraint: workerLateOffset > workerCheckinStartOffset and checkinStopOffset > workerLateOffset. defaultVenueId is required \u2014 create a Venue first and reference it here."
+          }
+        },
+        {
+          "name": "Update Event Config",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allowedDistanceInMeters\": 200,\n  \"workerLateOffsetSeconds\": 900\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/event-config/{{configId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "event-config",
+                "{{configId}}"
+              ],
+              "variable": [
+                {
+                  "key": "configId",
+                  "value": "{{configId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Event Config by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/event-config/{{configId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "event-config",
+                "{{configId}}"
+              ],
+              "variable": [
+                {
+                  "key": "configId",
+                  "value": "{{configId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Event Configs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/event-config?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "event-config"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Event Config",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/event-config/{{configId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "event-config",
+                "{{configId}}"
+              ],
+              "variable": [
+                {
+                  "key": "configId",
+                  "value": "{{configId}}"
+                }
+              ]
+            },
+            "description": "Fails if any service slot is still assigned to this config."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Departments",
+      "item": [
+        {
+          "name": "Get Department Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departments/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "keys"
+              ]
+            },
+            "description": "Returns the list of all valid DepartmentKeyEnum values. Use this to populate key-selection dropdowns when creating or updating a department. No auth required beyond a valid JWT."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Departments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/departments?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Public (JWT only). Returns paginated list of departments."
+          }
+        },
+        {
+          "name": "Get Department by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/departments/{{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "{{departmentId}}"
+              ],
+              "variable": [
+                {
+                  "key": "departmentId",
+                  "value": "{{departmentId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Department",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Technical Media\",\n  \"description\": \"Manages sound, projection and live streaming\",\n  \"key\": \"MEDIA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/departments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments"
+              ]
+            },
+            "description": "ADMIN only. The optional `key` field links this department to a module-access category (DepartmentKeyEnum). Multiple departments may share the same key. Omit `key` (or pass null) if the department does not gate any module. Example keys: SUNDAY_SCHOOL, CHILDREN_CHURCH, MEDIA."
+          }
+        },
+        {
+          "name": "Update Department",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sunday School Department\",\n  \"description\": \"Oversees all Sunday School classes and sessions\",\n  \"key\": \"SUNDAY_SCHOOL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/departments/{{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "{{departmentId}}"
+              ],
+              "variable": [
+                {
+                  "key": "departmentId",
+                  "value": "{{departmentId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. All fields are optional. The `key` field can be updated to change module access. Set to null to remove module gating."
+          }
+        },
+        {
+          "name": "Delete Department",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/departments/{{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "{{departmentId}}"
+              ],
+              "variable": [
+                {
+                  "key": "departmentId",
+                  "value": "{{departmentId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Assign Department Lead",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": \"{{departmentId}}\",\n  \"type\": \"head\",\n  \"memberId\": \"uuid-of-worker-profile\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/departments/assign-lead",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "assign-lead"
+              ]
+            },
+            "description": "Assigns a worker as department head or assistant. type: 'head' | 'assistant'. The worker must have this department as their primary department to be assigned as HOD."
+          }
+        },
+        {
+          "name": "Remove Department Lead",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": \"{{departmentId}}\",\n  \"type\": \"head\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/departments/remove-lead",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "remove-lead"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Leads for Department",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/departments/leads/{{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "leads",
+                "{{departmentId}}"
+              ],
+              "variable": [
+                {
+                  "key": "departmentId",
+                  "value": "{{departmentId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Department Leads",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/departments/leads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "leads"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Workers in Department",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departments/{{departmentId}}/workers?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "{{departmentId}}",
+                "workers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Paginated list of all workers whose primary department is this one. Each worker entry includes a `leadRole` field (\"head\" | \"assistant\" | null). ADMIN only."
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Department Summary (Worker / Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departments/my/summary?departmentId={{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "my",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "departmentId",
+                  "value": "{{departmentId}}",
+                  "description": "Optional for WORKER (auto-resolved from profile). Required for ADMIN.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns aggregated stats for the department the caller leads (HOD or D-HOD): total/active/inactive worker counts, 30-day attendance %, and workers currently on approved or pending leave. WORKER (HOD/D-HOD) only \u2014 throws 403 if caller is not a department lead."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Leave",
+      "item": [
+        {
+          "name": "Request Leave (Worker)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dateFrom\": \"2026-07-01 08:00\",\n  \"dateTo\": \"2026-07-07 18:00\",\n  \"reason\": \"Family vacation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/leave",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leave"
+              ]
+            },
+            "description": "WORKER only. Dates must be in format: YYYY-MM-DD HH:mm. Creates a PENDING leave request."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"uuid\",\n  \"status\": \"PENDING\",\n  \"dateFrom\": \"2026-07-01T08:00:00.000Z\",\n  \"dateTo\": \"2026-07-07T18:00:00.000Z\",\n  \"reason\": \"Family vacation\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Action Leave Request (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/leave/{{leaveId}}/action",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leave",
+                "{{leaveId}}",
+                "action"
+              ],
+              "variable": [
+                {
+                  "key": "leaveId",
+                  "value": "{{leaveId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. status: APPROVED | REJECTED."
+          }
+        },
+        {
+          "name": "Delete Leave Request (Worker)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/leave/{{leaveId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leave",
+                "{{leaveId}}"
+              ],
+              "variable": [
+                {
+                  "key": "leaveId",
+                  "value": "{{leaveId}}"
+                }
+              ]
+            },
+            "description": "WORKER only. Can only delete own PENDING leave requests."
+          }
+        },
+        {
+          "name": "My Leave History (Worker)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/leave/my-history?status=PENDING",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leave",
+                "my-history"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "description": "PENDING | APPROVED | REJECTED (optional)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "All Leave History (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/leave/history?page=1&limit=10&status=PENDING",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leave",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "description": "PENDING | APPROVED | REJECTED (optional)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Department Leave Requests (Worker)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/leave/department?status=PENDING",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leave",
+                "department"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "description": "Optional filter"
+                }
+              ]
+            },
+            "description": "WORKER only. Returns leave requests from members in the same department."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Classes",
+      "item": [
+        {
+          "name": "Create Class (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Believers Class\",\n  \"type\": \"BELIEVERS\",\n  \"description\": \"Foundation class for new members\",\n  \"facilitatorId\": \"{{memberId}}\",\n  \"startDate\": \"2026-07-01\",\n  \"endDate\": \"2026-09-30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes"
+              ]
+            },
+            "description": "type: BELIEVERS | BAPTISMAL | WORKERS_IN_TRAINING | BIBLE_COLLEGE"
+          }
+        },
+        {
+          "name": "Update Class (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Believers Foundation Class\",\n  \"endDate\": \"2026-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes/{{classId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                "{{classId}}"
+              ],
+              "variable": [
+                {
+                  "key": "classId",
+                  "value": "{{classId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Class (Admin)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/classes/{{classId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                "{{classId}}"
+              ],
+              "variable": [
+                {
+                  "key": "classId",
+                  "value": "{{classId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Classes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/classes?type=BELIEVERS&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "BELIEVERS",
+                  "description": "BELIEVERS | BAPTISMAL | WORKERS_IN_TRAINING | BIBLE_COLLEGE (optional)"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Class by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/classes/{{classId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                "{{classId}}"
+              ],
+              "variable": [
+                {
+                  "key": "classId",
+                  "value": "{{classId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Enroll Member in Class (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"classId\": \"{{classId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes/enroll",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                "enroll"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"uuid\", \"status\": \"IN_PROGRESS\", \"enrolledAt\": \"...\" }"
+            },
+            {
+              "name": "400 Already enrolled",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"Member is already enrolled in this class\" }"
+            }
+          ]
+        },
+        {
+          "name": "Update Enrollment Status (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes/enrollments/{{enrollmentId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                "enrollments",
+                "{{enrollmentId}}",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "enrollmentId",
+                  "value": "{{enrollmentId}}"
+                }
+              ]
+            },
+            "description": "status: IN_PROGRESS | COMPLETED | CANCELLED"
+          }
+        },
+        {
+          "name": "My Enrollments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/classes/my/enrollments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                "my",
+                "enrollments"
+              ]
+            },
+            "description": "Returns all class enrollments for the authenticated user."
+          }
+        },
+        {
+          "name": "Get Class Enrollments (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/classes/{{classId}}/enrollments?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "classes",
+                "{{classId}}",
+                "enrollments"
+              ],
+              "variable": [
+                {
+                  "key": "classId",
+                  "value": "{{classId}}"
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Announcements",
+      "item": [
+        {
+          "name": "Create Announcement (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Church Picnic \u2014 July 20th\",\n  \"body\": \"Join us for our annual church picnic at Tarkwa Bay Beach. Bring your family!\",\n  \"audience\": \"ALL\",\n  \"publishedAt\": \"2026-07-10T08:00:00.000Z\",\n  \"expiresAt\": \"2026-07-21T00:00:00.000Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/announcements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements"
+              ]
+            },
+            "description": "audience: ALL | WORKERS_ONLY | DEPARTMENT | INDIVIDUAL. If audience=DEPARTMENT, departmentId is required. If audience=INDIVIDUAL, targetMemberId (UUID) is required. publishedAt defaults to now if omitted."
+          }
+        },
+        {
+          "name": "Create Department Announcement (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Ushering Team Meeting\",\n  \"body\": \"Mandatory meeting for all ushers this Saturday at 7am.\",\n  \"audience\": \"DEPARTMENT\",\n  \"departmentId\": \"{{departmentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/announcements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Individual Announcement (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Pastoral Follow-up\",\n  \"body\": \"The pastor would like to meet with you after Sunday service. Please see the office.\",\n  \"audience\": \"INDIVIDUAL\",\n  \"targetMemberId\": \"{{memberId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/announcements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements"
+              ]
+            },
+            "description": "Sends a private announcement visible only to the specified member. targetMemberId is required when audience=INDIVIDUAL."
+          }
+        },
+        {
+          "name": "Update Announcement (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"expiresAt\": \"2026-08-01T00:00:00.000Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/announcements/{{announcementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements",
+                "{{announcementId}}"
+              ],
+              "variable": [
+                {
+                  "key": "announcementId",
+                  "value": "{{announcementId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Announcement (Admin)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/announcements/{{announcementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements",
+                "{{announcementId}}"
+              ],
+              "variable": [
+                {
+                  "key": "announcementId",
+                  "value": "{{announcementId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "All Announcements (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/announcements/all?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements",
+                "all"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Announcement Feed (My Feed)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/announcements/feed?departmentId={{departmentId}}&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements",
+                "feed"
+              ],
+              "query": [
+                {
+                  "key": "departmentId",
+                  "value": "{{departmentId}}",
+                  "description": "Required for workers to receive department-targeted announcements (optional for members)"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Returns visible, non-expired announcements for the current user's role. MEMBER sees ALL. WORKER sees ALL + WORKERS_ONLY + their department. Expired announcements are excluded."
+          }
+        },
+        {
+          "name": "Get Announcement by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/announcements/{{announcementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements",
+                "{{announcementId}}"
+              ],
+              "variable": [
+                {
+                  "key": "announcementId",
+                  "value": "{{announcementId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "description": "All endpoints ADMIN only.",
+      "item": [
+        {
+          "name": "Create Child Naming Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"child_naming\",\n  \"childName\": \"Emmanuel\",\n  \"familyName\": \"Adeyemi\",\n  \"dateOfBirth\": \"2026-05-20\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Child Dedication Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"child_dedication\",\n  \"childName\": \"Grace\",\n  \"familyName\": \"Okonkwo\",\n  \"dedicationDate\": \"2026-06-22\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Marriage Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"marriage\",\n  \"husbandName\": \"David Osei\",\n  \"wifeName\": \"Blessing Osei\",\n  \"weddingDate\": \"2026-08-10\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Notes by Type",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/notes/child_naming?page=1&limit=10&order=DESC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes",
+                "child_naming"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "order",
+                  "value": "DESC",
+                  "description": "ASC | DESC"
+                }
+              ]
+            },
+            "description": "type path param: child_naming | child_dedication | marriage"
+          }
+        },
+        {
+          "name": "Get Note by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/notes/child_naming/{{noteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes",
+                "child_naming",
+                "{{noteId}}"
+              ],
+              "variable": [
+                {
+                  "key": "noteId",
+                  "value": "{{noteId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Note",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"child_naming\",\n  \"childName\": \"Emmanuel Joshua\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notes/{{noteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes",
+                "{{noteId}}"
+              ],
+              "variable": [
+                {
+                  "key": "noteId",
+                  "value": "{{noteId}}"
+                }
+              ]
+            },
+            "description": "type field is required to identify the note type. Other fields are optional (partial update)."
+          }
+        },
+        {
+          "name": "Delete Note",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/notes/child_naming/{{noteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes",
+                "child_naming",
+                "{{noteId}}"
+              ],
+              "variable": [
+                {
+                  "key": "noteId",
+                  "value": "{{noteId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notes Analytics",
+      "description": "All endpoints ADMIN only.",
+      "item": [
+        {
+          "name": "Child Naming Analytics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/notes-analytics/child_naming?from=2026-01-01&to=2026-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes-analytics",
+                "child_naming"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-01-01",
+                  "description": "Start date YYYY-MM-DD (optional, defaults to 30 days ago)"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31",
+                  "description": "End date YYYY-MM-DD (optional, defaults to today)"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"total\": 12, \"avgNamingAgeInDays\": 7, \"topFamily\": \"Adeyemi\", \"topName\": \"Emmanuel\" }"
+            }
+          ]
+        },
+        {
+          "name": "Child Dedication Analytics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/notes-analytics/child_dedication?from=2026-01-01&to=2026-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes-analytics",
+                "child_dedication"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"total\": 8, \"upcoming\": 3, \"topFamily\": \"Okonkwo\", \"topName\": \"Grace\" }"
+            }
+          ]
+        },
+        {
+          "name": "Marriage Analytics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/notes-analytics/marriage?from=2026-01-01&to=2026-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes-analytics",
+                "marriage"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"total\": 5, \"recentMarriage\": \"2026-08-10\", \"avgPerMonth\": 0.4 }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Venues",
+      "description": "Named, reusable venue records. Create a venue once; reference its ID in event configs (defaultVenueId) or individual service slots (venueOverrideId). ADMIN: create, update, delete. Any authenticated user: list, get by ID.",
+      "item": [
+        {
+          "name": "Create Venue (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('venueId', res.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Auditorium\",\n  \"address\": \"123 Church Road, Lagos, Nigeria\",\n  \"latitude\": 6.5244,\n  \"longitude\": 3.3792\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/venues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venues"
+              ]
+            },
+            "description": "Creates a new venue. The test script auto-saves the returned id to the venueId collection variable. name must be unique. latitude and longitude are required."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"uuid\",\n  \"name\": \"Main Auditorium\",\n  \"address\": \"123 Church Road, Lagos, Nigeria\",\n  \"latitude\": 6.5244,\n  \"longitude\": 3.3792,\n  \"createdAt\": \"2026-06-10T08:00:00.000Z\",\n  \"updatedAt\": \"2026-06-10T08:00:00.000Z\"\n}"
+            },
+            {
+              "name": "409 Conflict",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{ \"statusCode\": 409, \"message\": \"Venue \\\"Main Auditorium\\\" already exists\" }"
+            }
+          ]
+        },
+        {
+          "name": "Get All Venues",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venues"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Any authenticated user. Returns all venues paginated, ordered by name."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    { \"id\": \"uuid\", \"name\": \"Main Auditorium\", \"address\": \"123 Church Road\", \"latitude\": 6.5244, \"longitude\": 3.3792 },\n    { \"id\": \"uuid2\", \"name\": \"Chapel\", \"address\": null, \"latitude\": 6.53, \"longitude\": 3.38 }\n  ],\n  \"page\": 1,\n  \"limit\": 20,\n  \"totalCount\": 2,\n  \"totalPages\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Venue by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues/{{venueId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venues",
+                "{{venueId}}"
+              ],
+              "variable": [
+                {
+                  "key": "venueId",
+                  "value": "{{venueId}}"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"uuid\", \"name\": \"Main Auditorium\", \"address\": \"123 Church Road\", \"latitude\": 6.5244, \"longitude\": 3.3792 }"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{ \"statusCode\": 404, \"message\": \"Venue not found\" }"
+            }
+          ]
+        },
+        {
+          "name": "Update Venue (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Auditorium \u2014 Block A\",\n  \"address\": \"456 New Church Road, Lagos\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/venues/{{venueId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venues",
+                "{{venueId}}"
+              ],
+              "variable": [
+                {
+                  "key": "venueId",
+                  "value": "{{venueId}}"
+                }
+              ]
+            },
+            "description": "All fields are optional. Only provided fields are updated."
+          }
+        },
+        {
+          "name": "Delete Venue (Admin)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/venues/{{venueId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "venues",
+                "{{venueId}}"
+              ],
+              "variable": [
+                {
+                  "key": "venueId",
+                  "value": "{{venueId}}"
+                }
+              ]
+            },
+            "description": "Fails with 400 if the venue is referenced as a defaultVenue by any event config. Slot-level venueOverrides pointing to this venue are automatically cleared (SET NULL)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": ""
+            },
+            {
+              "name": "400 In use",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"Cannot delete this venue \u2014 it is referenced by one or more event configs or slots.\" }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Member Dashboard",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/member?daysAgo=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "member"
+              ],
+              "query": [
+                {
+                  "key": "daysAgo",
+                  "value": "30",
+                  "description": "Look-back window for attendance percentage (default: 30)"
+                }
+              ]
+            },
+            "description": "Any authenticated user. Returns profile, streak, rank, period stats, recent attendance, upcoming events, and class enrollments."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"profile\": { \"id\": \"uuid\", \"firstname\": \"John\", ... },\n  \"personalAttendancePercentage\": 87.5,\n  \"attendanceStreak\": 6,\n  \"rank\": 12,\n  \"periodStats\": { \"present\": 10, \"late\": 1, \"absent\": 2, \"onLeave\": 0, \"total\": 13 },\n  \"recentAttendance\": [...],\n  \"upcomingEvents\": [...],\n  \"enrollments\": [...]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Worker Dashboard",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/worker?daysAgo=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "worker"
+              ],
+              "query": [
+                {
+                  "key": "daysAgo",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": "WORKER or ADMIN role. Includes streak, rank, period stats, and isDepartmentLead flag. If isDepartmentLead=true, also includes departmentLeadDetails with departmentAttendancePercentage and pending leave count."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"profile\": { ... },\n  \"isDepartmentLead\": true,\n  \"departmentLeadDetails\": {\n    \"departmentAttendancePercentage\": 91.2,\n    \"totalDepartmentPendingLeaveRequests\": 2\n  },\n  \"personalAttendancePercentage\": 95.0,\n  \"attendanceStreak\": 10,\n  \"rank\": 3,\n  \"periodStats\": { \"present\": 12, \"late\": 1, \"absent\": 0, \"onLeave\": 1, \"total\": 14 },\n  \"recentAttendance\": [...],\n  \"upcomingEvents\": [...],\n  \"totalPendingLeaveRequests\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Admin Dashboard",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/admin?daysAgo=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "admin"
+              ],
+              "query": [
+                {
+                  "key": "daysAgo",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": "ADMIN only. Returns total member/worker/admin counts, check-ins today, workerAttendancePercentage, congregationAttendancePercentage, departmentAttendanceSummary (per-department breakdown), newMemberRegistrationsTrend, weekly trend, top absent workers, members not seen recently, upcoming events, and pending leave count."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"totalMembers\": 350,\n  \"totalWorkers\": 78,\n  \"totalAdmins\": 5,\n  \"totalCheckInsToday\": 142,\n  \"workerAttendancePercentage\": 89.3,\n  \"congregationAttendancePercentage\": 62.1,\n  \"departmentAttendanceSummary\": [\n    { \"departmentId\": \"uuid\", \"departmentName\": \"Ushering\", \"totalWorkers\": 12, \"attendedWorkers\": 10, \"attendancePercentage\": 83.33 },\n    { \"departmentId\": \"uuid\", \"departmentName\": \"Music\", \"totalWorkers\": 8, \"attendedWorkers\": 8, \"attendancePercentage\": 100 }\n  ],\n  \"newMemberRegistrationsTrend\": [\n    { \"week\": \"2026-05-25\", \"newMembers\": 4, \"newWorkers\": 1 },\n    { \"week\": \"2026-06-01\", \"newMembers\": 7, \"newWorkers\": 2 }\n  ],\n  \"weeklyAttendanceTrend\": [\n    { \"week\": \"2026-05-25\", \"present\": 210, \"absent\": 40 },\n    { \"week\": \"2026-06-01\", \"present\": 225, \"absent\": 35 }\n  ],\n  \"topAbsentWorkers\": [\n    { \"id\": \"uuid\", \"name\": \"John Doe\", \"department\": \"Ushering\", \"absentCount\": 5 }\n  ],\n  \"membersNotSeenRecently\": [\n    { \"id\": \"uuid\", \"name\": \"Jane Smith\", \"email\": \"jane@example.com\", \"lastSeen\": null }\n  ],\n  \"upcomingEvents\": [...],\n  \"totalPendingLeaveRequests\": 7\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Sunday School",
+      "description": "Session-based attendance for permanent Sunday School classes. Access requires ADMIN role, a worker whose primary or secondary department has key=SUNDAY_SCHOOL, or the appointed class teacher. Self-mark endpoints are open to any enrolled member when the window is open.",
+      "item": [
+        {
+          "name": "Create SS Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Beginners Class\",\n  \"description\": \"For new Sunday School members\",\n  \"teacherId\": \"{{memberId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/classes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "classes"
+              ]
+            },
+            "description": "ADMIN or SS-dept worker. teacherId is optional \u2014 links an existing member as the class teacher."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"uuid\", \"name\": \"Beginners Class\", \"description\": \"For new Sunday School members\", \"teacher\": { \"id\": \"uuid\", \"firstname\": \"John\", \"lastname\": \"Doe\" } }"
+            }
+          ]
+        },
+        {
+          "name": "Update SS Class",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Beginners Class \u2014 Updated\",\n  \"description\": \"Updated description\",\n  \"teacherId\": \"{{memberId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/classes/{{ssClassId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "classes",
+                "{{ssClassId}}"
+              ],
+              "variable": [
+                {
+                  "key": "ssClassId",
+                  "value": "{{ssClassId}}"
+                }
+              ]
+            },
+            "description": "ADMIN, SS-dept worker, or the class teacher. All fields are optional."
+          }
+        },
+        {
+          "name": "Delete SS Class",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/classes/{{ssClassId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "classes",
+                "{{ssClassId}}"
+              ],
+              "variable": [
+                {
+                  "key": "ssClassId",
+                  "value": "{{ssClassId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only."
+          }
+        },
+        {
+          "name": "Get All SS Classes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/classes?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "classes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Any authenticated user."
+          }
+        },
+        {
+          "name": "Get SS Class by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/classes/{{ssClassId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "classes",
+                "{{ssClassId}}"
+              ],
+              "variable": [
+                {
+                  "key": "ssClassId",
+                  "value": "{{ssClassId}}"
+                }
+              ]
+            },
+            "description": "Any authenticated user."
+          }
+        },
+        {
+          "name": "Assign Member to SS Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/classes/{{ssClassId}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "classes",
+                "{{ssClassId}}",
+                "members"
+              ],
+              "variable": [
+                {
+                  "key": "ssClassId",
+                  "value": "{{ssClassId}}"
+                }
+              ]
+            },
+            "description": "ADMIN, SS-dept worker, or class teacher. Permanently assigns a member to the class. Assignment is unique per (member, class)."
+          }
+        },
+        {
+          "name": "Remove Member from SS Class",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/classes/{{ssClassId}}/members/{{memberId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "classes",
+                "{{ssClassId}}",
+                "members",
+                "{{memberId}}"
+              ],
+              "variable": [
+                {
+                  "key": "ssClassId",
+                  "value": "{{ssClassId}}"
+                },
+                {
+                  "key": "memberId",
+                  "value": "{{memberId}}"
+                }
+              ]
+            },
+            "description": "ADMIN, SS-dept worker, or class teacher."
+          }
+        },
+        {
+          "name": "List SS Class Members",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/classes/{{ssClassId}}/members?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "classes",
+                "{{ssClassId}}",
+                "members"
+              ],
+              "variable": [
+                {
+                  "key": "ssClassId",
+                  "value": "{{ssClassId}}"
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "ADMIN, SS-dept worker, or class teacher."
+          }
+        },
+        {
+          "name": "Create SS Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"classId\": \"{{ssClassId}}\",\n  \"sessionDate\": \"2026-06-15\",\n  \"notes\": \"Guest speaker today\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions"
+              ]
+            },
+            "description": "ADMIN, SS-dept worker, or class teacher. sessionDate must be unique per class. selfMarkOpen defaults to false."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"uuid\", \"sessionDate\": \"2026-06-15\", \"selfMarkOpen\": false, \"notes\": \"Guest speaker today\" }"
+            }
+          ]
+        },
+        {
+          "name": "Toggle Self-Mark Window",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}/toggle-self-mark",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions",
+                "{{ssSessionId}}",
+                "toggle-self-mark"
+              ],
+              "variable": [
+                {
+                  "key": "ssSessionId",
+                  "value": "{{ssSessionId}}"
+                }
+              ]
+            },
+            "description": "ADMIN, SS-dept worker, or class teacher. Flips selfMarkOpen between true and false. When open, enrolled members can self-mark their attendance."
+          }
+        },
+        {
+          "name": "Self-Mark Attendance (Member Check-In)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}/checkin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions",
+                "{{ssSessionId}}",
+                "checkin"
+              ],
+              "variable": [
+                {
+                  "key": "ssSessionId",
+                  "value": "{{ssSessionId}}"
+                }
+              ]
+            },
+            "description": "Any authenticated user. Caller must be enrolled in the class and the session's selfMarkOpen must be true. Marks the caller PRESENT with markedByTeacher=false."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"message\": \"Attendance marked successfully\" }"
+            },
+            {
+              "name": "400 Window closed",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"Self-mark window is not open for this session.\" }"
+            },
+            {
+              "name": "400 Not enrolled",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"You are not enrolled in this class.\" }"
+            }
+          ]
+        },
+        {
+          "name": "Bulk Mark Session Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attendances\": [\n    { \"memberId\": \"{{memberId}}\", \"status\": \"PRESENT\" },\n    { \"memberId\": \"{{memberId2}}\", \"status\": \"ABSENT\" }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}/bulk-mark",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions",
+                "{{ssSessionId}}",
+                "bulk-mark"
+              ],
+              "variable": [
+                {
+                  "key": "ssSessionId",
+                  "value": "{{ssSessionId}}"
+                }
+              ]
+            },
+            "description": "ADMIN, SS-dept worker, or class teacher. Upserts attendance for multiple members in a single call. status: PRESENT | ABSENT | EXCUSED. Sets markedByTeacher=true."
+          }
+        },
+        {
+          "name": "Get Session Roster",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}/roster",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions",
+                "{{ssSessionId}}",
+                "roster"
+              ],
+              "variable": [
+                {
+                  "key": "ssSessionId",
+                  "value": "{{ssSessionId}}"
+                }
+              ]
+            },
+            "description": "ADMIN, SS-dept worker, or class teacher. Returns the full attendance roster for the session including members with no record yet."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  { \"memberId\": \"uuid\", \"name\": \"John Doe\", \"status\": \"PRESENT\", \"markedByTeacher\": false, \"markedAt\": \"2026-06-15T09:30:00.000Z\" },\n  { \"memberId\": \"uuid2\", \"name\": \"Jane Smith\", \"status\": null, \"markedByTeacher\": null, \"markedAt\": null }\n]"
+            }
+          ]
+        },
+        {
+          "name": "List Sessions for Class",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions?classId={{ssClassId}}&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions"
+              ],
+              "query": [
+                {
+                  "key": "classId",
+                  "value": "{{ssClassId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Paginated list of all sessions for a class, newest first. Requires SS department membership or class teacher role. WORKER/ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions",
+                "{{ssSessionId}}"
+              ]
+            },
+            "description": "Returns a single session with its class loaded. WORKER/ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions",
+                "{{ssSessionId}}"
+              ]
+            },
+            "description": "Deletes the session and all attendance records for it (CASCADE). Only the class teacher or SS staff can delete. WORKER/ADMIN."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Children Church",
+      "description": "Security check-in/check-out system for children. Access requires ADMIN role or a worker whose primary or secondary department has key=CHILDREN_CHURCH. Age group and class group management is ADMIN-only.",
+      "item": [
+        {
+          "name": "Create Age Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nursery\",\n  \"minAgeMonths\": 0,\n  \"maxAgeMonths\": 23,\n  \"displayOrder\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/age-groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "age-groups"
+              ]
+            },
+            "description": "ADMIN only. Age ranges are in months (inclusive). displayOrder controls sort order in listings."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"uuid\", \"name\": \"Nursery\", \"minAgeMonths\": 0, \"maxAgeMonths\": 23, \"displayOrder\": 1 }"
+            }
+          ]
+        },
+        {
+          "name": "Update Age Group",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nursery (0\u201323 months)\",\n  \"maxAgeMonths\": 23,\n  \"displayOrder\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/age-groups/{{ageGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "age-groups",
+                "{{ageGroupId}}"
+              ],
+              "variable": [
+                {
+                  "key": "ageGroupId",
+                  "value": "{{ageGroupId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. All fields are optional."
+          }
+        },
+        {
+          "name": "Delete Age Group",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/age-groups/{{ageGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "age-groups",
+                "{{ageGroupId}}"
+              ],
+              "variable": [
+                {
+                  "key": "ageGroupId",
+                  "value": "{{ageGroupId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only."
+          }
+        },
+        {
+          "name": "Get All Age Groups",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/age-groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "age-groups"
+              ]
+            },
+            "description": "Any authenticated user. Returns age groups ordered by displayOrder."
+          }
+        },
+        {
+          "name": "Recompute Age/Class Groups (Batch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/age-groups/recompute",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "age-groups",
+                "recompute"
+              ]
+            },
+            "description": "ADMIN only. Iterates all registered children and reassigns each to the correct ageGroup and classGroup based on their current date of birth and the latest age-group rules. Run this after changing age-group boundaries."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"reassigned\": 42, \"unchanged\": 158 }"
+            }
+          ]
+        },
+        {
+          "name": "Create Class Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ageGroupId\": \"{{ageGroupId}}\",\n  \"name\": \"Nursery Room A\",\n  \"capacity\": 20,\n  \"teacherNote\": \"Needs extra supervision\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/class-groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "class-groups"
+              ]
+            },
+            "description": "ADMIN only. capacity and teacherNote are optional."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"uuid\", \"name\": \"Nursery Room A\", \"capacity\": 20, \"teacherNote\": \"Needs extra supervision\", \"ageGroup\": { \"id\": \"uuid\", \"name\": \"Nursery\" } }"
+            }
+          ]
+        },
+        {
+          "name": "Update Class Group",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nursery Room A (Expanded)\",\n  \"capacity\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/class-groups/{{classGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "class-groups",
+                "{{classGroupId}}"
+              ],
+              "variable": [
+                {
+                  "key": "classGroupId",
+                  "value": "{{classGroupId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only."
+          }
+        },
+        {
+          "name": "Delete Class Group",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/class-groups/{{classGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "class-groups",
+                "{{classGroupId}}"
+              ],
+              "variable": [
+                {
+                  "key": "classGroupId",
+                  "value": "{{classGroupId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only."
+          }
+        },
+        {
+          "name": "Get Class Groups",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/class-groups?ageGroupId={{ageGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "class-groups"
+              ],
+              "query": [
+                {
+                  "key": "ageGroupId",
+                  "value": "{{ageGroupId}}",
+                  "description": "Optional. Filter class groups by age group UUID."
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker."
+          }
+        },
+        {
+          "name": "Register Child",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstname\": \"Emma\",\n  \"lastname\": \"Johnson\",\n  \"dateOfBirth\": \"2023-03-15\",\n  \"photoUrl\": null,\n  \"specialNotes\": \"Allergic to nuts\",\n  \"registeredByMemberId\": \"{{memberId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/children",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "children"
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. ageGroup and classGroup are automatically assigned from dateOfBirth. photoUrl, specialNotes, and registeredByMemberId are optional."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"uuid\", \"firstname\": \"Emma\", \"lastname\": \"Johnson\", \"dateOfBirth\": \"2023-03-15\", \"ageGroup\": { \"id\": \"uuid\", \"name\": \"Toddlers\" }, \"classGroup\": { \"id\": \"uuid\", \"name\": \"Toddlers Room B\" } }"
+            }
+          ]
+        },
+        {
+          "name": "Update Child Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"specialNotes\": \"Allergic to nuts and dairy\",\n  \"photoUrl\": \"https://storage.example.com/children/emma.jpg\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/children/{{childId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "children",
+                "{{childId}}"
+              ],
+              "variable": [
+                {
+                  "key": "childId",
+                  "value": "{{childId}}"
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. All fields optional."
+          }
+        },
+        {
+          "name": "Get Child by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/children/{{childId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "children",
+                "{{childId}}"
+              ],
+              "variable": [
+                {
+                  "key": "childId",
+                  "value": "{{childId}}"
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. Returns full profile including ageGroup, classGroup, and guardians."
+          }
+        },
+        {
+          "name": "Get Child Check-In History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/children-church/children/{{childId}}/checkin-history?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "children",
+                "{{childId}}",
+                "checkin-history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Paginated check-in/check-out history for a specific child, newest first. Includes the worker who performed each check-in (checkedInBy). WORKER/ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Search / List Children",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/children?name=Emma&classGroupId={{classGroupId}}&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "children"
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "Emma",
+                  "description": "Optional name search filter"
+                },
+                {
+                  "key": "classGroupId",
+                  "value": "{{classGroupId}}",
+                  "description": "Optional \u2014 filter by class group"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Lists children, optionally filtered by name and/or classGroupId. Omit both filters to return all children. WORKER/ADMIN."
+          }
+        },
+        {
+          "name": "Add Guardian to Child",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Sarah Johnson\",\n  \"relationship\": \"MOTHER\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"email\": \"sarah@example.com\",\n  \"isAuthorizedPickup\": true,\n  \"memberId\": \"{{memberId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/children/{{childId}}/guardians",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "children",
+                "{{childId}}",
+                "guardians"
+              ],
+              "variable": [
+                {
+                  "key": "childId",
+                  "value": "{{childId}}"
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. relationship: MOTHER | FATHER | GRANDPARENT | SIBLING | UNCLE | AUNT | FAMILY_FRIEND | OTHER. email and memberId are optional. Pickup notification emails are sent to guardian.email ?? guardian.member.email."
+          }
+        },
+        {
+          "name": "List Child Guardians",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/children/{{childId}}/guardians",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "children",
+                "{{childId}}",
+                "guardians"
+              ],
+              "variable": [
+                {
+                  "key": "childId",
+                  "value": "{{childId}}"
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker."
+          }
+        },
+        {
+          "name": "Remove Guardian",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/guardians/{{guardianId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "guardians",
+                "{{guardianId}}"
+              ],
+              "variable": [
+                {
+                  "key": "guardianId",
+                  "value": "{{guardianId}}"
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker."
+          }
+        },
+        {
+          "name": "Check In Child",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"childId\": \"{{childId}}\",\n  \"serviceSlotId\": \"{{slotId}}\",\n  \"droppedOffByGuardianId\": \"{{guardianId}}\",\n  \"droppedOffByName\": \"Sarah Johnson\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/checkin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "checkin"
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. Generates a unique 6-char pickupCode and emails it to all registered guardians. serviceSlotId, droppedOffByGuardianId, and droppedOffByName are optional."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"uuid\", \"pickupCode\": \"ABC123\", \"status\": \"CHECKED_IN\", \"checkinTime\": \"2026-06-15T09:00:00.000Z\" }"
+            }
+          ]
+        },
+        {
+          "name": "Verify Pickup Code",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/checkin/verify/{{pickupCode}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "checkin",
+                "verify",
+                "{{pickupCode}}"
+              ],
+              "variable": [
+                {
+                  "key": "code",
+                  "value": "ABC123",
+                  "description": "The 6-char pickup code printed on the child's tag"
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. Returns the matching ChildCheckIn record including child and guardian details for the pickup verification step."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"uuid\", \"pickupCode\": \"ABC123\", \"status\": \"CHECKED_IN\", \"child\": { \"id\": \"uuid\", \"firstname\": \"Emma\", \"lastname\": \"Johnson\" }, \"authorizedGuardians\": [...] }"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{ \"statusCode\": 404, \"message\": \"No active check-in found for code ABC123\" }"
+            }
+          ]
+        },
+        {
+          "name": "Check Out Child",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickupCode\": \"{{pickupCode}}\",\n  \"pickedUpByGuardianId\": \"{{guardianId}}\",\n  \"pickedUpByName\": \"Sarah Johnson\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "checkout"
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. Validates the pickup code, sets status to CHECKED_OUT, and records the pickup time. pickedUpByGuardianId is optional if a name is sufficient."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"uuid\", \"status\": \"CHECKED_OUT\", \"checkoutTime\": \"2026-06-15T11:30:00.000Z\", \"pickedUpByName\": \"Sarah Johnson\" }"
+            }
+          ]
+        },
+        {
+          "name": "Flag Check-In",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Unknown person attempting pickup \u2014 guardian not on record\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/children-church/checkin/{{checkinId}}/flag",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "checkin",
+                "{{checkinId}}",
+                "flag"
+              ],
+              "variable": [
+                {
+                  "key": "checkinId",
+                  "value": "{{checkinId}}"
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. Sets status to FLAGGED and records the reason. Flagged check-ins require manual resolution."
+          }
+        },
+        {
+          "name": "Get Active Check-Ins",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/checkin/active?classGroupId={{classGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "checkin",
+                "active"
+              ],
+              "query": [
+                {
+                  "key": "classGroupId",
+                  "value": "{{classGroupId}}",
+                  "description": "Optional. Filter by class group UUID."
+                }
+              ]
+            },
+            "description": "ADMIN or CC-dept worker. Returns all check-ins with status CHECKED_IN or FLAGGED, optionally filtered by classGroupId."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  { \"id\": \"uuid\", \"pickupCode\": \"ABC123\", \"status\": \"CHECKED_IN\", \"child\": { \"id\": \"uuid\", \"firstname\": \"Emma\", \"lastname\": \"Johnson\", \"classGroup\": { \"name\": \"Nursery Room A\" } }, \"checkinTime\": \"2026-06-15T09:00:00.000Z\" }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Check-Ins by Service Slot",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/checkin/slot/{{slotId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "checkin",
+                "slot",
+                "{{slotId}}"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. Returns all check-in records (any status) for a given service slot."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  { \"id\": \"uuid\", \"pickupCode\": \"ABC123\", \"status\": \"CHECKED_OUT\", \"child\": { \"firstname\": \"Emma\", \"lastname\": \"Johnson\" }, \"checkinTime\": \"...\", \"checkoutTime\": \"...\" }\n]"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

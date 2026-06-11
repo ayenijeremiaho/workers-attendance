@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Child Pickup Confirmation</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #333; background: #f4f4f4; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .header { background-color: #2e7d32; color: #fff; padding: 24px 32px; text-align: center; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .header p { margin: 6px 0 0; font-size: 14px; opacity: 0.85; }
+    .body { padding: 28px 32px; }
+    .body p { line-height: 1.6; }
+    .details-box { background: #f1f8e9; border-left: 4px solid #2e7d32; border-radius: 4px; padding: 16px 20px; margin: 20px 0; }
+    .details-box p { margin: 6px 0; font-size: 15px; }
+    .details-box strong { display: inline-block; min-width: 130px; color: #555; }
+    .alert { background: #fff8e1; border-left: 4px solid #f9a825; border-radius: 4px; padding: 12px 16px; margin: 20px 0; font-size: 14px; color: #555; }
+    .footer { background: #f9f9f9; border-top: 1px solid #eee; padding: 16px 32px; text-align: center; font-size: 12px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Pickup Confirmation</h1>
+      <p>Children's Church</p>
+    </div>
+    <div class="body">
+      <p>Dear {{guardianName}},</p>
+      <p>
+        This is to confirm that <strong>{{childName}}</strong> has been safely picked up from
+        Children's Church today.
+      </p>
+      <div class="details-box">
+        <p><strong>Child:</strong> {{childName}}</p>
+        <p><strong>Class:</strong> {{classGroup}}</p>
+        <p><strong>Picked up by:</strong> {{pickedUpBy}}</p>
+        <p><strong>Time:</strong> {{checkoutTime}}</p>
+      </div>
+      <div class="alert">
+        <strong>Did not authorise this pickup?</strong> If you did not authorise this pickup or
+        have any concerns, please contact the Children's Church team immediately.
+      </div>
+      <p>Thank you for trusting us with your child. God bless you!</p>
+    </div>
+    <div class="footer">
+      <p>This is an automated notification. Please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>

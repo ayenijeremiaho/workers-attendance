@@ -8,6 +8,7 @@ import {
 } from 'class-validator';
 import { GenderEnum } from '../enums/gender.enum';
 import { MaritalStatusEnum } from '../enums/marital-status.enum';
+import { NormalizeEmail } from '../../utility/decorators/normalize-email.decorator';
 
 export class UpdateMemberDto {
   @IsOptional()
@@ -19,6 +20,7 @@ export class UpdateMemberDto {
   lastname?: string;
 
   @IsOptional()
+  @NormalizeEmail()
   @IsEmail()
   email?: string;
 

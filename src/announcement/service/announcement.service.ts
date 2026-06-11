@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Announcement } from '../entity/announcement.entity';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from '../dto/create-announcement.dto';
 import { AnnouncementAudienceEnum } from '../enum/announcement-audience.enum';
@@ -37,7 +37,7 @@ export class AnnouncementService {
       body: dto.body,
       audience: dto.audience ?? AnnouncementAudienceEnum.ALL,
       author: { id: authorId } as Member,
-      department: dto.departmentId ? ({ id: dto.departmentId } as Department) : null,
+      department: dto.departmentId ? { id: dto.departmentId } : null,
       targetMember: dto.targetMemberId ? { id: dto.targetMemberId } : null,
       publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : new Date(),
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,

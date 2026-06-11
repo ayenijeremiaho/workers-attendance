@@ -6,6 +6,11 @@ export class UpdateWorkerProfileDto {
   @IsUUID()
   departmentId?: string;
 
+  /** UUID of the secondary department, or null to remove the secondary assignment. */
+  @IsOptional()
+  @IsUUID()
+  secondaryDepartmentId?: string | null;
+
   @IsOptional()
   @IsEnum(WorkerStatusEnum)
   status?: WorkerStatusEnum;

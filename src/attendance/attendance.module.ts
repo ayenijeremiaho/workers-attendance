@@ -8,6 +8,7 @@ import { AttendanceJobService } from './job/attendance-job';
 import { ServiceSlot } from '../event/entity/service-slot.entity';
 import { MemberModule } from '../member/member.module';
 import { EventModule } from '../event/event.module';
+import { DepartmentModule } from '../department/department.module';
 import { UtilityModule } from '../utility/utility.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { UtilityModule } from '../utility/utility.module';
     TypeOrmModule.forFeature([Attendance, ServiceSlot]),
     MemberModule,
     EventModule,
+    DepartmentModule,
     UtilityModule,
   ],
   controllers: [AttendanceController],

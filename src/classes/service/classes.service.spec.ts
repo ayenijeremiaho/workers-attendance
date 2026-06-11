@@ -11,12 +11,17 @@ import { ChurchClassTypeEnum } from '../enum/church-class-type.enum';
 const makeQb = () => ({
   where: jest.fn().mockReturnThis(),
   andWhere: jest.fn().mockReturnThis(),
+  leftJoin: jest.fn().mockReturnThis(),
   leftJoinAndSelect: jest.fn().mockReturnThis(),
+  select: jest.fn().mockReturnThis(),
+  addSelect: jest.fn().mockReturnThis(),
+  groupBy: jest.fn().mockReturnThis(),
   orderBy: jest.fn().mockReturnThis(),
   skip: jest.fn().mockReturnThis(),
   take: jest.fn().mockReturnThis(),
   getManyAndCount: jest.fn(),
   getMany: jest.fn(),
+  getRawMany: jest.fn(),
 });
 
 const mockClassRepo = {
@@ -34,10 +39,13 @@ const mockEnrollmentRepo = {
   find: jest.fn(),
   save: jest.fn(),
   create: jest.fn(),
+  count: jest.fn(),
+  createQueryBuilder: jest.fn(),
 };
 
 const mockMemberRepo = {
   findOne: jest.fn(),
+  existsBy: jest.fn(),
 };
 
 describe('ClassesService', () => {
@@ -104,7 +112,28 @@ describe('ClassesService', () => {
   });
 
   describe('enrollMember', () => {
-    it('should throw BadRequestException if member is already enrolled', async () => {
+    const churchClass = { id: 'class-1', name: 'New Believers' };
+
+    it('should throw NotFoundException if class does not exist', async () => {
+      mockClassRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.enrollMember({ memberId: 'member-1', classId: 'class-1' } as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if member does not exist', async () => {
+      mockClassRepo.findOne.mockResolvedValue(churchClass);
+      mockMemberRepo.existsBy.mockResolvedValue(false);
+
+      await expect(
+        service.enrollMember({ memberId: 'nonexistent', classId: 'class-1' } as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if member is IN_PROGRESS in this class', async () => {
+      mockClassRepo.findOne.mockResolvedValue(churchClass);
+      mockMemberRepo.existsBy.mockResolvedValue(true);
       mockEnrollmentRepo.findOne.mockResolvedValue({ id: 'enroll-1', status: EnrollmentStatusEnum.IN_PROGRESS });
 
       await expect(
@@ -112,38 +141,103 @@ describe('ClassesService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should create enrollment with IN_PROGRESS status on success', async () => {
-      mockEnrollmentRepo.findOne.mockResolvedValue(null);
-      const enrollment = {
+    it('should throw BadRequestException if member has COMPLETED this class', async () => {
+      mockClassRepo.findOne.mockResolvedValue(churchClass);
+      mockMemberRepo.existsBy.mockResolvedValue(true);
+      mockEnrollmentRepo.findOne.mockResolvedValue({ id: 'enroll-1', status: EnrollmentStatusEnum.COMPLETED });
+
+      await expect(
+        service.enrollMember({ memberId: 'member-1', classId: 'class-1' } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reset a CANCELLED enrollment back to IN_PROGRESS (re-enroll)', async () => {
+      mockClassRepo.findOne.mockResolvedValue(churchClass);
+      mockMemberRepo.existsBy.mockResolvedValue(true);
+      const cancelled = {
         id: 'enroll-1',
-        member: { id: 'member-1' },
-        churchClass: { id: 'class-1' },
-        status: EnrollmentStatusEnum.IN_PROGRESS,
+        status: EnrollmentStatusEnum.CANCELLED,
+        cancelledAt: new Date(),
+        completedAt: null,
       };
+      mockEnrollmentRepo.findOne.mockResolvedValue(cancelled);
+      mockEnrollmentRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.enrollMember({ memberId: 'member-1', classId: 'class-1' } as any);
+
+      expect(result.status).toBe(EnrollmentStatusEnum.IN_PROGRESS);
+      expect(result.cancelledAt).toBeNull();
+      expect(mockEnrollmentRepo.create).not.toHaveBeenCalled();
+      expect(mockEnrollmentRepo.save).toHaveBeenCalled();
+    });
+
+    it('should create a fresh enrollment when no prior record exists', async () => {
+      mockClassRepo.findOne.mockResolvedValue(churchClass);
+      mockMemberRepo.existsBy.mockResolvedValue(true);
+      mockEnrollmentRepo.findOne.mockResolvedValue(null);
+      const enrollment = { id: 'enroll-1', status: EnrollmentStatusEnum.IN_PROGRESS };
       mockEnrollmentRepo.create.mockReturnValue(enrollment);
       mockEnrollmentRepo.save.mockResolvedValue(enrollment);
 
       const result = await service.enrollMember({ memberId: 'member-1', classId: 'class-1' } as any);
 
       expect(mockEnrollmentRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          member: { id: 'member-1' },
-          churchClass: { id: 'class-1' },
-          status: EnrollmentStatusEnum.IN_PROGRESS,
-        }),
+        expect.objectContaining({ status: EnrollmentStatusEnum.IN_PROGRESS }),
       );
       expect(result.status).toBe(EnrollmentStatusEnum.IN_PROGRESS);
     });
+  });
 
-    it('should save the new enrollment to the repository', async () => {
-      mockEnrollmentRepo.findOne.mockResolvedValue(null);
-      const enrollment = { id: 'enroll-1', status: EnrollmentStatusEnum.IN_PROGRESS };
-      mockEnrollmentRepo.create.mockReturnValue(enrollment);
-      mockEnrollmentRepo.save.mockResolvedValue(enrollment);
+  describe('countActiveEnrollments', () => {
+    it('should count enrollments with IN_PROGRESS status', async () => {
+      mockEnrollmentRepo.count = jest.fn().mockResolvedValue(7);
 
-      await service.enrollMember({ memberId: 'member-1', classId: 'class-1' } as any);
+      const result = await service.countActiveEnrollments();
 
-      expect(mockEnrollmentRepo.save).toHaveBeenCalledWith(enrollment);
+      expect(result).toBe(7);
+      expect(mockEnrollmentRepo.count).toHaveBeenCalledWith({
+        where: { status: EnrollmentStatusEnum.IN_PROGRESS },
+      });
+    });
+  });
+
+  describe('getClassEnrollmentBreakdown', () => {
+    it('should return per-class enrollment breakdown with completion rate', async () => {
+      const qb = makeQb();
+      qb.getRawMany = jest.fn().mockResolvedValue([
+        { classId: 'c-1', className: 'Alpha', inProgress: '3', completed: '6', cancelled: '2' },
+        { classId: 'c-2', className: 'Beta', inProgress: '1', completed: '0', cancelled: '0' },
+      ]);
+      mockClassRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.getClassEnrollmentBreakdown();
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        classId: 'c-1',
+        inProgress: 3,
+        completed: 6,
+        cancelled: 2,
+        completionRate: 75,   // 6 / (6+2) * 100
+      });
+      expect(result[1].completionRate).toBe(0);  // no completed or cancelled
+    });
+  });
+
+  describe('getClassCompletionsTrend', () => {
+    it('should return weekly completions trend', async () => {
+      const qb = makeQb();
+      qb.getRawMany = jest.fn().mockResolvedValue([
+        { week: '2026-05-25', completions: '3' },
+        { week: '2026-06-01', completions: '5' },
+      ]);
+      mockEnrollmentRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
+      const result = await service.getClassCompletionsTrend(90);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ week: '2026-05-25', completions: 3 });
+      expect(result[1]).toEqual({ week: '2026-06-01', completions: 5 });
     });
   });
 

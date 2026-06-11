@@ -15,6 +15,15 @@ import { ChurchClassTypeEnum } from '../enum/church-class-type.enum';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
 
+export interface ClassEnrollmentBreakdown {
+  classId: string;
+  className: string;
+  inProgress: number;
+  completed: number;
+  cancelled: number;
+  completionRate: number;
+}
+
 @Injectable()
 export class ClassesService {
   constructor(
@@ -95,7 +104,21 @@ export class ClassesService {
         churchClass: { id: dto.classId },
       },
     });
-    if (existing) throw new BadRequestException('Member is already enrolled in this class');
+
+    if (existing) {
+      if (existing.status === EnrollmentStatusEnum.COMPLETED) {
+        throw new BadRequestException('Member has already completed this class');
+      }
+      if (existing.status === EnrollmentStatusEnum.IN_PROGRESS) {
+        throw new BadRequestException('Member is already enrolled in this class');
+      }
+      // CANCELLED — reset the existing record rather than creating a duplicate
+      // (the @Unique constraint on member+class prevents a second row)
+      existing.status = EnrollmentStatusEnum.IN_PROGRESS;
+      existing.cancelledAt = null;
+      existing.completedAt = null;
+      return this.enrollmentRepo.save(existing);
+    }
 
     const enrollment = this.enrollmentRepo.create({
       member: { id: dto.memberId } as Member,
@@ -103,6 +126,60 @@ export class ClassesService {
       status: EnrollmentStatusEnum.IN_PROGRESS,
     });
     return this.enrollmentRepo.save(enrollment);
+  }
+
+  async countActiveEnrollments(): Promise<number> {
+    return this.enrollmentRepo.count({ where: { status: EnrollmentStatusEnum.IN_PROGRESS } });
+  }
+
+  async getClassEnrollmentBreakdown(): Promise<ClassEnrollmentBreakdown[]> {
+    const rows = await this.classRepo
+      .createQueryBuilder('c')
+      .leftJoin('c.enrollments', 'e')
+      .select('c.id', 'classId')
+      .addSelect('c.name', 'className')
+      .addSelect(`SUM(CASE WHEN e.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
+      .addSelect(`SUM(CASE WHEN e.status = 'COMPLETED' THEN 1 ELSE 0 END)`, 'completed')
+      .addSelect(`SUM(CASE WHEN e.status = 'CANCELLED' THEN 1 ELSE 0 END)`, 'cancelled')
+      .groupBy('c.id, c.name')
+      .orderBy('c.name', 'ASC')
+      .getRawMany<{ classId: string; className: string; inProgress: string; completed: string; cancelled: string }>();
+
+    return rows.map((r) => {
+      const completed = Number.parseInt(r.completed, 10);
+      const cancelled = Number.parseInt(r.cancelled, 10);
+      const denominator = completed + cancelled;
+      return {
+        classId: r.classId,
+        className: r.className,
+        inProgress: Number.parseInt(r.inProgress, 10),
+        completed,
+        cancelled,
+        completionRate: denominator === 0 ? 0 : Math.min(Number(((completed / denominator) * 100).toFixed(2)), 100),
+      };
+    });
+  }
+
+  async getClassCompletionsTrend(
+    daysAgo = 90,
+  ): Promise<{ week: string; completions: number }[]> {
+    const since = new Date();
+    since.setDate(since.getDate() - daysAgo);
+
+    const rows = await this.enrollmentRepo
+      .createQueryBuilder('e')
+      .select("TO_CHAR(DATE_TRUNC('week', e.completedAt), 'YYYY-MM-DD')", 'week')
+      .addSelect('COUNT(*)', 'completions')
+      .where(`e.status = 'COMPLETED'`)
+      .andWhere('e.completedAt >= :since', { since })
+      .groupBy("DATE_TRUNC('week', e.completedAt)")
+      .orderBy("DATE_TRUNC('week', e.completedAt)", 'ASC')
+      .getRawMany<{ week: string; completions: string }>();
+
+    return rows.map((r) => ({
+      week: r.week,
+      completions: Number.parseInt(r.completions, 10),
+    }));
   }
 
   async updateEnrollmentStatus(

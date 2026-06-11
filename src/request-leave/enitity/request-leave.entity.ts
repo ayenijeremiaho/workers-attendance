@@ -1,19 +1,18 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
 import { Member } from '../../member/entity/member.entity';
 import { LeaveStatusEnum } from '../enums/leave-status.enum';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity({ name: 'request_leave' })
-export class RequestLeave {
+export class RequestLeave extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -22,9 +21,11 @@ export class RequestLeave {
   @JoinColumn({ name: 'worker_profile_id' })
   workerProfile: WorkerProfile;
 
+  @Index()
   @Column({ type: 'timestamp' })
   dateFrom: Date;
 
+  @Index()
   @Column({ type: 'timestamp' })
   dateTo: Date;
 
@@ -43,10 +44,4 @@ export class RequestLeave {
   @ManyToOne(() => Member, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'actioned_by' })
   actionedBy: Member;
-
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updatedAt: Date;
 }

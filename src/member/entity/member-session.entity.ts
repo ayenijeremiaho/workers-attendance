@@ -1,17 +1,16 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { Member } from './member.entity';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity({ name: 'member_sessions' })
-export class MemberSession {
+export class MemberSession extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -20,6 +19,7 @@ export class MemberSession {
   @JoinColumn({ name: 'member_id' })
   member: Member;
 
+  @Index()
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   lastLogin: Date;
 
@@ -28,10 +28,4 @@ export class MemberSession {
 
   @Column({ nullable: true, type: 'text' })
   hashedRefreshToken: string;
-
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updatedAt: Date;
 }

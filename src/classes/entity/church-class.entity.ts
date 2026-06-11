@@ -1,18 +1,18 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { ChurchClassTypeEnum } from '../enum/church-class-type.enum';
 import { Member } from '../../member/entity/member.entity';
+import { ClassEnrollment } from './class-enrollment.entity';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity('church_classes')
-export class ChurchClass {
+export class ChurchClass extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -35,12 +35,6 @@ export class ChurchClass {
   @Column({ type: 'date', nullable: true })
   endDate: string | null;
 
-  @OneToMany('ClassEnrollment', 'churchClass')
-  enrollments: any[];
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @OneToMany(() => ClassEnrollment, (enrollment) => enrollment.churchClass)
+  enrollments: ClassEnrollment[];
 }

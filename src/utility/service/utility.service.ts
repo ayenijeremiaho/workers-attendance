@@ -24,7 +24,7 @@ export class UtilityService {
   public static isValidDateFormat(date?: string): boolean {
     if (!date) return false;
     const regex = /^\d{4}-\d{2}-\d{2}$/;
-    return regex.test(date) && !isNaN(new Date(date).getTime());
+    return regex.test(date) && !Number.isNaN(new Date(date).getTime());
   }
 
   public static calculateDistanceInMeters(
@@ -54,9 +54,9 @@ export class UtilityService {
     data: T[],
     page: number,
     limit: number,
-    total: number,
+    total: number = 0,
   ): PaginationResponseDto<T> {
-    const totalCount = total || 0;
+    const totalCount = total;
     const totalPages = totalCount > 0 ? Math.ceil(totalCount / limit) : 1;
 
     return {

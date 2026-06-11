@@ -1,12 +1,12 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, Repository } from 'typeorm';
-import moment from 'moment';
+import { Between, DataSource, In, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Attendance } from '../entity/attendance.entity';
 import { AttendanceStatusEnum } from '../enums/check-in.enum';
@@ -19,7 +19,10 @@ import { Member } from '../../member/entity/member.entity';
 import { MemberService } from '../../member/service/member.service';
 import { ServiceSlot } from '../../event/entity/service-slot.entity';
 import { EventService } from '../../event/service/event.service';
+import { DepartmentService } from '../../department/service/department.service';
 import { UtilityService } from '../../utility/service/utility.service';
+import { DateService } from '../../utility/service/date.service';
+import { CacheService } from '../../utility/service/cache.service';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 
 export interface DepartmentAttendanceSummary {
@@ -30,21 +33,39 @@ export interface DepartmentAttendanceSummary {
   attendancePercentage: number;
 }
 
+export interface DepartmentEventAttendanceResult {
+  eventId: string;
+  eventName: string;
+  slots: { slotId: string; slotName: string; startTime: Date }[];
+  workers: {
+    workerId: string;
+    memberId: string;
+    name: string;
+    attendance: { slotId: string; status: AttendanceStatusEnum | null; checkinTime: Date | null }[];
+  }[];
+}
+
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
+  private readonly leaderboardTtl: number;
 
   constructor(
     private readonly dataSource: DataSource,
     private readonly memberService: MemberService,
     private readonly eventService: EventService,
+    private readonly departmentService: DepartmentService,
     private readonly configService: ConfigService,
     private readonly utilityService: UtilityService,
+    private readonly dateService: DateService,
+    private readonly cacheService: CacheService,
     @InjectRepository(Attendance)
     private readonly attendanceRepository: Repository<Attendance>,
     @InjectRepository(ServiceSlot)
     private readonly slotRepository: Repository<ServiceSlot>,
-  ) {}
+  ) {
+    this.leaderboardTtl = this.configService.get<number>('CACHE_TTL_LEADERBOARD_SECONDS', 90);
+  }
 
   async checkin(user: MemberAuth, dto: CheckInDto): Promise<{ message: string }> {
     const slot = await this.getSlotOrThrow(dto.serviceSlotId);
@@ -58,7 +79,7 @@ export class AttendanceService {
 
     const cfg = this.eventService.resolveSlotConfig(slot);
     const isWorker = member.role === MemberRoleEnum.WORKER;
-    const now = moment();
+    const now = this.dateService.now();
 
     this.validateCheckinWindow(now, slot, cfg, isWorker);
 
@@ -72,7 +93,7 @@ export class AttendanceService {
       this.attendanceRepository.create({
         member,
         serviceSlot: slot,
-        checkinTime: now.toDate(),
+        checkinTime: now,
         status,
         roleAtCheckin: member.role,
         location: dto.location ?? null,
@@ -80,16 +101,20 @@ export class AttendanceService {
     );
 
     const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    const formattedStartTime = this.dateService.format(slot.startTime, DateService.PATTERNS.EMAIL_DATE);
+    const formattedSlotTime = this.dateService.format(slot.startTime, DateService.PATTERNS.EMAIL_TIME);
+    const formattedCheckinTime = this.dateService.format(now, DateService.PATTERNS.EMAIL_TIME);
+    
     this.utilityService.sendEmailWithTemplate(
       member.email,
-      `${firstName}, Check-in Confirmed`,
+      `${firstName}, Discovery Hub Check-in Confirmed`,
       'checkin-confirmation',
       {
         name: firstName,
         serviceName: slot.name,
-        eventDate: moment(slot.startTime).format('dddd, MMMM D YYYY'),
-        slotTime: moment(slot.startTime).format('h:mm A'),
-        checkinTime: now.format('h:mm A'),
+        eventDate: formattedStartTime,
+        slotTime: formattedSlotTime,
+        checkinTime: formattedCheckinTime,
         status: status === AttendanceStatusEnum.LATE ? 'Late' : 'Present',
       },
     );
@@ -123,9 +148,12 @@ export class AttendanceService {
           records.push(this.buildAbsenceRecord(m, slot, MemberRoleEnum.MEMBER, false));
         }
 
+        const onLeaveIds = await this.getBatchApprovedLeave(
+          absentWorkers.map((w) => w.id),
+          slot,
+        );
         for (const w of absentWorkers) {
-          const onLeave = await this.hasApprovedLeave(w.id, slot);
-          records.push(this.buildAbsenceRecord(w, slot, MemberRoleEnum.WORKER, onLeave));
+          records.push(this.buildAbsenceRecord(w, slot, MemberRoleEnum.WORKER, onLeaveIds.has(w.id)));
         }
 
         if (records.length > 0) {
@@ -199,13 +227,16 @@ export class AttendanceService {
     return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 
-  async getDepartmentHistory(user: MemberAuth, slotId: string): Promise<Attendance[]> {
-    const member = await this.memberService.getById(user.id, [
-      'workerProfile',
-      'workerProfile.department',
-    ]);
-    const deptId = member.workerProfile?.department?.id;
-    if (!deptId) throw new BadRequestException('No department assigned to your profile');
+  async getDepartmentHistory(user: MemberAuth, slotId: string, departmentId?: string): Promise<Attendance[]> {
+    let deptId: string;
+    if (user.role === MemberRoleEnum.ADMIN) {
+      if (!departmentId) throw new BadRequestException('departmentId is required for admin');
+      deptId = departmentId;
+    } else {
+      const id = await this.departmentService.getDepartmentIdForLead(user.id);
+      if (!id) throw new ForbiddenException('Only department leads can view department attendance history');
+      deptId = id;
+    }
 
     return this.attendanceRepository
       .createQueryBuilder('attendance')
@@ -218,6 +249,73 @@ export class AttendanceService {
       .andWhere('slot.id = :slotId', { slotId })
       .orderBy('attendance.createdAt', 'DESC')
       .getMany();
+  }
+
+  async getDepartmentEventAttendance(
+    user: MemberAuth,
+    eventId: string,
+    departmentId?: string,
+  ): Promise<DepartmentEventAttendanceResult> {
+    let deptId: string;
+    if (user.role === MemberRoleEnum.ADMIN) {
+      if (!departmentId) throw new BadRequestException('departmentId is required for admin');
+      deptId = departmentId;
+    } else {
+      const id = await this.departmentService.getDepartmentIdForLead(user.id);
+      if (!id) throw new ForbiddenException('Only department leads can view department event attendance');
+      deptId = id;
+    }
+
+    const [slots, workers] = await Promise.all([
+      this.slotRepository.find({
+        where: { event: { id: eventId } },
+        relations: ['event'],
+        order: { startTime: 'ASC' },
+      }),
+      this.departmentService.getWorkersInDepartment(deptId),
+    ]);
+
+    if (!slots.length) throw new NotFoundException('Event not found or has no slots');
+
+    const memberIds = workers.map((w) => w.member.id);
+    const slotIds = slots.map((s) => s.id);
+
+    const records =
+      memberIds.length > 0
+        ? await this.attendanceRepository.find({
+            where: {
+              member: { id: In(memberIds) },
+              serviceSlot: { id: In(slotIds) },
+            },
+            relations: ['member', 'serviceSlot'],
+          })
+        : [];
+
+    const lookup = new Map<string, Attendance>();
+    for (const r of records) {
+      lookup.set(`${r.member.id}:${r.serviceSlot.id}`, r);
+    }
+
+    const event = slots[0].event;
+
+    return {
+      eventId,
+      eventName: event?.name ?? '',
+      slots: slots.map((s) => ({ slotId: s.id, slotName: s.name, startTime: s.startTime })),
+      workers: workers.map((w) => ({
+        workerId: w.id,
+        memberId: w.member.id,
+        name: `${w.member.firstname} ${w.member.lastname}`,
+        attendance: slots.map((s) => {
+          const rec = lookup.get(`${w.member.id}:${s.id}`);
+          return {
+            slotId: s.id,
+            status: rec?.status ?? null,
+            checkinTime: rec?.checkinTime ?? null,
+          };
+        }),
+      })),
+    };
   }
 
   async getSlotSummary(slotId: string): Promise<Record<AttendanceStatusEnum, number>> {
@@ -243,7 +341,11 @@ export class AttendanceService {
   }
 
   async getWorkerLeaderboard(daysAgo = 7, limit = 10): Promise<any[]> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const key = this.cacheService.key('leaderboard', `${daysAgo}:${limit}`);
+    const cached = this.cacheService.get<any[]>(key);
+    if (cached) return cached;
+
+    const since = this.dateService.daysAgo(daysAgo);
 
     const rows = await this.attendanceRepository
       .createQueryBuilder('attendance')
@@ -264,17 +366,19 @@ export class AttendanceService {
       .limit(limit)
       .getRawMany();
 
-    return rows.map((r, i) => ({
+    const result = rows.map((r, i) => ({
       rank: i + 1,
       name: `${r.firstname} ${r.lastname}`,
       department: r.departmentName,
       presentCount: Number.parseInt(r.presentCount, 10),
       absentCount: Number.parseInt(r.absentCount, 10),
     }));
+    this.cacheService.set(key, result, this.leaderboardTtl);
+    return result;
   }
 
   async getPersonalAttendancePercentage(memberId: string, daysAgo = 30): Promise<number> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
 
     const { total, attended } = await this.attendanceRepository
       .createQueryBuilder('attendance')
@@ -290,7 +394,7 @@ export class AttendanceService {
   }
 
   async getWorkerAttendancePercentage(daysAgo = 30, departmentId?: string): Promise<number> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
 
     const totalWorkers = await this.memberService.count({
       where: {
@@ -320,7 +424,7 @@ export class AttendanceService {
   }
 
   async getCongregationAttendancePercentage(daysAgo = 30): Promise<number> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
 
     const totalActive = await this.memberService.count({
       where: { status: MemberStatusEnum.ACTIVE },
@@ -339,7 +443,7 @@ export class AttendanceService {
   }
 
   async getDepartmentAttendanceSummary(daysAgo = 30): Promise<DepartmentAttendanceSummary[]> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
 
     const rows = await this.dataSource
       .createQueryBuilder()
@@ -384,7 +488,7 @@ export class AttendanceService {
   async getNewMemberRegistrationsTrend(
     daysAgo = 90,
   ): Promise<{ week: string; newMembers: number; newWorkers: number }[]> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
 
     const rows = await this.dataSource
       .createQueryBuilder()
@@ -430,7 +534,7 @@ export class AttendanceService {
     memberId: string,
     daysAgo: number,
   ): Promise<{ present: number; late: number; absent: number; onLeave: number; total: number }> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
     const rows = await this.attendanceRepository
       .createQueryBuilder('attendance')
       .select('attendance.status', 'status')
@@ -453,7 +557,7 @@ export class AttendanceService {
   }
 
   async getMemberRank(memberId: string, daysAgo: number, role: MemberRoleEnum): Promise<number> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
     const rows = await this.attendanceRepository
       .createQueryBuilder('attendance')
       .select('attendance.member_id', 'memberId')
@@ -469,7 +573,7 @@ export class AttendanceService {
   }
 
   async getWeeklyAttendanceTrend(daysAgo = 90): Promise<{ week: string; present: number; absent: number }[]> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
     const rows = await this.attendanceRepository
       .createQueryBuilder('attendance')
       .select("TO_CHAR(DATE_TRUNC('week', attendance.createdAt), 'YYYY-MM-DD')", 'week')
@@ -490,7 +594,7 @@ export class AttendanceService {
   async getMembersNotSeenSince(daysAgo = 30, limit = 20): Promise<
     { id: string; name: string; email: string; lastSeen: Date | null }[]
   > {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
     const rows = await this.dataSource
       .createQueryBuilder()
       .select('m.id', 'id')
@@ -524,7 +628,7 @@ export class AttendanceService {
     limit = 10,
     role?: MemberRoleEnum,
   ): Promise<{ id: string; name: string; department: string | null; absentCount: number }[]> {
-    const since = moment().subtract(daysAgo, 'days').toDate();
+    const since = this.dateService.daysAgo(daysAgo);
 
     const qb = this.attendanceRepository
       .createQueryBuilder('attendance')
@@ -557,8 +661,8 @@ export class AttendanceService {
   }
 
   async getTotalCheckInsToday(): Promise<number> {
-    const startOfDay = moment().startOf('day').toDate();
-    const endOfDay = moment().endOf('day').toDate();
+    const startOfDay = this.dateService.startOfDay();
+    const endOfDay = this.dateService.endOfDay();
     return this.attendanceRepository.count({
       where: { checkinTime: Between(startOfDay, endOfDay) },
     });
@@ -588,7 +692,7 @@ export class AttendanceService {
   }
 
   private validateCheckinWindow(
-    now: moment.Moment,
+    now: Date,
     slot: ServiceSlot,
     cfg: ReturnType<EventService['resolveSlotConfig']>,
     isWorker: boolean,
@@ -597,13 +701,13 @@ export class AttendanceService {
       ? cfg.workerCheckinStartOffsetSeconds
       : cfg.memberCheckinStartOffsetSeconds;
 
-    const openTime = moment(slot.startTime).add(startOffset, 'seconds');
-    const closeTime = moment(slot.startTime).add(cfg.checkinStopOffsetSeconds, 'seconds');
+    const openTime = this.dateService.addSeconds(slot.startTime, startOffset);
+    const closeTime = this.dateService.addSeconds(slot.startTime, cfg.checkinStopOffsetSeconds);
 
-    if (now.isBefore(openTime)) {
+    if (this.dateService.isBefore(now, openTime)) {
       throw new BadRequestException('Check-in has not opened yet.');
     }
-    if (now.isAfter(closeTime)) {
+    if (this.dateService.isAfter(now, closeTime)) {
       throw new BadRequestException('Check-in is closed.');
     }
   }
@@ -624,14 +728,14 @@ export class AttendanceService {
   }
 
   private resolveStatus(
-    now: moment.Moment,
+    now: Date,
     slot: ServiceSlot,
     cfg: ReturnType<EventService['resolveSlotConfig']>,
     isWorker: boolean,
   ): AttendanceStatusEnum {
     if (!isWorker) return AttendanceStatusEnum.PRESENT;
-    const lateThreshold = moment(slot.startTime).add(cfg.workerLateOffsetSeconds, 'seconds');
-    return now.isSameOrAfter(lateThreshold)
+    const lateThreshold = this.dateService.addSeconds(slot.startTime, cfg.workerLateOffsetSeconds);
+    return this.dateService.isSameOrAfter(now, lateThreshold)
       ? AttendanceStatusEnum.LATE
       : AttendanceStatusEnum.PRESENT;
   }
@@ -658,17 +762,19 @@ export class AttendanceService {
     });
   }
 
-  private async hasApprovedLeave(memberId: string, slot: ServiceSlot): Promise<boolean> {
-    const result = await this.dataSource
+  private async getBatchApprovedLeave(memberIds: string[], slot: ServiceSlot): Promise<Set<string>> {
+    if (!memberIds.length) return new Set();
+    const rows = await this.dataSource
       .createQueryBuilder()
+      .select('profile.member_id', 'memberId')
       .from('request_leave', 'leave')
       .innerJoin('worker_profiles', 'profile', 'profile.id = leave.worker_profile_id')
-      .where('profile.member_id = :memberId', { memberId })
+      .where('profile.member_id IN (:...memberIds)', { memberIds })
       .andWhere('leave.status = :status', { status: 'APPROVED' })
       .andWhere('leave.date_from <= :slotEnd', { slotEnd: slot.endTime })
       .andWhere('leave.date_to >= :slotStart', { slotStart: slot.startTime })
-      .getCount();
-    return result > 0;
+      .getRawMany<{ memberId: string }>();
+    return new Set(rows.map((r) => r.memberId));
   }
 
   private enforceDistance(): boolean {

@@ -10,9 +10,11 @@ export interface JwtResponse {
   refresh_token?: string;
   expires_in: number;
   token_type: string;
+  requires_password_change: boolean;
 }
 
 export interface MemberAuth {
   id: string;
   role: MemberRoleEnum;
+  requiresPasswordChange: boolean;
 }

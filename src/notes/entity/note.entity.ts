@@ -1,16 +1,15 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { NoteTypeEnum } from '../enums/note-type.enums';
 import { NoteDetails } from '../types/note-details.type';
 import { Transform } from 'class-transformer';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity({ name: 'notes' })
-export class Note {
+export class Note extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -26,10 +25,4 @@ export class Note {
     toPlainOnly: true,
   })
   details: NoteDetails;
-
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updatedAt: Date;
 }

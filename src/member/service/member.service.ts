@@ -10,6 +10,8 @@ import { FindManyOptions, Repository } from 'typeorm';
 import { Member } from '../entity/member.entity';
 import { WorkerProfile } from '../entity/worker-profile.entity';
 import { Department } from '../../department/entity/department.entity';
+import { DepartmentLead } from '../../department/entity/department-lead.entity';
+import { SundaySchoolClass } from '../../sunday-school/entity/sunday-school-class.entity';
 import { UtilityService } from '../../utility/service/utility.service';
 import { MemberRoleEnum } from '../enums/member-role.enum';
 import { MemberStatusEnum } from '../enums/member-status.enum';
@@ -33,6 +35,10 @@ export class MemberService {
     private readonly workerProfileRepository: Repository<WorkerProfile>,
     @InjectRepository(Department)
     private readonly departmentRepository: Repository<Department>,
+    @InjectRepository(DepartmentLead)
+    private readonly departmentLeadRepository: Repository<DepartmentLead>,
+    @InjectRepository(SundaySchoolClass)
+    private readonly sundaySchoolClassRepository: Repository<SundaySchoolClass>,
     private readonly utilityService: UtilityService,
   ) {}
 
@@ -56,6 +62,7 @@ export class MemberService {
       yearJoinedChurch: dto.yearJoinedChurch ? new Date(`${dto.yearJoinedChurch}-01-01`) : null,
       role: MemberRoleEnum.MEMBER,
       status: MemberStatusEnum.ACTIVE,
+      changedPassword: true,
     });
 
     const saved = await this.memberRepository.save(member);
@@ -64,7 +71,7 @@ export class MemberService {
     const firstName = UtilityService.capitalizeFirstLetter(saved.firstname);
     this.utilityService.sendEmailWithTemplate(
       saved.email,
-      `${firstName}, Welcome to the Church App`,
+      `${firstName}, Welcome to Discovery Hub`,
       'welcome-member',
       { name: firstName, email: saved.email, login_url: process.env.LOGIN_URL },
     );
@@ -75,7 +82,7 @@ export class MemberService {
   async createAdmin(dto: CreateAdminDto): Promise<Member> {
     await this.assertEmailUnique(dto.email);
 
-    const plainPassword = dto.password;
+    const plainPassword = UtilityService.generateRandomPassword();
     const password = await UtilityService.hashValue(plainPassword);
 
     const admin = this.memberRepository.create({
@@ -86,6 +93,7 @@ export class MemberService {
       phoneNumber: dto.phoneNumber,
       role: MemberRoleEnum.ADMIN,
       status: MemberStatusEnum.ACTIVE,
+      changedPassword: false,
     });
 
     const saved = await this.memberRepository.save(admin);
@@ -94,7 +102,7 @@ export class MemberService {
     const firstName = UtilityService.capitalizeFirstLetter(saved.firstname);
     this.utilityService.sendEmailWithTemplate(
       saved.email,
-      `${firstName}, Your Admin Account is Ready`,
+      `${firstName}, Your Discovery Hub Admin Account is Ready`,
       'welcome-admin',
       { name: firstName, email: saved.email, password: plainPassword, login_url: process.env.LOGIN_URL },
     );
@@ -131,7 +139,7 @@ export class MemberService {
     const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
     this.utilityService.sendEmailWithTemplate(
       member.email,
-      `${firstName}, Welcome to the Workforce`,
+      `${firstName}, Welcome to Discovery Hub Workforce`,
       'welcome-worker',
       {
         name: `${firstName} ${member.lastname[0].toUpperCase()}.`,
@@ -150,10 +158,38 @@ export class MemberService {
     const member = await this.getById(memberId, ['workerProfile']);
     if (!member.workerProfile) throw new BadRequestException('Member is not a worker');
 
-    await this.workerProfileRepository.remove(member.workerProfile);
-    member.role = MemberRoleEnum.MEMBER;
-    await this.memberRepository.save(member);
+    const profileId = member.workerProfile.id;
+
+    // Use transaction to ensure all revocation steps complete atomically
+    await this.memberRepository.manager.transaction(async (transactionalEntityManager) => {
+      // Remove department lead roles — no cascade on this FK, so must be done explicitly.
+      await transactionalEntityManager.delete(DepartmentLead, { workerProfile: { id: profileId } });
+
+      // Null out any SS class teacher assignments so the revoked worker
+      // is no longer listed as teacher on classes they can no longer access.
+      await transactionalEntityManager.update(
+        SundaySchoolClass,
+        { teacher: { id: member.id } },
+        { teacher: null },
+      );
+
+      // Remove worker profile
+      await transactionalEntityManager.remove(member.workerProfile);
+
+      // Update member role to MEMBER
+      member.role = MemberRoleEnum.MEMBER;
+      await transactionalEntityManager.save(member);
+    });
+
     this.logger.log(`Worker role revoked for member: ${member.email}`);
+
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, Your Discovery Hub Role Has Been Updated`,
+      'worker-revoked',
+      { name: firstName },
+    );
   }
 
   async updateMember(id: string, dto: UpdateMemberDto): Promise<Member> {
@@ -179,15 +215,24 @@ export class MemberService {
   }
 
   async updateWorkerProfile(memberId: string, dto: UpdateWorkerProfileDto): Promise<WorkerProfile> {
-    const member = await this.getById(memberId, ['workerProfile', 'workerProfile.department']);
+    const member = await this.getById(memberId, [
+      'workerProfile',
+      'workerProfile.department',
+      'workerProfile.secondaryDepartment',
+    ]);
     if (!member.workerProfile) throw new BadRequestException('Member has no worker profile');
 
     const profile = member.workerProfile;
 
     if (dto.departmentId && dto.departmentId !== profile.department?.id) {
-      const dept = await this.departmentRepository.findOneBy({ id: dto.departmentId });
-      if (!dept) throw new NotFoundException('Department not found');
-      profile.department = dept;
+      profile.department = await this.resolveDepartment(dto.departmentId, 'Department not found');
+    }
+
+    if ('secondaryDepartmentId' in dto) {
+      profile.secondaryDepartment = await this.resolveSecondaryDepartment(
+        dto.secondaryDepartmentId,
+        profile.secondaryDepartment,
+      );
     }
 
     if (dto.status) profile.status = dto.status;
@@ -199,6 +244,23 @@ export class MemberService {
     return this.workerProfileRepository.save(profile);
   }
 
+  private async resolveDepartment(id: string, notFoundMsg: string) {
+    const dept = await this.departmentRepository.findOneBy({ id });
+    if (!dept) throw new NotFoundException(notFoundMsg);
+    return dept;
+  }
+
+  private async resolveSecondaryDepartment(
+    incomingId: string | null | undefined,
+    current: Department | null,
+  ) {
+    if (incomingId === null) return null;
+    if (incomingId && incomingId !== current?.id) {
+      return this.resolveDepartment(incomingId, 'Secondary department not found');
+    }
+    return current; // unchanged
+  }
+
   async changeStatus(memberId: string, status: MemberStatusEnum): Promise<void> {
     const member = await this.getById(memberId);
     if (member.status === status) {
@@ -206,6 +268,23 @@ export class MemberService {
     }
     member.status = status;
     await this.memberRepository.save(member);
+
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    if (status === MemberStatusEnum.INACTIVE) {
+      this.utilityService.sendEmailWithTemplate(
+        member.email,
+        `${firstName}, Your Discovery Hub Account Has Been Deactivated`,
+        'account-deactivated',
+        { name: firstName },
+      );
+    } else if (status === MemberStatusEnum.ACTIVE) {
+      this.utilityService.sendEmailWithTemplate(
+        member.email,
+        `${firstName}, Your Discovery Hub Account Has Been Reactivated`,
+        'account-reactivated',
+        { name: firstName, login_url: process.env.LOGIN_URL },
+      );
+    }
   }
 
   async resetPassword(memberId: string): Promise<string> {
@@ -218,7 +297,7 @@ export class MemberService {
     const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
     this.utilityService.sendEmailWithTemplate(
       member.email,
-      `${firstName}, Your Password Has Been Reset`,
+      `${firstName}, Your Discovery Hub Password Has Been Reset`,
       'password-reset',
       { name: firstName, newPassword, login_url: process.env.LOGIN_URL },
     );
@@ -240,10 +319,25 @@ export class MemberService {
     member.changedPassword = true;
     await this.memberRepository.save(member);
 
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, Your Discovery Hub Password Has Been Changed`,
+      'password-changed',
+      { name: firstName, login_url: process.env.LOGIN_URL },
+    );
+
     return 'Password changed successfully';
   }
 
-  async getById(id: string, relations: string[] = []): Promise<Member> {
+  async setPassword(memberId: string, newPassword: string, changedPassword: boolean): Promise<void> {
+    const member = await this.getById(memberId);
+    member.password = await UtilityService.hashValue(newPassword);
+    member.changedPassword = changedPassword;
+    await this.memberRepository.save(member);
+  }
+
+async getById(id: string, relations: string[] = []): Promise<Member> {
     const member = await this.memberRepository.findOne({ where: { id }, relations });
     if (!member) throw new NotFoundException('Member not found');
     return member;

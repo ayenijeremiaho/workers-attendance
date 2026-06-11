@@ -10,6 +10,7 @@ import { RequestLeave } from '../enitity/request-leave.entity';
 import { CreateRequestLeaveDto } from '../dto/create-request-leave.dto';
 import { LeaveStatusEnum } from '../enums/leave-status.enum';
 import { MemberAuth } from '../../auth/interface/auth.interface';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 import { MemberService } from '../../member/service/member.service';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
@@ -59,7 +60,7 @@ export class RequestLeaveService {
     const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
     this.utilityService.sendEmailWithTemplate(
       member.email,
-      `${firstName}, Leave Request Received`,
+      `${firstName}, Discovery Hub Leave Request Received`,
       'leave-submitted',
       {
         name: firstName,
@@ -99,7 +100,7 @@ export class RequestLeaveService {
       const actionStatus = status === LeaveStatusEnum.APPROVED ? 'Approved' : 'Rejected';
       this.utilityService.sendEmailWithTemplate(
         workerMember.email,
-        `${firstName}, Leave Request ${actionStatus}`,
+        `${firstName}, Discovery Hub Leave Request ${actionStatus}`,
         'leave-actioned',
         {
           name: firstName,
@@ -168,6 +169,17 @@ export class RequestLeaveService {
     user: MemberAuth,
     status?: LeaveStatusEnum,
   ): Promise<RequestLeave[]> {
+    // ADMIN can view any department's leave requests
+    if (user.role === MemberRoleEnum.ADMIN) {
+      return this.repo.find({
+        where: {
+          ...(status ? { status } : {}),
+        },
+        relations: ['workerProfile', 'workerProfile.member', 'actionedBy'],
+        order: { createdAt: 'DESC' },
+      });
+    }
+
     const isLead = await this.departmentService.isMemberDepartmentLead(user.id);
     if (!isLead) throw new BadRequestException('Not authorised to view department leave requests');
 

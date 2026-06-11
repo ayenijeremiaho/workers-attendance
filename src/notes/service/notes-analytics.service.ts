@@ -65,7 +65,7 @@ export class NotesAnalyticsService {
 
   private calcAvgPerMonth(dates: Date[]): number {
     if (!dates.length) return 0;
-    const first = dates[dates.length - 1];
+    const first = dates.at(-1);
     const now = new Date();
     const months = Math.max(
       (now.getFullYear() - first.getFullYear()) * 12 + now.getMonth() - first.getMonth(),

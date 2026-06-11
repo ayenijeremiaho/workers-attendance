@@ -9,35 +9,46 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Venue } from '../entity/venue.entity';
 import { CreateVenueDto, UpdateVenueDto } from '../dto/create-venue.dto';
+import { ConfigService } from '@nestjs/config';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
+import { CacheService } from '../../utility/service/cache.service';
 
 @Injectable()
 export class VenueService {
   private readonly logger = new Logger(VenueService.name);
+  private static readonly CACHE_KEY = 'venues:all';
+  private readonly cacheTtl: number;
 
   constructor(
     @InjectRepository(Venue)
     private readonly repo: Repository<Venue>,
-  ) {}
+    private readonly cacheService: CacheService,
+    private readonly configService: ConfigService,
+  ) {
+    this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS', 300);
+  }
 
   async create(dto: CreateVenueDto): Promise<Venue> {
     if (await this.repo.exists({ where: { name: dto.name } })) {
       throw new ConflictException(`Venue "${dto.name}" already exists`);
     }
     const saved = await this.repo.save(this.repo.create(dto));
+    this.cacheService.del(VenueService.CACHE_KEY);
     this.logger.log(`Venue created: "${saved.name}" (${saved.id})`);
     return saved;
   }
 
   async getAll(page = 1, limit = 20): Promise<PaginationResponseDto<Venue>> {
     if (page < 1) throw new BadRequestException('Page must be greater than 0');
-    const [venues, total] = await this.repo.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { name: 'ASC' },
-    });
-    return UtilityService.createPaginationResponse(venues, page, limit, total);
+    let all = this.cacheService.get<Venue[]>(VenueService.CACHE_KEY);
+    if (!all) {
+      all = await this.repo.find({ order: { name: 'ASC' } });
+      this.cacheService.set(VenueService.CACHE_KEY, all, this.cacheTtl);
+    }
+    const total = all.length;
+    const slice = all.slice((page - 1) * limit, page * limit);
+    return UtilityService.createPaginationResponse(slice, page, limit, total);
   }
 
   async getById(id: string): Promise<Venue> {
@@ -60,6 +71,7 @@ export class VenueService {
     if (dto.longitude !== undefined) venue.longitude = dto.longitude;
 
     const saved = await this.repo.save(venue);
+    this.cacheService.del(VenueService.CACHE_KEY);
     this.logger.log(`Venue updated: "${saved.name}" (${id})`);
     return saved;
   }
@@ -68,6 +80,7 @@ export class VenueService {
     const venue = await this.getById(id);
     try {
       await this.repo.remove(venue);
+      this.cacheService.del(VenueService.CACHE_KEY);
       this.logger.log(`Venue deleted: "${venue.name}" (${id})`);
     } catch {
       throw new BadRequestException(

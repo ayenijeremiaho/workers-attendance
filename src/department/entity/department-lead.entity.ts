@@ -1,6 +1,5 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   JoinColumn,
@@ -8,15 +7,15 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
   Unique,
-  UpdateDateColumn,
 } from 'typeorm';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
 import { Department } from './department.entity';
 import { DepartmentLeadTypeEnum } from '../enums/department-lead-type.enum';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity({ name: 'department_leads' })
 @Unique(['department', 'leadType'])
-export class DepartmentLead {
+export class DepartmentLead extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -35,10 +34,4 @@ export class DepartmentLead {
     enumName: 'lead_type',
   })
   leadType: DepartmentLeadTypeEnum;
-
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updatedAt: Date;
 }

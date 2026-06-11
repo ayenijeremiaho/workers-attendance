@@ -87,9 +87,12 @@ export class DashboardService {
       ? await this.requestLeaveService.countPendingLeave(workerProfileId)
       : 0;
 
+    // ADMIN users should also see department lead details
+    const canViewDepartmentLeadDetails = isDepartmentLead || user.role === MemberRoleEnum.ADMIN;
+
     const result: WorkerDashboardDataDto = {
       profile,
-      isDepartmentLead,
+      isDepartmentLead: canViewDepartmentLeadDetails,
       personalAttendancePercentage,
       attendanceStreak,
       rank,
@@ -99,16 +102,22 @@ export class DashboardService {
       totalPendingLeaveRequests,
     };
 
-    if (isDepartmentLead) {
-      const departmentId = profile.workerProfile?.department?.id;
-      result.departmentLeadDetails = {
-        departmentAttendancePercentage: departmentId
-          ? await this.attendanceService.getWorkerAttendancePercentage(daysAgo, departmentId)
-          : 0,
-        totalDepartmentPendingLeaveRequests: departmentId
-          ? await this.requestLeaveService.countPendingLeave(undefined, departmentId)
-          : 0,
-      };
+    if (canViewDepartmentLeadDetails) {
+      // For ADMIN, we need to get a department - use the first one or from profile
+      let departmentId: string | undefined;
+      if (user.role === MemberRoleEnum.ADMIN) {
+        const departments = await this.departmentService.getAll(1, 1);
+        departmentId = departments.data[0]?.id;
+      } else {
+        departmentId = profile.workerProfile?.department?.id;
+      }
+      
+      if (departmentId) {
+        result.departmentLeadDetails = {
+          departmentAttendancePercentage: await this.attendanceService.getWorkerAttendancePercentage(daysAgo, departmentId),
+          totalDepartmentPendingLeaveRequests: await this.requestLeaveService.countPendingLeave(undefined, departmentId),
+        };
+      }
     }
 
     return result;
@@ -131,6 +140,9 @@ export class DashboardService {
       membersNotSeenRecently,
       upcomingEvents,
       totalPendingLeaveRequests,
+      totalActiveEnrollments,
+      classEnrollmentBreakdown,
+      classCompletionsTrend,
     ] = await Promise.all([
       this.memberService.count({ where: { role: MemberRoleEnum.MEMBER } }),
       this.memberService.count({ where: { role: MemberRoleEnum.WORKER } }),
@@ -145,6 +157,9 @@ export class DashboardService {
       this.attendanceService.getMembersNotSeenSince(daysAgo, 20),
       this.eventService.getUpcomingEvents(5),
       this.requestLeaveService.countPendingLeave(),
+      this.classesService.countActiveEnrollments(),
+      this.classesService.getClassEnrollmentBreakdown(),
+      this.classesService.getClassCompletionsTrend(daysAgo),
     ]);
 
     return {
@@ -161,6 +176,9 @@ export class DashboardService {
       membersNotSeenRecently,
       upcomingEvents,
       totalPendingLeaveRequests,
+      totalActiveEnrollments,
+      classEnrollmentBreakdown,
+      classCompletionsTrend,
     };
   }
 }

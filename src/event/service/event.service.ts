@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { Event } from '../entity/event.entity';
 import { ServiceSlot } from '../entity/service-slot.entity';
 import { EventConfig } from '../entity/event-config.entity';
@@ -62,6 +62,11 @@ export class EventService {
       const d = new Date(dto.eventDate);
       if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid eventDate');
       event.eventDate = d;
+    }
+
+    if (dto.serviceSlots?.length) {
+      await this.slotRepository.delete({ event: { id } });
+      event.serviceSlots = await this.buildSlots(dto.serviceSlots);
     }
 
     return this.eventRepository.save(event);
@@ -143,7 +148,7 @@ export class EventService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return this.eventRepository.find({
-      where: { eventDate: today } as any,
+      where: { eventDate: MoreThanOrEqual(today) },
       order: { eventDate: 'ASC' },
       take: limit,
       relations: ['serviceSlots', 'serviceSlots.config', 'serviceSlots.config.defaultVenue', 'serviceSlots.venueOverride'],

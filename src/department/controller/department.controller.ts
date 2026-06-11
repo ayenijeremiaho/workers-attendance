@@ -10,9 +10,11 @@ import {
   Patch,
   Post,
   Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { DepartmentService } from '../service/department.service';
+import { DepartmentKeyEnum } from '../enums/department-key.enum';
 import { CreateDepartmentDto } from '../dto/create-department.dto';
 import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { AssignDepartmentHodDto } from '../dto/assign-department-hod.dto';
@@ -28,6 +30,11 @@ export class DepartmentController {
   @Get()
   async getAll(@Query('page') page = 1, @Query('limit') limit = 10) {
     return this.departmentService.getAll(+page, +limit);
+  }
+
+  @Get('keys')
+  getDepartmentKeys(): string[] {
+    return Object.values(DepartmentKeyEnum);
   }
 
   @Get(':id')
@@ -84,5 +91,26 @@ export class DepartmentController {
   @Get('leads')
   async getAllLeads() {
     return this.departmentService.getAllLeads();
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.ADMIN)
+  @Get(':id/workers')
+  async getWorkersByDepartment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.departmentService.getWorkersByDepartment(id, +page, +limit);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.ADMIN, MemberRoleEnum.WORKER)
+  @Get('my/summary')
+  async getDepartmentSummary(
+    @Request() req: any,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    return this.departmentService.getDepartmentSummary(req.user, departmentId);
   }
 }

@@ -1,9 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from 'nestjs-pino';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { HttpExceptionFilter } from './utility/filters/http-exception.filter';
 import { TransformInterceptor } from './utility/interceptors/transform.interceptor';
+import { TrimValidationPipe } from './utility/pipes/trim-validation.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -21,7 +22,7 @@ function registerNestLogger(app: INestApplication) {
 
 function registerGlobalPipes(app: INestApplication) {
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+    new TrimValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
 }
 

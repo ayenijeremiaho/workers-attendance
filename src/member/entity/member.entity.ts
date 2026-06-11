@@ -1,21 +1,22 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { MemberRoleEnum } from '../enums/member-role.enum';
 import { MemberStatusEnum } from '../enums/member-status.enum';
 import { GenderEnum } from '../enums/gender.enum';
 import { MaritalStatusEnum } from '../enums/marital-status.enum';
 import { WorkerProfile } from './worker-profile.entity';
+import { Attendance } from '../../attendance/entity/attendance.entity';
+import { ClassEnrollment } from '../../classes/entity/class-enrollment.entity';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity({ name: 'members' })
-export class Member {
+export class Member extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -93,16 +94,9 @@ export class Member {
   })
   workerProfile: WorkerProfile;
 
-  @OneToMany('Attendance', (attendance: any) => attendance.member)
-  attendances: any[];
+  @OneToMany(() => Attendance, (attendance) => attendance.member)
+  attendances: Attendance[];
 
-  @OneToMany('ClassEnrollment', (enrollment: any) => enrollment.member)
-  classEnrollments: any[];
-
-  @Index()
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updatedAt: Date;
+  @OneToMany(() => ClassEnrollment, (enrollment) => enrollment.member)
+  classEnrollments: ClassEnrollment[];
 }

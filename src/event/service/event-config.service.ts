@@ -10,19 +10,27 @@ import { EventConfig } from '../entity/event-config.entity';
 import { CreateEventConfigDto } from '../dto/create-event-config.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
+import { ConfigService } from '@nestjs/config';
 import { VenueService } from '../../venue/service/venue.service';
+import { CacheService } from '../../utility/service/cache.service';
 
 export type UpdateEventConfigDto = Partial<CreateEventConfigDto>;
 
 @Injectable()
 export class EventConfigService {
   private readonly logger = new Logger(EventConfigService.name);
+  private static readonly CACHE_KEY = 'event-config:all';
+  private readonly cacheTtl: number;
 
   constructor(
     @InjectRepository(EventConfig)
     private readonly repo: Repository<EventConfig>,
     private readonly venueService: VenueService,
-  ) {}
+    private readonly cacheService: CacheService,
+    private readonly configService: ConfigService,
+  ) {
+    this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS', 300);
+  }
 
   async create(dto: CreateEventConfigDto): Promise<EventConfig> {
     if (await this.repo.exists({ where: { name: dto.name } })) {
@@ -43,6 +51,7 @@ export class EventConfigService {
       defaultVenue,
     });
     const saved = await this.repo.save(config);
+    this.cacheService.del(EventConfigService.CACHE_KEY);
     this.logger.log(`Created event config "${saved.name}" (${saved.id})`);
     return saved;
   }
@@ -63,6 +72,7 @@ export class EventConfigService {
     const { defaultVenueId: _ignored, ...rest } = dto;
     Object.assign(config, rest);
     const saved = await this.repo.save(config);
+    this.cacheService.del(EventConfigService.CACHE_KEY);
     this.logger.log(`Updated event config "${saved.name}" (${id})`);
     return saved;
   }
@@ -78,15 +88,14 @@ export class EventConfigService {
 
   async getAll(page = 1, limit = 10): Promise<PaginationResponseDto<EventConfig>> {
     if (page < 1) throw new BadRequestException('Page must be greater than 0');
-
-    const [configs, total] = await this.repo.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { createdAt: 'DESC' },
-      relations: ['defaultVenue'],
-    });
-
-    return UtilityService.createPaginationResponse(configs, page, limit, total);
+    let all = this.cacheService.get<EventConfig[]>(EventConfigService.CACHE_KEY);
+    if (!all) {
+      all = await this.repo.find({ order: { createdAt: 'DESC' }, relations: ['defaultVenue'] });
+      this.cacheService.set(EventConfigService.CACHE_KEY, all, this.cacheTtl);
+    }
+    const total = all.length;
+    const slice = all.slice((page - 1) * limit, page * limit);
+    return UtilityService.createPaginationResponse(slice, page, limit, total);
   }
 
   async delete(id: string): Promise<void> {
@@ -104,6 +113,7 @@ export class EventConfigService {
     }
 
     await this.repo.remove(config);
+    this.cacheService.del(EventConfigService.CACHE_KEY);
     this.logger.log(`Deleted event config "${config.name}" (${id})`);
   }
 

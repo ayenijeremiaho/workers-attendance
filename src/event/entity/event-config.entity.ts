@@ -1,18 +1,17 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { ServiceSlot } from './service-slot.entity';
 import { Venue } from '../../venue/entity/venue.entity';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
 @Entity({ name: 'event_config' })
-export class EventConfig {
+export class EventConfig extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -54,10 +53,4 @@ export class EventConfig {
 
   @OneToMany(() => ServiceSlot, (slot) => slot.config, { nullable: true })
   serviceSlots: ServiceSlot[];
-
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updatedAt: Date;
 }

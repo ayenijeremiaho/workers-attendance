@@ -56,13 +56,14 @@ export class AttendanceController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles(MemberRoleEnum.WORKER)
+  @Roles(MemberRoleEnum.ADMIN, MemberRoleEnum.WORKER)
   @Get('history/department')
   async getDepartmentHistory(
     @Request() req: any,
     @Query('slotId', ParseUUIDPipe) slotId: string,
+    @Query('departmentId') departmentId?: string,
   ) {
-    return this.attendanceService.getDepartmentHistory(req.user, slotId);
+    return this.attendanceService.getDepartmentHistory(req.user, slotId, departmentId);
   }
 
   @UseGuards(RolesGuard)
@@ -80,5 +81,16 @@ export class AttendanceController {
     @Query('limit') limit = 10,
   ) {
     return this.attendanceService.getWorkerLeaderboard(+daysAgo, +limit);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(MemberRoleEnum.ADMIN, MemberRoleEnum.WORKER)
+  @Get('department/event/:eventId')
+  async getDepartmentEventAttendance(
+    @Request() req: any,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    return this.attendanceService.getDepartmentEventAttendance(req.user, eventId, departmentId);
   }
 }

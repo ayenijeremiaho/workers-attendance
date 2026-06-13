@@ -1,102 +1,78 @@
-import {
-  Column,
-  Entity,
-  Index,
-  OneToMany,
-  OneToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
-import { MemberRoleEnum } from '../enums/member-role.enum';
-import { MemberStatusEnum } from '../enums/member-status.enum';
-import { GenderEnum } from '../enums/gender.enum';
-import { MaritalStatusEnum } from '../enums/marital-status.enum';
-import { WorkerProfile } from './worker-profile.entity';
-import { Attendance } from '../../attendance/entity/attendance.entity';
-import { ClassEnrollment } from '../../classes/entity/class-enrollment.entity';
-import { BaseEntity } from '../../utility/entity/base.entity';
+import {Column, Entity, Index, OneToMany, OneToOne, PrimaryGeneratedColumn,} from 'typeorm';
+import {MemberRoleEnum} from '../enums/member-role.enum';
+import {MemberStatusEnum} from '../enums/member-status.enum';
+import {GenderEnum} from '../enums/gender.enum';
+import {MaritalStatusEnum} from '../enums/marital-status.enum';
+import {WorkerProfile} from './worker-profile.entity';
+import {Attendance} from '../../attendance/entity/attendance.entity';
+import {ClassEnrollment} from '../../classes/entity/class-enrollment.entity';
+import {BaseEntity} from '../../utility/entity/base.entity';
 
-@Entity({ name: 'members' })
+@Entity({name: 'members'})
 export class Member extends BaseEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+    @PrimaryGeneratedColumn('uuid')
+    id: string;
 
-  @Column()
-  firstname: string;
+    @Column()
+    firstname: string;
 
-  @Column()
-  lastname: string;
+    @Column()
+    lastname: string;
 
-  @Column({ unique: true })
-  email: string;
+    @Column({unique: true})
+    email: string;
 
-  @Column({ nullable: true })
-  phoneNumber: string;
+    @Column({nullable: true})
+    phoneNumber: string;
 
-  @Column()
-  password: string;
+    @Column()
+    password: string;
 
-  @Column({ default: false })
-  changedPassword: boolean;
+    @Column({default: false})
+    changedPassword: boolean;
 
-  @Index()
-  @Column({
-    type: 'enum',
-    enum: MemberRoleEnum,
-    enumName: 'member_role',
-    default: MemberRoleEnum.MEMBER,
-  })
-  role: MemberRoleEnum;
+    @Column({nullable: true, type: 'varchar'})
+    deviceId: string | null;
 
-  @Index()
-  @Column({
-    type: 'enum',
-    enum: MemberStatusEnum,
-    enumName: 'member_status',
-    default: MemberStatusEnum.ACTIVE,
-  })
-  status: MemberStatusEnum;
+    @Index()
+    @Column({default: MemberRoleEnum.MEMBER})
+    role: MemberRoleEnum;
 
-  @Column({
-    type: 'enum',
-    enum: GenderEnum,
-    enumName: 'gender',
-    nullable: true,
-  })
-  gender: GenderEnum;
+    @Index()
+    @Column({default: MemberStatusEnum.ACTIVE})
+    status: MemberStatusEnum;
 
-  @Column({ nullable: true })
-  dateOfBirth: string;
+    @Column({nullable: true})
+    gender: GenderEnum;
 
-  @Column({
-    type: 'enum',
-    enum: MaritalStatusEnum,
-    enumName: 'marital_status',
-    nullable: true,
-  })
-  maritalStatus: MaritalStatusEnum;
+    @Column({type: 'date', nullable: true})
+    dateOfBirth: Date | null;
 
-  @Column({ nullable: true, type: 'date' })
-  yearBornAgain: Date;
+    @Column({nullable: true})
+    maritalStatus: MaritalStatusEnum;
 
-  @Column({ nullable: true, type: 'date' })
-  yearBaptized: Date;
+    @Column({nullable: true, type: 'date'})
+    yearBornAgain: Date;
 
-  @Column({ nullable: true, default: false })
-  baptizedWithHolyGhost: boolean;
+    @Column({nullable: true, type: 'date'})
+    yearBaptized: Date;
 
-  @Column({ nullable: true, type: 'date' })
-  yearJoinedChurch: Date;
+    @Column({nullable: true, default: false})
+    baptizedWithHolyGhost: boolean;
 
-  @OneToOne(() => WorkerProfile, (wp) => wp.member, {
-    nullable: true,
-    cascade: true,
-    eager: false,
-  })
-  workerProfile: WorkerProfile;
+    @Column({nullable: true, type: 'date'})
+    yearJoinedChurch: Date;
 
-  @OneToMany(() => Attendance, (attendance) => attendance.member)
-  attendances: Attendance[];
+    @OneToOne(() => WorkerProfile, (wp) => wp.member, {
+        nullable: true,
+        cascade: true,
+        eager: false,
+    })
+    workerProfile: WorkerProfile;
 
-  @OneToMany(() => ClassEnrollment, (enrollment) => enrollment.member)
-  classEnrollments: ClassEnrollment[];
+    @OneToMany(() => Attendance, (attendance) => attendance.member)
+    attendances: Attendance[];
+
+    @OneToMany(() => ClassEnrollment, (enrollment) => enrollment.member)
+    classEnrollments: ClassEnrollment[];
 }

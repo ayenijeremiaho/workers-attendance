@@ -1,50 +1,50 @@
-import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import {IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID} from 'class-validator';
 
 export class CreateChildProfileDto {
-  @IsString()
-  @IsNotEmpty()
-  firstname: string;
+    @IsString()
+    @IsNotEmpty()
+    firstname: string;
 
-  @IsString()
-  @IsNotEmpty()
-  lastname: string;
+    @IsString()
+    @IsNotEmpty()
+    lastname: string;
 
-  @IsDateString()
-  dateOfBirth: string;
+    @IsDateString()
+    dateOfBirth: string;
 
-  @IsString()
-  @IsOptional()
-  photoUrl?: string;
+    @IsString()
+    @IsOptional()
+    photoUrl?: string;
 
-  @IsString()
-  @IsOptional()
-  specialNotes?: string;
+    @IsString()
+    @IsOptional()
+    specialNotes?: string;
 
-  @IsUUID('4')
-  @IsOptional()
-  registeredByMemberId?: string;
+    @IsUUID('4')
+    @IsOptional()
+    registeredByMemberId?: string;
 }
 
 export class UpdateChildProfileDto {
-  @IsString()
-  @IsNotEmpty()
-  @IsOptional()
-  firstname?: string;
+    @IsString()
+    @IsNotEmpty()
+    @IsOptional()
+    firstname?: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @IsOptional()
-  lastname?: string;
+    @IsString()
+    @IsNotEmpty()
+    @IsOptional()
+    lastname?: string;
 
-  @IsDateString()
-  @IsOptional()
-  dateOfBirth?: string;
+    @IsDateString()
+    @IsOptional()
+    dateOfBirth?: string;
 
-  @IsString()
-  @IsOptional()
-  photoUrl?: string;
+    @IsString()
+    @IsOptional()
+    photoUrl?: string;
 
-  @IsString()
-  @IsOptional()
-  specialNotes?: string;
+    @IsString()
+    @IsOptional()
+    specialNotes?: string;
 }

@@ -1,67 +1,70 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { EventService } from '../service/event.service';
-import { CreateEventDto } from '../dto/create-event.dto';
-import { RolesGuard } from '../../auth/guard/roles.guard';
-import { Roles } from '../../auth/decorator/roles.decorator';
-import { MemberRoleEnum } from '../../member/enums/member-role.enum';
-import { OrderBy } from '../types/order-by.type';
-import { Order } from '../types/order.type';
+import {Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,} from '@nestjs/common';
+import {EventService} from '../service/event.service';
+import {CreateEventDto} from '../dto/create-event.dto';
+import {CurrentUser} from '../../auth/decorator/current-user.decorator';
+import {MemberAuth} from '../../auth/interface/auth.interface';
+import {OrderBy} from '../types/order-by.type';
+import {Order} from '../types/order.type';
+import {AdminGuard} from '../../admin/guard/admin.guard';
+import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
+import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 
 @Controller('events')
 export class EventController {
-  constructor(private readonly eventService: EventService) {}
+    constructor(private readonly eventService: EventService) {
+    }
 
-  @UseGuards(RolesGuard)
-  @Roles(MemberRoleEnum.ADMIN)
-  @Post()
-  async create(@Body() dto: CreateEventDto) {
-    return this.eventService.create(dto);
-  }
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.EVENTS_WRITE)
+    @Post()
+    async create(@Body() dto: CreateEventDto, @CurrentUser() user: MemberAuth) {
+        return this.eventService.create(dto, user.id);
+    }
 
-  @UseGuards(RolesGuard)
-  @Roles(MemberRoleEnum.ADMIN)
-  @Patch(':id')
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: Partial<CreateEventDto>) {
-    return this.eventService.update(id, dto);
-  }
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.EVENTS_WRITE)
+    @Patch(':id')
+    async update(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: Partial<CreateEventDto>,
+        @CurrentUser() user: MemberAuth,
+    ) {
+        return this.eventService.update(id, dto, user.id);
+    }
 
-  @Get(':id')
-  async getOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.eventService.getById(id);
-  }
+    @Get(':id')
+    async getOne(
+        @Param('id', ParseUUIDPipe) id: string,
+        @CurrentUser() user: MemberAuth,
+    ) {
+        return this.eventService.getById(id, user.id);
+    }
 
-  @Get()
-  async getAll(
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
-    @Query('orderBy') orderBy?: OrderBy,
-    @Query('order') order?: Order,
-  ) {
-    return this.eventService.getAll(+page, +limit, orderBy, order);
-  }
+    @Get()
+    async getAll(
+        @CurrentUser() user: MemberAuth,
+        @Query('page') page = 1,
+        @Query('limit') limit = 10,
+        @Query('orderBy') orderBy?: OrderBy,
+        @Query('order') order?: Order,
+    ) {
+        return this.eventService.getAll(+page, +limit, orderBy, order, user.id);
+    }
 
-  @UseGuards(RolesGuard)
-  @Roles(MemberRoleEnum.ADMIN)
-  @Delete('recurring/:recurringEventId')
-  async deleteFutureRecurring(@Param('recurringEventId') recurringEventId: string) {
-    await this.eventService.deleteFutureRecurring(recurringEventId);
-  }
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.EVENTS_WRITE)
+    @Delete('recurring/:recurringEventId')
+    async deleteFutureRecurring(
+        @Param('recurringEventId') recurringEventId: string,
+        @CurrentUser() user: MemberAuth,
+    ) {
+        await this.eventService.deleteFutureRecurring(recurringEventId, user.id);
+    }
 
-  @UseGuards(RolesGuard)
-  @Roles(MemberRoleEnum.ADMIN)
-  @Delete(':id')
-  async deleteEvent(@Param('id', ParseUUIDPipe) id: string) {
-    await this.eventService.deleteEvent(id);
-  }
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.EVENTS_WRITE)
+    @Delete(':id')
+    async deleteEvent(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: MemberAuth) {
+        await this.eventService.deleteEvent(id, user.id);
+    }
 }

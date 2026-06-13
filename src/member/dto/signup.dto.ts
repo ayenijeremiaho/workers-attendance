@@ -1,64 +1,52 @@
-import {
-  IsBoolean,
-  IsEmail,
-  IsEnum,
-  IsOptional,
-  IsString,
-  Matches,
-  MinLength,
-} from 'class-validator';
-import { GenderEnum } from '../enums/gender.enum';
-import { MaritalStatusEnum } from '../enums/marital-status.enum';
-import { NormalizeEmail } from '../../utility/decorators/normalize-email.decorator';
+import {IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Matches,} from 'class-validator';
+import {GenderEnum} from '../enums/gender.enum';
+import {MaritalStatusEnum} from '../enums/marital-status.enum';
+import {NormalizeEmail} from '../../utility/decorators/normalize-email.decorator';
 
 export class SignupDto {
-  @IsString()
-  firstname: string;
+    @IsString()
+    firstname: string;
 
-  @IsString()
-  lastname: string;
+    @IsString()
+    lastname: string;
 
-  @NormalizeEmail()
-  @IsEmail()
-  email: string;
+    @NormalizeEmail()
+    @IsEmail()
+    email: string;
 
-  @IsString()
-  @MinLength(6)
-  password: string;
+    @IsOptional()
+    @IsString()
+    phoneNumber?: string;
 
-  @IsOptional()
-  @IsString()
-  phoneNumber?: string;
+    @IsOptional()
+    @IsEnum(GenderEnum)
+    gender?: GenderEnum;
 
-  @IsOptional()
-  @IsEnum(GenderEnum)
-  gender?: GenderEnum;
+    @IsOptional()
+    @Matches(/^\d{4}-\d{2}-\d{2}$/, {message: 'dateOfBirth must be YYYY-MM-DD'})
+    dateOfBirth?: string;
 
-  @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateOfBirth must be YYYY-MM-DD' })
-  dateOfBirth?: string;
+    @IsOptional()
+    @IsEnum(MaritalStatusEnum)
+    maritalStatus?: MaritalStatusEnum;
 
-  @IsOptional()
-  @IsEnum(MaritalStatusEnum)
-  maritalStatus?: MaritalStatusEnum;
+    @IsOptional()
+    @Matches(/^\d{4}$/, {message: 'yearBornAgain must be a 4-digit year'})
+    yearBornAgain?: string;
 
-  @IsOptional()
-  @Matches(/^\d{4}$/, { message: 'yearBornAgain must be a 4-digit year' })
-  yearBornAgain?: string;
+    @IsOptional()
+    @Matches(/^\d{4}$/, {message: 'yearBaptized must be a 4-digit year'})
+    yearBaptized?: string;
 
-  @IsOptional()
-  @Matches(/^\d{4}$/, { message: 'yearBaptized must be a 4-digit year' })
-  yearBaptized?: string;
+    @IsOptional()
+    @IsBoolean()
+    baptizedWithHolyGhost?: boolean;
 
-  @IsOptional()
-  @IsBoolean()
-  baptizedWithHolyGhost?: boolean;
+    @IsOptional()
+    @Matches(/^\d{4}$/, {message: 'yearJoinedChurch must be a 4-digit year'})
+    yearJoinedChurch?: string;
 
-  @IsOptional()
-  @Matches(/^\d{4}$/, { message: 'yearJoinedChurch must be a 4-digit year' })
-  yearJoinedChurch?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  joinWorkforce?: boolean;
+    @IsOptional()
+    @IsBoolean()
+    joinWorkforce?: boolean;
 }

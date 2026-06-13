@@ -7,7 +7,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3000",
+      "value": "http://localhost:3000/v1",
       "type": "string"
     },
     {
@@ -114,6 +114,31 @@
       "key": "checkinId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "pickupCode",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reminderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "wishRecipientId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminRoleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminUserId",
+      "value": "",
+      "type": "string"
     }
   ],
   "auth": {
@@ -145,7 +170,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"firstname\": \"John\",\n  \"lastname\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"gender\": \"MALE\",\n  \"dateOfBirth\": \"1990-05-15\",\n  \"maritalStatus\": \"MARRIED\",\n  \"yearBornAgain\": \"2010\",\n  \"yearBaptized\": \"2011\",\n  \"baptizedWithHolyGhost\": true,\n  \"yearJoinedChurch\": \"2012\",\n  \"joinWorkforce\": false\n}",
+              "raw": "{\n  \"firstname\": \"John\",\n  \"lastname\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"gender\": \"MALE\",\n  \"dateOfBirth\": \"1990-05-15\",\n  \"maritalStatus\": \"MARRIED\",\n  \"yearBornAgain\": \"2010\",\n  \"yearBaptized\": \"2011\",\n  \"baptizedWithHolyGhost\": true,\n  \"yearJoinedChurch\": \"2012\",\n  \"joinWorkforce\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -162,7 +187,7 @@
                 "signup"
               ]
             },
-            "description": "Register a new church member. All fields except firstname, lastname, email and password are optional. Set joinWorkforce=true to flag interest in joining the workforce (admin must still formally promote the member)."
+            "description": "Register a new member account. Do NOT include a password \u2014 the server generates a secure temporary password and emails it to the provided address. The account will have changedPassword=false, requiring a password change on first login."
           },
           "response": [
             {
@@ -181,8 +206,8 @@
               "script": {
                 "exec": [
                   "const res = pm.response.json();",
-                  "if (res.access_token)  pm.collectionVariables.set('accessToken',  res.access_token);",
-                  "if (res.refresh_token) pm.collectionVariables.set('refreshToken', res.refresh_token);"
+                  "if (res.data?.access_token)  pm.collectionVariables.set('accessToken',  res.data.access_token);",
+                  "if (res.data?.refresh_token) pm.collectionVariables.set('refreshToken', res.data.refresh_token);"
                 ],
                 "type": "text/javascript"
               }
@@ -201,7 +226,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\"\n}",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\",\n  \"deviceId\": \"{{deviceId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -218,7 +243,7 @@
                 "login"
               ]
             },
-            "description": "Authenticate any user (MEMBER, WORKER, ADMIN). The test script auto-saves access_token and refresh_token to collection variables."
+            "description": "Mobile app login (members & workers). Requires deviceId \u2014 the first login from a device registers it; subsequent logins must match the registered device or receive 403. Returns requires_password_change: true when a forced password change is pending."
           },
           "response": [
             {
@@ -234,6 +259,39 @@
               "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Invalid email or password\"\n}"
             }
           ]
+        },
+        {
+          "name": "Admin Portal Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin-login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "admin-login"
+              ]
+            },
+            "description": "Admin portal login (web). Validates credentials AND verifies the caller has an active Admin record. Returns 403 if the member has no admin access. No device lock \u2014 this route is web-first."
+          },
+          "response": []
         },
         {
           "name": "Refresh Token",
@@ -429,31 +487,7 @@
           "response": []
         },
         {
-          "name": "Admin \u2014 Get Own Profile",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/auth/admin/profile",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "admin",
-                "profile"
-              ]
-            },
-            "description": "ADMIN only. Returns the admin's own profile."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Members",
-      "description": "All endpoints require ADMIN role unless noted.",
-      "item": [
-        {
-          "name": "Create Admin",
+          "name": "Request Device Reset",
           "request": {
             "method": "POST",
             "header": [
@@ -464,7 +498,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"firstname\": \"Jane\",\n  \"lastname\": \"Smith\",\n  \"email\": \"jane.admin@example.com\",\n  \"password\": \"Admin123!\",\n  \"phoneNumber\": \"+2348099887766\"\n}",
+              "raw": "{\n  \"email\": \"{{memberEmail}}\",\n  \"newDeviceId\": \"{{newDeviceId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -472,31 +506,64 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/members/admins",
+              "raw": "{{baseUrl}}/auth/device-reset/request",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "members",
-                "admins"
+                "auth",
+                "device-reset",
+                "request"
               ]
-            }
-          },
-          "response": [
-            {
-              "name": "201 Created",
-              "status": "Created",
-              "code": 201,
-              "body": "{ \"id\": \"uuid\", \"role\": \"ADMIN\", ... }"
-            }
-          ]
+            },
+            "description": "Self-service device reset step 1. Rate-limited (default 3 per 24 h per email). Sends a 6-digit OTP to the registered email address. The newDeviceId submitted here is locked in \u2014 the OTP cannot be used to register a different device."
+          }
         },
+        {
+          "name": "Verify Device Reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{memberEmail}}\",\n  \"otp\": \"{{deviceResetOtp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/device-reset/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "device-reset",
+                "verify"
+              ]
+            },
+            "description": "Self-service device reset step 2. Verifies the OTP, updates member.deviceId to the newDeviceId submitted in the request step, invalidates all active sessions, and sends a confirmation email. Member must log in fresh from the new device."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Members",
+      "description": "All endpoints require ADMIN role unless noted.",
+      "item": [
         {
           "name": "Get All Members",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/members?page=1&limit=10&role=MEMBER",
+              "raw": "{{baseUrl}}/members?page=1&limit=10&role=MEMBER&search=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -506,18 +573,20 @@
               "query": [
                 {
                   "key": "page",
-                  "value": "1",
-                  "description": "Page number (default: 1)"
+                  "value": "1"
                 },
                 {
                   "key": "limit",
-                  "value": "10",
-                  "description": "Items per page (default: 10)"
+                  "value": "10"
                 },
                 {
                   "key": "role",
-                  "value": "MEMBER",
-                  "description": "Filter by role: MEMBER | WORKER | ADMIN (optional)"
+                  "value": "MEMBER"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Case-insensitive match on firstname, lastname, email or phone"
                 }
               ]
             }
@@ -810,6 +879,435 @@
               "body": "{ \"message\": \"Password reset successfully\" }"
             }
           ]
+        },
+        {
+          "name": "Purge Device Lock",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}/device",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "{{memberId}}",
+                "device"
+              ]
+            },
+            "description": "Admin (MEMBERS_WRITE): Remove the registered deviceId for a member and invalidate all active sessions. This resets the one-device-per-member lock, allowing the member to log in from any device. Responds with 204 No Content."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Admin Roles",
+          "item": [
+            {
+              "name": "List Admin Roles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Admin Role by ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{adminRoleId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Admin Role",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"ContentManager\",\n  \"description\": \"Manages announcements and classes\",\n  \"permissions\": [\"announcements:read\", \"announcements:write\", \"classes:read\", \"classes:write\"]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Admin Role",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Updated description\",\n  \"permissions\": [\"announcements:read\", \"announcements:write\"]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{adminRoleId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Delete Admin Role",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{adminRoleId}}"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin Users",
+          "item": [
+            {
+              "name": "List Admin Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get My Admin Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    "me"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Admin User by ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{adminUserId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Grant Admin Access",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"adminRoleId\": \"{{adminRoleId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ]
+                },
+                "description": "Grants admin portal access to an existing member. Requires ADMIN_WRITE permission. Sends a welcome-admin email to the member with their email address and the portal login URL."
+              }
+            },
+            {
+              "name": "Update Admin User",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"adminRoleId\": \"{{adminRoleId}}\",\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{adminUserId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Revoke Admin Access",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/:id/revoke",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    ":id",
+                    "revoke"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{adminUserId}}"
+                    }
+                  ]
+                },
+                "description": "Soft-revokes admin access (sets isActive=false). Requires ADMIN_WRITE permission. Sends an account-deactivated notification email to the affected member."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Audit Logs",
+          "item": [
+            {
+              "name": "Get Audit Logs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/audit-logs?page=1&limit=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "audit-logs"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    },
+                    {
+                      "key": "action",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Filter by action (e.g. MEMBER_LOGIN)"
+                    },
+                    {
+                      "key": "actorId",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Filter by actor member UUID"
+                    },
+                    {
+                      "key": "targetId",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Filter by target resource UUID"
+                    },
+                    {
+                      "key": "dateFrom",
+                      "value": "",
+                      "disabled": true,
+                      "description": "ISO date string, inclusive"
+                    },
+                    {
+                      "key": "dateTo",
+                      "value": "",
+                      "disabled": true,
+                      "description": "ISO date string, inclusive"
+                    }
+                  ]
+                },
+                "description": "Admin (AUDIT_READ): Paginated audit log. Supports optional filters: action, actorId, targetId, dateFrom, dateTo. Returns paginated AuditLog records with the actor relation loaded (actor name/email included)."
+              },
+              "response": []
+            }
+          ]
         }
       ]
     },
@@ -970,7 +1468,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/attendances/history/department?slotId={{slotId}}&departmentId={{departmentId}}",
+              "raw": "{{baseUrl}}/attendances/history/department?slotId={{slotId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -982,14 +1480,7 @@
               "query": [
                 {
                   "key": "slotId",
-                  "value": "{{slotId}}",
-                  "description": "Required. UUID of the service slot."
-                },
-                {
-                  "key": "departmentId",
-                  "value": "{{departmentId}}",
-                  "description": "Optional for WORKER (auto-resolved from profile). Required for ADMIN.",
-                  "disabled": true
+                  "value": "{{slotId}}"
                 }
               ]
             },
@@ -1072,7 +1563,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/attendances/department/event/{{eventId}}?departmentId={{departmentId}}",
+              "raw": "{{baseUrl}}/attendances/department/event/{{eventId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1082,14 +1573,7 @@
                 "event",
                 "{{eventId}}"
               ],
-              "query": [
-                {
-                  "key": "departmentId",
-                  "value": "{{departmentId}}",
-                  "description": "Optional for WORKER (auto-resolved from profile). Required for ADMIN.",
-                  "disabled": true
-                }
-              ]
+              "query": []
             },
             "description": "Returns attendance records for the caller's department for a specific event. Includes all service slots within that event. WORKER only (resolves the caller's department from their profile)."
           },
@@ -1509,23 +1993,14 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/departments?page=1&limit=10",
+              "raw": "{{baseUrl}}/departments",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "departments"
               ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "10"
-                }
-              ]
+              "query": []
             },
             "description": "Public (JWT only). Returns paginated list of departments."
           }
@@ -1781,7 +2256,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/departments/my/summary?departmentId={{departmentId}}",
+              "raw": "{{baseUrl}}/departments/my/summary",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1790,14 +2265,7 @@
                 "my",
                 "summary"
               ],
-              "query": [
-                {
-                  "key": "departmentId",
-                  "value": "{{departmentId}}",
-                  "description": "Optional for WORKER (auto-resolved from profile). Required for ADMIN.",
-                  "disabled": true
-                }
-              ]
+              "query": []
             },
             "description": "Returns aggregated stats for the department the caller leads (HOD or D-HOD): total/active/inactive worker counts, 30-day attendance %, and workers currently on approved or pending leave. WORKER (HOD/D-HOD) only \u2014 throws 403 if caller is not a department lead."
           },
@@ -2079,7 +2547,8 @@
                   "value": "{{classId}}"
                 }
               ]
-            }
+            },
+            "description": "ADMIN only (CLASSES_WRITE). Returns 400 if any members are currently enrolled with status IN_PROGRESS. Complete or cancel all active enrolments before deleting."
           }
         },
         {
@@ -2842,7 +3311,7 @@
               "script": {
                 "exec": [
                   "const res = pm.response.json();",
-                  "if (res.id) pm.collectionVariables.set('venueId', res.id);"
+                  "if (res.data?.id) pm.collectionVariables.set('venueId', res.data.id);"
                 ],
                 "type": "text/javascript"
               }
@@ -2896,23 +3365,14 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/venues?page=1&limit=20",
+              "raw": "{{baseUrl}}/venues",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "venues"
               ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
+              "query": []
             },
             "description": "Any authenticated user. Returns all venues paginated, ordered by name."
           },
@@ -3792,7 +4252,7 @@
                 }
               ]
             },
-            "description": "ADMIN only."
+            "description": "ADMIN only (CHILDREN_CHURCH_WRITE). Returns 400 if any child profiles are assigned to this age group or any of its class groups. Reassign or remove all affected children first. Deleting an age group also cascades to all its class groups."
           }
         },
         {
@@ -3953,7 +4413,7 @@
                 }
               ]
             },
-            "description": "ADMIN only."
+            "description": "ADMIN only (CHILDREN_CHURCH_WRITE). Returns 400 if any child profiles are currently assigned to this class group. Reassign or remove them first."
           }
         },
         {
@@ -4242,6 +4702,19 @@
         },
         {
           "name": "Check In Child",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data?.id)          pm.collectionVariables.set('checkinId',   res.data.id);",
+                  "if (res.data?.pickupCode)  pm.collectionVariables.set('pickupCode',  res.data.pickupCode);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -4297,8 +4770,8 @@
               ],
               "variable": [
                 {
-                  "key": "code",
-                  "value": "ABC123",
+                  "key": "pickupCode",
+                  "value": "{{pickupCode}}",
                   "description": "The 6-char pickup code printed on the child's tag"
                 }
               ]
@@ -4465,6 +4938,460 @@
               "body": "[\n  { \"id\": \"uuid\", \"pickupCode\": \"ABC123\", \"status\": \"CHECKED_OUT\", \"child\": { \"firstname\": \"Emma\", \"lastname\": \"Johnson\" }, \"checkinTime\": \"...\", \"checkoutTime\": \"...\" }\n]"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Birthday",
+      "description": "Birthday wish wall. Any authenticated user can send a wish and read their own wall. Admins can read any member's wall. A cron job fires daily at 06:00 to create an announcement and send birthday emails. Wishes are permanent (they outlive the midnight-expiring announcement).",
+      "item": [
+        {
+          "name": "Send Birthday Wish",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Happy birthday! Wishing you a year full of God's blessings and joy.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/birthday/wishes/{{wishRecipientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "birthday",
+                "wishes",
+                "{{wishRecipientId}}"
+              ],
+              "variable": [
+                {
+                  "key": "wishRecipientId",
+                  "value": "{{wishRecipientId}}"
+                }
+              ]
+            },
+            "description": "Any authenticated user. Send a birthday wish to a member. Rules: cannot wish yourself; one wish per sender per recipient per calendar year (enforced at DB level); max 500 characters; rate-limited to WISH_DAILY_LIMIT (default 20) wishes per sender per day."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"uuid\",\n  \"message\": \"Happy birthday! Wishing you a year full of God's blessings and joy.\",\n  \"year\": 2026,\n  \"sender\": { \"id\": \"uuid\", \"firstname\": \"John\", \"lastname\": \"Doe\" },\n  \"createdAt\": \"2026-06-11T07:15:00.000Z\"\n}"
+            },
+            {
+              "name": "400 Self-wish",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"You cannot send a wish to yourself\" }"
+            },
+            {
+              "name": "400 Duplicate",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"You have already sent a wish to this member this year\" }"
+            },
+            {
+              "name": "429 Rate limit",
+              "status": "Too Many Requests",
+              "code": 429,
+              "body": "{ \"statusCode\": 429, \"message\": \"You have reached the daily limit for birthday wishes\" }"
+            }
+          ]
+        },
+        {
+          "name": "Get My Birthday Wishes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/birthday/wishes/me?year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "birthday",
+                "wishes",
+                "me"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2026",
+                  "description": "Optional. Filter wishes by calendar year (defaults to current year)."
+                }
+              ]
+            },
+            "description": "Any authenticated user. Returns all birthday wishes the caller received, newest first. Optionally filter by year."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  {\n    \"id\": \"uuid\",\n    \"message\": \"Happy birthday! Wishing you a year full of God's blessings.\",\n    \"year\": 2026,\n    \"sender\": { \"id\": \"uuid\", \"firstname\": \"John\", \"lastname\": \"Doe\" },\n    \"createdAt\": \"2026-06-11T07:15:00.000Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Member Birthday Wishes (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/birthday/wishes/{{wishRecipientId}}?year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "birthday",
+                "wishes",
+                "{{wishRecipientId}}"
+              ],
+              "variable": [
+                {
+                  "key": "wishRecipientId",
+                  "value": "{{wishRecipientId}}"
+                }
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2026",
+                  "description": "Optional. Filter by calendar year."
+                }
+              ]
+            },
+            "description": "ADMIN only. Read any member's birthday wish wall. Returns all wishes received by the specified member, optionally filtered by year."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  {\n    \"id\": \"uuid\",\n    \"message\": \"May this day bring you abundant joy and favour!\",\n    \"year\": 2026,\n    \"sender\": { \"id\": \"uuid\", \"firstname\": \"Jane\", \"lastname\": \"Smith\" },\n    \"createdAt\": \"2026-06-11T08:00:00.000Z\"\n  }\n]"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{ \"statusCode\": 404, \"message\": \"Member not found\" }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Event Reminders",
+      "description": "Per-slot, configurable reminders. Each reminder fires once (before the slot's startTime) via a 15-minute cron and creates an in-app announcement plus sends a batch email. ADMIN only. Audience: ALL | WORKERS_ONLY | DEPARTMENT (INDIVIDUAL is rejected). Preset intervals: 15m | 30m | 1h | 3h | 24h | 48h.",
+      "item": [
+        {
+          "name": "Create Reminder",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data?.id) pm.collectionVariables.set('reminderId', res.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intervalPreset\": \"1h\",\n  \"audience\": \"ALL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/slots/{{slotId}}/reminders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "slots",
+                "{{slotId}}",
+                "reminders"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. Creates a reminder for a service slot. intervalPreset: 15m | 30m | 1h | 3h | 24h | 48h. audience defaults to ALL. If audience=DEPARTMENT, departmentId is required. The reminder fires once when startTime - preset_minutes <= now (cron checks every 15 min). The (serviceSlot, intervalPreset) pair must be unique per slot."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"uuid\",\n  \"intervalPreset\": \"1h\",\n  \"audience\": \"ALL\",\n  \"department\": null,\n  \"enabled\": true,\n  \"lastSentAt\": null,\n  \"createdAt\": \"2026-06-11T10:00:00.000Z\"\n}"
+            },
+            {
+              "name": "400 INDIVIDUAL audience",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"INDIVIDUAL audience is not supported for slot reminders\" }"
+            },
+            {
+              "name": "400 DEPARTMENT without departmentId",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"departmentId is required for DEPARTMENT audience\" }"
+            },
+            {
+              "name": "409 Duplicate preset",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{ \"statusCode\": 409, \"message\": \"A reminder with this interval preset already exists for this slot\" }"
+            }
+          ]
+        },
+        {
+          "name": "Create Reminder (DEPARTMENT audience)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intervalPreset\": \"24h\",\n  \"audience\": \"DEPARTMENT\",\n  \"departmentId\": \"{{departmentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/slots/{{slotId}}/reminders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "slots",
+                "{{slotId}}",
+                "reminders"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. Creates a department-targeted reminder. The reminder email and in-app announcement are sent only to active workers in the specified department."
+          }
+        },
+        {
+          "name": "List Reminders for Slot",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/events/slots/{{slotId}}/reminders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "slots",
+                "{{slotId}}",
+                "reminders"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. Returns all reminders configured for a service slot, ordered by creation time. Each entry shows the preset, audience, enabled status, and lastSentAt (null = not yet fired)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  { \"id\": \"uuid\", \"intervalPreset\": \"1h\",  \"audience\": \"ALL\",        \"department\": null,                           \"enabled\": true,  \"lastSentAt\": null },\n  { \"id\": \"uuid\", \"intervalPreset\": \"24h\", \"audience\": \"DEPARTMENT\", \"department\": { \"id\": \"uuid\", \"name\": \"Music\" }, \"enabled\": true,  \"lastSentAt\": \"2026-06-10T08:00:00.000Z\" }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Update Reminder",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/slots/{{slotId}}/reminders/{{reminderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "slots",
+                "{{slotId}}",
+                "reminders",
+                "{{reminderId}}"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}"
+                },
+                {
+                  "key": "reminderId",
+                  "value": "{{reminderId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. Partially updates a reminder. All fields are optional: intervalPreset, audience, departmentId, enabled. Set enabled=false to soft-disable without deleting (the cron will skip disabled reminders)."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 disabled",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"uuid\", \"intervalPreset\": \"1h\", \"audience\": \"ALL\", \"enabled\": false, \"lastSentAt\": null }"
+            }
+          ]
+        },
+        {
+          "name": "Delete Reminder",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/events/slots/{{slotId}}/reminders/{{reminderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "slots",
+                "{{slotId}}",
+                "reminders",
+                "{{reminderId}}"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}"
+                },
+                {
+                  "key": "reminderId",
+                  "value": "{{reminderId}}"
+                }
+              ]
+            },
+            "description": "ADMIN only. Permanently deletes the reminder. Returns 204 No Content."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{ \"statusCode\": 404, \"message\": \"Reminder not found\" }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Enums",
+      "description": "Utility endpoints that return all enum values with human-readable labels. Frontends use these to populate dropdowns without hardcoding enum values.",
+      "item": [
+        {
+          "name": "Get All Enums (Mobile App)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enums",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enums"
+              ]
+            },
+            "description": "Returns all enum values with labels for the mobile app: attendance statuses, member roles, gender, marital status, worker status, leave status, announcement audiences, church class types, enrollment statuses, department keys, department lead types, guardian relationships, child check-in statuses, note types, event recurrence patterns, and reminder interval presets. Requires a valid JWT."
+          }
+        },
+        {
+          "name": "Get Admin Enums",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/enums",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "enums"
+              ]
+            },
+            "description": "AdminGuard (ADMIN_READ). Returns admin-specific enum values with labels: all AdminPermission values. Used by the admin portal to populate role permission checkboxes."
+          }
         }
       ]
     }

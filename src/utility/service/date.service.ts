@@ -1,25 +1,25 @@
-import { Injectable } from '@nestjs/common';
+import {Injectable} from '@nestjs/common';
 import {
-  format,
-  subDays,
-  subHours,
-  subMinutes,
-  subSeconds,
-  addDays,
-  addHours,
-  addMinutes,
-  addSeconds,
-  startOfDay,
-  endOfDay,
-  isBefore,
-  isAfter,
-  parseISO,
+    addDays,
+    addHours,
+    addMinutes,
+    addSeconds,
+    endOfDay,
+    format,
+    isAfter,
+    isBefore,
+    parseISO,
+    startOfDay,
+    subDays,
+    subHours,
+    subMinutes,
+    subSeconds,
 } from 'date-fns';
 
 /**
  * Date utility service that provides a clean interface for date operations.
  * Uses date-fns (v4) which is the modern replacement for moment.js.
- * 
+ *
  * This service provides:
  * - Consistent date handling across the application
  * - Better performance than moment.js
@@ -28,360 +28,232 @@ import {
  */
 @Injectable()
 export class DateService {
-  /**
-   * Get current date and time
-   */
-  now(): Date {
-    return new Date();
-  }
-
-  /**
-   * Subtract days from a date
-   * @param date - The base date
-   * @param days - Number of days to subtract
-   */
-  subtractDays(date: Date, days: number): Date {
-    return subDays(date, days);
-  }
-
-  /**
-   * Add days to a date
-   * @param date - The base date
-   * @param days - Number of days to add
-   */
-  addDays(date: Date, days: number): Date {
-    return addDays(date, days);
-  }
-
-  /**
-   * Subtract hours from a date
-   * @param date - The base date
-   * @param hours - Number of hours to subtract
-   */
-  subtractHours(date: Date, hours: number): Date {
-    return subHours(date, hours);
-  }
-
-  /**
-   * Add hours to a date
-   * @param date - The base date
-   * @param hours - Number of hours to add
-   */
-  addHours(date: Date, hours: number): Date {
-    return addHours(date, hours);
-  }
-
-  /**
-   * Subtract minutes from a date
-   * @param date - The base date
-   * @param minutes - Number of minutes to subtract
-   */
-  subtractMinutes(date: Date, minutes: number): Date {
-    return subMinutes(date, minutes);
-  }
-
-  /**
-   * Add minutes to a date
-   * @param date - The base date
-   * @param minutes - Number of minutes to add
-   */
-  addMinutes(date: Date, minutes: number): Date {
-    return addMinutes(date, minutes);
-  }
-
-  /**
-   * Subtract seconds from a date
-   * @param date - The base date
-   * @param seconds - Number of seconds to subtract
-   */
-  subtractSeconds(date: Date, seconds: number): Date {
-    return subSeconds(date, seconds);
-  }
-
-  /**
-   * Add seconds to a date
-   * @param date - The base date
-   * @param seconds - Number of seconds to add
-   */
-  addSeconds(date: Date, seconds: number): Date {
-    return addSeconds(date, seconds);
-  }
-
-  /**
-   * Get start of day (midnight)
-   * @param date - The date to get start of day for (defaults to now)
-   */
-  startOfDay(date?: Date): Date {
-    return startOfDay(date || new Date());
-  }
-
-  /**
-   * Get end of day (last millisecond of the day)
-   * @param date - The date to get end of day for (defaults to now)
-   */
-  endOfDay(date?: Date): Date {
-    return endOfDay(date || new Date());
-  }
-
-  /**
-   * Format a date using a pattern
-   * @param date - The date to format
-   * @param pattern - The format pattern (e.g., 'yyyy-MM-dd', 'EEE, MMMM do, yyyy')
-   */
-  format(date: Date, pattern: string): string {
-    return format(date, pattern);
-  }
-
-  /**
-   * Check if date1 is before date2
-   * @param date1 - First date
-   * @param date2 - Second date
-   */
-  isBefore(date1: Date, date2: Date): boolean {
-    return isBefore(date1, date2);
-  }
-
-  /**
-   * Check if date1 is after date2
-   * @param date1 - First date
-   * @param date2 - Second date
-   */
-  isAfter(date1: Date, date2: Date): boolean {
-    return isAfter(date1, date2);
-  }
-
-  /**
-   * Check if date1 is same as or after date2
-   * @param date1 - First date
-   * @param date2 - Second date
-   */
-  isSameOrAfter(date1: Date, date2: Date): boolean {
-    return !this.isBefore(date1, date2);
-  }
-
-  /**
-   * Parse an ISO date string
-   * @param dateString - ISO date string
-   */
-  parseISO(dateString: string): Date {
-    return parseISO(dateString);
-  }
-
-  /**
-   * Get the date N days ago from now
-   * @param days - Number of days ago
-   */
-  daysAgo(days: number): Date {
-    return this.subtractDays(new Date(), days);
-  }
-
-  /**
-   * Get the date N hours ago from now
-   * @param hours - Number of hours ago
-   */
-  hoursAgo(hours: number): Date {
-    return this.subtractHours(new Date(), hours);
-  }
-
-  /**
-   * Get the date N minutes ago from now
-   * @param minutes - Number of minutes ago
-   */
-  minutesAgo(minutes: number): Date {
-    return this.subtractMinutes(new Date(), minutes);
-  }
-
-  /**
-   * Get the date N seconds ago from now
-   * @param seconds - Number of seconds ago
-   */
-  secondsAgo(seconds: number): Date {
-    return this.subtractSeconds(new Date(), seconds);
-  }
-
-  /**
-   * Get the date N days from now
-   * @param days - Number of days from now
-   */
-  daysFromNow(days: number): Date {
-    return this.addDays(new Date(), days);
-  }
-
-  /**
-   * Get the date N hours from now
-   * @param hours - Number of hours from now
-   */
-  hoursFromNow(hours: number): Date {
-    return this.addHours(new Date(), hours);
-  }
-
-  /**
-   * Get the date N minutes from now
-   * @param minutes - Number of minutes from now
-   */
-  minutesFromNow(minutes: number): Date {
-    return this.addMinutes(new Date(), minutes);
-  }
-
-  /**
-   * Get the date N seconds from now
-   * @param seconds - Number of seconds from now
-   */
-  secondsFromNow(seconds: number): Date {
-    return this.addSeconds(new Date(), seconds);
-  }
-
-  /**
-   * Format patterns for common use cases
-   */
-  static readonly PATTERNS = {
-    // Date only
-    DATE: 'yyyy-MM-dd',
-    DATE_LONG: 'EEEE, MMMM do, yyyy',
-    DATE_MEDIUM: 'MMM d, yyyy',
-    DATE_SHORT: 'MM/dd/yyyy',
-    
-    // Time only
-    TIME: 'HH:mm:ss',
-    TIME_12H: 'h:mm:ss a',
-    TIME_SHORT: 'h:mm a',
-    
-    // Date and time
-    DATETIME: 'yyyy-MM-dd HH:mm:ss',
-    DATETIME_LONG: 'EEEE, MMMM do, yyyy h:mm:ss a',
-    DATETIME_MEDIUM: 'MMM d, yyyy h:mm a',
-    
-    // For email templates
-    EMAIL_DATE: 'EEEE, MMMM d, yyyy',
-    EMAIL_TIME: 'h:mm a',
-  };
-
-  /**
-   * Moment-compatible wrapper for easier migration
-   * This provides similar API to moment for code that's harder to migrate
-   */
-  static moment(date?: Date | string): DateWrapper {
-    return new DateWrapper(date);
-  }
-}
-
-/**
- * Moment-compatible wrapper class for easier migration.
- * This allows code that uses moment to be migrated incrementally.
- */
-export class DateWrapper {
-  private _value: Date;
-
-  constructor(date?: Date | string) {
-    if (date instanceof Date) {
-      this._value = date;
-    } else if (typeof date === 'string') {
-      this._value = new Date(date);
-    } else {
-      this._value = new Date();
+    /**
+     * Get current date and time
+     */
+    now(): Date {
+        return new Date();
     }
-  }
 
-  /**
-   * Subtract time
-   */
-  subtract(amount: number, unit: 'days' | 'hours' | 'minutes' | 'seconds'): DateWrapper {
-    switch (unit) {
-      case 'days':
-        this._value = subDays(this._value, amount);
-        break;
-      case 'hours':
-        this._value = subHours(this._value, amount);
-        break;
-      case 'minutes':
-        this._value = subMinutes(this._value, amount);
-        break;
-      case 'seconds':
-        this._value = subSeconds(this._value, amount);
-        break;
+    /**
+     * Subtract days from a date
+     * @param date - The base date
+     * @param days - Number of days to subtract
+     */
+    subtractDays(date: Date, days: number): Date {
+        return subDays(date, days);
     }
-    return this;
-  }
 
-  /**
-   * Add time
-   */
-  add(amount: number, unit: 'days' | 'hours' | 'minutes' | 'seconds'): DateWrapper {
-    switch (unit) {
-      case 'days':
-        this._value = addDays(this._value, amount);
-        break;
-      case 'hours':
-        this._value = addHours(this._value, amount);
-        break;
-      case 'minutes':
-        this._value = addMinutes(this._value, amount);
-        break;
-      case 'seconds':
-        this._value = addSeconds(this._value, amount);
-        break;
+    /**
+     * Add days to a date
+     * @param date - The base date
+     * @param days - Number of days to add
+     */
+    addDays(date: Date, days: number): Date {
+        return addDays(date, days);
     }
-    return this;
-  }
 
-  /**
-   * Start of day
-   */
-  startOf(day: 'day'): DateWrapper {
-    this._value = startOfDay(this._value);
-    return this;
-  }
+    /**
+     * Subtract hours from a date
+     * @param date - The base date
+     * @param hours - Number of hours to subtract
+     */
+    subtractHours(date: Date, hours: number): Date {
+        return subHours(date, hours);
+    }
 
-  /**
-   * End of day
-   */
-  endOf(day: 'day'): DateWrapper {
-    this._value = endOfDay(this._value);
-    return this;
-  }
+    /**
+     * Add hours to a date
+     * @param date - The base date
+     * @param hours - Number of hours to add
+     */
+    addHours(date: Date, hours: number): Date {
+        return addHours(date, hours);
+    }
 
-  /**
-   * Format the date
-   */
-  format(pattern: string): string {
-    return format(this._value, pattern);
-  }
+    /**
+     * Subtract minutes from a date
+     * @param date - The base date
+     * @param minutes - Number of minutes to subtract
+     */
+    subtractMinutes(date: Date, minutes: number): Date {
+        return subMinutes(date, minutes);
+    }
 
-  /**
-   * Get the raw Date object
-   */
-  toDate(): Date {
-    return this._value;
-  }
+    /**
+     * Add minutes to a date
+     * @param date - The base date
+     * @param minutes - Number of minutes to add
+     */
+    addMinutes(date: Date, minutes: number): Date {
+        return addMinutes(date, minutes);
+    }
 
-  /**
-   * Check if this date is before another
-   */
-  isBefore(date: Date | DateWrapper): boolean {
-    const other = date instanceof DateWrapper ? date._value : date;
-    return isBefore(this._value, other);
-  }
+    /**
+     * Subtract seconds from a date
+     * @param date - The base date
+     * @param seconds - Number of seconds to subtract
+     */
+    subtractSeconds(date: Date, seconds: number): Date {
+        return subSeconds(date, seconds);
+    }
 
-  /**
-   * Check if this date is after another
-   */
-  isAfter(date: Date | DateWrapper): boolean {
-    const other = date instanceof DateWrapper ? date._value : date;
-    return isAfter(this._value, other);
-  }
+    /**
+     * Add seconds to a date
+     * @param date - The base date
+     * @param seconds - Number of seconds to add
+     */
+    addSeconds(date: Date, seconds: number): Date {
+        return addSeconds(date, seconds);
+    }
 
-  /**
-   * Check if this date is same or after another
-   */
-  isSameOrAfter(date: Date | DateWrapper): boolean {
-    const other = date instanceof DateWrapper ? date._value : date;
-    return !isBefore(this._value, other);
-  }
+    /**
+     * Get start of day (midnight)
+     * @param date - The date to get start of day for (defaults to now)
+     */
+    startOfDay(date?: Date): Date {
+        return startOfDay(date || new Date());
+    }
 
-  /**
-   * Get the underlying Date value
-   */
-  get value(): Date {
-    return this._value;
-  }
+    /**
+     * Get end of day (last millisecond of the day)
+     * @param date - The date to get end of day for (defaults to now)
+     */
+    endOfDay(date?: Date): Date {
+        return endOfDay(date || new Date());
+    }
+
+    /**
+     * Format a date using a pattern
+     * @param date - The date to format
+     * @param pattern - The format pattern (e.g., 'yyyy-MM-dd', 'EEE, MMMM do, yyyy')
+     */
+    format(date: Date, pattern: string): string {
+        return format(date, pattern);
+    }
+
+    /**
+     * Check if date1 is before date2
+     * @param date1 - First date
+     * @param date2 - Second date
+     */
+    isBefore(date1: Date, date2: Date): boolean {
+        return isBefore(date1, date2);
+    }
+
+    /**
+     * Check if date1 is after date2
+     * @param date1 - First date
+     * @param date2 - Second date
+     */
+    isAfter(date1: Date, date2: Date): boolean {
+        return isAfter(date1, date2);
+    }
+
+    /**
+     * Check if date1 is same as or after date2
+     * @param date1 - First date
+     * @param date2 - Second date
+     */
+    isSameOrAfter(date1: Date, date2: Date): boolean {
+        return !this.isBefore(date1, date2);
+    }
+
+    /**
+     * Parse an ISO date string
+     * @param dateString - ISO date string
+     */
+    parseISO(dateString: string): Date {
+        return parseISO(dateString);
+    }
+
+    /**
+     * Get the date N days ago from now
+     * @param days - Number of days ago
+     */
+    daysAgo(days: number): Date {
+        return this.subtractDays(new Date(), days);
+    }
+
+    /**
+     * Get the date N hours ago from now
+     * @param hours - Number of hours ago
+     */
+    hoursAgo(hours: number): Date {
+        return this.subtractHours(new Date(), hours);
+    }
+
+    /**
+     * Get the date N minutes ago from now
+     * @param minutes - Number of minutes ago
+     */
+    minutesAgo(minutes: number): Date {
+        return this.subtractMinutes(new Date(), minutes);
+    }
+
+    /**
+     * Get the date N seconds ago from now
+     * @param seconds - Number of seconds ago
+     */
+    secondsAgo(seconds: number): Date {
+        return this.subtractSeconds(new Date(), seconds);
+    }
+
+    /**
+     * Get the date N days from now
+     * @param days - Number of days from now
+     */
+    daysFromNow(days: number): Date {
+        return this.addDays(new Date(), days);
+    }
+
+    /**
+     * Get the date N hours from now
+     * @param hours - Number of hours from now
+     */
+    hoursFromNow(hours: number): Date {
+        return this.addHours(new Date(), hours);
+    }
+
+    /**
+     * Get the date N minutes from now
+     * @param minutes - Number of minutes from now
+     */
+    minutesFromNow(minutes: number): Date {
+        return this.addMinutes(new Date(), minutes);
+    }
+
+    /**
+     * Get the date N seconds from now
+     * @param seconds - Number of seconds from now
+     */
+    secondsFromNow(seconds: number): Date {
+        return this.addSeconds(new Date(), seconds);
+    }
+
+    /**
+     * Format patterns for common use cases
+     */
+    static readonly PATTERNS = {
+        // Date only
+        DATE: 'yyyy-MM-dd',
+        DATE_LONG: 'EEEE, MMMM do, yyyy',
+        DATE_MEDIUM: 'MMM d, yyyy',
+        DATE_SHORT: 'MM/dd/yyyy',
+
+        // Time only
+        TIME: 'HH:mm:ss',
+        TIME_12H: 'h:mm:ss a',
+        TIME_SHORT: 'h:mm a',
+
+        // Date and time
+        DATETIME: 'yyyy-MM-dd HH:mm:ss',
+        DATETIME_LONG: 'EEEE, MMMM do, yyyy h:mm:ss a',
+        DATETIME_MEDIUM: 'MMM d, yyyy h:mm a',
+
+        // For email templates
+        EMAIL_DATE: 'EEEE, MMMM d, yyyy',
+        EMAIL_TIME: 'h:mm a',
+    };
+
 }

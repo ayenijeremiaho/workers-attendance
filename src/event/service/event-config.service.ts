@@ -1,132 +1,127 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { EventConfig } from '../entity/event-config.entity';
-import { CreateEventConfigDto } from '../dto/create-event-config.dto';
-import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
-import { UtilityService } from '../../utility/service/utility.service';
-import { ConfigService } from '@nestjs/config';
-import { VenueService } from '../../venue/service/venue.service';
-import { CacheService } from '../../utility/service/cache.service';
+import {BadRequestException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
+import {InjectRepository} from '@nestjs/typeorm';
+import {Repository} from 'typeorm';
+import {EventConfig} from '../entity/event-config.entity';
+import {CreateEventConfigDto} from '../dto/create-event-config.dto';
+import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
+import {UtilityService} from '../../utility/service/utility.service';
+import {ConfigService} from '@nestjs/config';
+import {VenueService} from '../../venue/service/venue.service';
+import {CacheService} from '../../utility/service/cache.service';
 
 export type UpdateEventConfigDto = Partial<CreateEventConfigDto>;
 
 @Injectable()
 export class EventConfigService {
-  private readonly logger = new Logger(EventConfigService.name);
-  private static readonly CACHE_KEY = 'event-config:all';
-  private readonly cacheTtl: number;
+    private readonly logger = new Logger(EventConfigService.name);
+    private static readonly CACHE_KEY = 'event-config:all';
+    private readonly cacheTtl: number;
 
-  constructor(
-    @InjectRepository(EventConfig)
-    private readonly repo: Repository<EventConfig>,
-    private readonly venueService: VenueService,
-    private readonly cacheService: CacheService,
-    private readonly configService: ConfigService,
-  ) {
-    this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS', 300);
-  }
-
-  async create(dto: CreateEventConfigDto): Promise<EventConfig> {
-    if (await this.repo.exists({ where: { name: dto.name } })) {
-      throw new BadRequestException('Event config name already in use');
-    }
-    this.validateOffsets(dto);
-
-    const defaultVenue = await this.venueService.getById(dto.defaultVenueId);
-
-    const config = this.repo.create({
-      name: dto.name,
-      description: dto.description,
-      workerCheckinStartOffsetSeconds: dto.workerCheckinStartOffsetSeconds,
-      workerLateOffsetSeconds: dto.workerLateOffsetSeconds,
-      memberCheckinStartOffsetSeconds: dto.memberCheckinStartOffsetSeconds,
-      checkinStopOffsetSeconds: dto.checkinStopOffsetSeconds,
-      allowedDistanceInMeters: dto.allowedDistanceInMeters,
-      defaultVenue,
-    });
-    const saved = await this.repo.save(config);
-    this.cacheService.del(EventConfigService.CACHE_KEY);
-    this.logger.log(`Created event config "${saved.name}" (${saved.id})`);
-    return saved;
-  }
-
-  async update(id: string, dto: UpdateEventConfigDto): Promise<EventConfig> {
-    const config = await this.get(id);
-
-    if (dto.name && dto.name !== config.name) {
-      if (await this.repo.exists({ where: { name: dto.name } })) {
-        throw new BadRequestException('Event config name already in use');
-      }
+    constructor(
+        @InjectRepository(EventConfig)
+        private readonly repo: Repository<EventConfig>,
+        private readonly venueService: VenueService,
+        private readonly cacheService: CacheService,
+        private readonly configService: ConfigService,
+    ) {
+        this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS', 300);
     }
 
-    if (dto.defaultVenueId) {
-      config.defaultVenue = await this.venueService.getById(dto.defaultVenueId);
+    async create(dto: CreateEventConfigDto): Promise<EventConfig> {
+        if (await this.repo.exists({where: {name: dto.name}})) {
+            throw new BadRequestException('Event config name already in use');
+        }
+        this.validateOffsets(dto);
+
+        const defaultVenue = await this.venueService.getById(dto.defaultVenueId);
+
+        const config = this.repo.create({
+            name: dto.name,
+            description: dto.description,
+            workerCheckinStartOffsetSeconds: dto.workerCheckinStartOffsetSeconds,
+            workerLateOffsetSeconds: dto.workerLateOffsetSeconds,
+            memberCheckinStartOffsetSeconds: dto.memberCheckinStartOffsetSeconds,
+            checkinStopOffsetSeconds: dto.checkinStopOffsetSeconds,
+            allowedDistanceInMeters: dto.allowedDistanceInMeters,
+            defaultVenue,
+        });
+        const saved = await this.repo.save(config);
+        this.cacheService.del(EventConfigService.CACHE_KEY);
+        this.logger.log(`Created event config "${saved.name}" (${saved.id})`);
+        return saved;
     }
 
-    const { defaultVenueId: _ignored, ...rest } = dto;
-    Object.assign(config, rest);
-    const saved = await this.repo.save(config);
-    this.cacheService.del(EventConfigService.CACHE_KEY);
-    this.logger.log(`Updated event config "${saved.name}" (${id})`);
-    return saved;
-  }
+    async update(id: string, dto: UpdateEventConfigDto): Promise<EventConfig> {
+        const config = await this.get(id);
 
-  async get(id: string): Promise<EventConfig> {
-    const config = await this.repo.findOne({
-      where: { id },
-      relations: ['defaultVenue'],
-    });
-    if (!config) throw new NotFoundException('Event config not found');
-    return config;
-  }
+        if (dto.name && dto.name !== config.name) {
+            if (await this.repo.exists({where: {name: dto.name}})) {
+                throw new BadRequestException('Event config name already in use');
+            }
+        }
 
-  async getAll(page = 1, limit = 10): Promise<PaginationResponseDto<EventConfig>> {
-    if (page < 1) throw new BadRequestException('Page must be greater than 0');
-    let all = this.cacheService.get<EventConfig[]>(EventConfigService.CACHE_KEY);
-    if (!all) {
-      all = await this.repo.find({ order: { createdAt: 'DESC' }, relations: ['defaultVenue'] });
-      this.cacheService.set(EventConfigService.CACHE_KEY, all, this.cacheTtl);
-    }
-    const total = all.length;
-    const slice = all.slice((page - 1) * limit, page * limit);
-    return UtilityService.createPaginationResponse(slice, page, limit, total);
-  }
+        if (dto.defaultVenueId) {
+            config.defaultVenue = await this.venueService.getById(dto.defaultVenueId);
+        }
 
-  async delete(id: string): Promise<void> {
-    const config = await this.repo.findOne({
-      where: { id },
-      relations: ['serviceSlots'],
-    });
-
-    if (!config) throw new NotFoundException('Event config not found');
-
-    if (config.serviceSlots?.length > 0) {
-      throw new BadRequestException(
-        'Cannot delete a config that is assigned to service slots',
-      );
+        const {defaultVenueId: _ignored, ...rest} = dto;
+        Object.assign(config, rest);
+        const saved = await this.repo.save(config);
+        this.cacheService.del(EventConfigService.CACHE_KEY);
+        this.logger.log(`Updated event config "${saved.name}" (${id})`);
+        return saved;
     }
 
-    await this.repo.remove(config);
-    this.cacheService.del(EventConfigService.CACHE_KEY);
-    this.logger.log(`Deleted event config "${config.name}" (${id})`);
-  }
+    async get(id: string): Promise<EventConfig> {
+        const config = await this.repo.findOne({
+            where: {id},
+            relations: ['defaultVenue'],
+        });
+        if (!config) throw new NotFoundException('Event config not found');
+        return config;
+    }
 
-  private validateOffsets(dto: CreateEventConfigDto): void {
-    if (dto.workerLateOffsetSeconds <= dto.workerCheckinStartOffsetSeconds) {
-      throw new BadRequestException(
-        'workerLateOffsetSeconds must be greater than workerCheckinStartOffsetSeconds',
-      );
+    async getAll(page = 1, limit = 10): Promise<PaginationResponseDto<EventConfig>> {
+        if (page < 1) throw new BadRequestException('Page must be greater than 0');
+        let all = await this.cacheService.get<EventConfig[]>(EventConfigService.CACHE_KEY);
+        if (!all) {
+            all = await this.repo.find({order: {createdAt: 'DESC'}, relations: ['defaultVenue']});
+            this.cacheService.set(EventConfigService.CACHE_KEY, all, this.cacheTtl);
+        }
+        const total = all.length;
+        const slice = all.slice((page - 1) * limit, page * limit);
+        return UtilityService.createPaginationResponse(slice, page, limit, total);
     }
-    if (dto.checkinStopOffsetSeconds <= dto.workerLateOffsetSeconds) {
-      throw new BadRequestException(
-        'checkinStopOffsetSeconds must be greater than workerLateOffsetSeconds',
-      );
+
+    async delete(id: string): Promise<void> {
+        const config = await this.repo.findOne({
+            where: {id},
+            relations: ['serviceSlots'],
+        });
+
+        if (!config) throw new NotFoundException('Event config not found');
+
+        if (config.serviceSlots?.length > 0) {
+            throw new BadRequestException(
+                'Cannot delete a config that is assigned to service slots',
+            );
+        }
+
+        await this.repo.remove(config);
+        this.cacheService.del(EventConfigService.CACHE_KEY);
+        this.logger.log(`Deleted event config "${config.name}" (${id})`);
     }
-  }
+
+    private validateOffsets(dto: CreateEventConfigDto): void {
+        if (dto.workerLateOffsetSeconds <= dto.workerCheckinStartOffsetSeconds) {
+            throw new BadRequestException(
+                'workerLateOffsetSeconds must be greater than workerCheckinStartOffsetSeconds',
+            );
+        }
+        if (dto.checkinStopOffsetSeconds <= dto.workerLateOffsetSeconds) {
+            throw new BadRequestException(
+                'checkinStopOffsetSeconds must be greater than workerLateOffsetSeconds',
+            );
+        }
+    }
 }

@@ -1,18 +1,18 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
-import { NormalizeEmail } from '../../utility/decorators/normalize-email.decorator';
+import {IsEmail, IsOptional, IsString} from 'class-validator';
+import {NormalizeEmail} from '../../utility/decorators/normalize-email.decorator';
 
 export class CreateAdminDto {
-  @IsString()
-  firstname: string;
+    @IsString()
+    firstname: string;
 
-  @IsString()
-  lastname: string;
+    @IsString()
+    lastname: string;
 
-  @NormalizeEmail()
-  @IsEmail()
-  email: string;
+    @NormalizeEmail()
+    @IsEmail()
+    email: string;
 
-  @IsOptional()
-  @IsString()
-  phoneNumber?: string;
+    @IsOptional()
+    @IsString()
+    phoneNumber?: string;
 }

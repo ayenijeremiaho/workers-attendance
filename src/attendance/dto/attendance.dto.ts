@@ -1,33 +1,33 @@
-import { AttendanceStatusEnum } from '../enums/check-in.enum';
-import { Exclude, Expose } from 'class-transformer';
-import { ToDateString } from '../../utility/dto/date-converter';
+import {AttendanceStatusEnum} from '../enums/check-in.enum';
+import {Exclude, Expose} from 'class-transformer';
+import {ToDateString} from '../../utility/dto/date-converter';
 
 @Exclude()
 export class AttendanceDto {
-  @Expose()
-  id: string;
+    @Expose()
+    id: string;
 
-  @Expose()
-  serviceSlotId: string;
+    @Expose()
+    serviceSlotId: string;
 
-  @Expose()
-  memberId: string;
+    @Expose()
+    memberId: string;
 
-  @Expose()
-  @ToDateString()
-  checkinTime: Date;
+    @Expose()
+    @ToDateString()
+    checkinTime: Date;
 
-  @Expose()
-  status: AttendanceStatusEnum;
+    @Expose()
+    status: AttendanceStatusEnum;
 
-  @Expose()
-  location: { longitude: number; latitude: number } | null;
+    @Expose()
+    location: { longitude: number; latitude: number } | null;
 
-  @Expose()
-  @ToDateString()
-  createdAt: Date;
+    @Expose()
+    @ToDateString()
+    createdAt: Date;
 
-  @Expose()
-  @ToDateString()
-  updatedAt: Date;
+    @Expose()
+    @ToDateString()
+    updatedAt: Date;
 }

@@ -1,334 +1,344 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { EventService } from './event.service';
-import { Event } from '../entity/event.entity';
-import { ServiceSlot } from '../entity/service-slot.entity';
-import { EventConfigService } from './event-config.service';
-import { VenueService } from '../../venue/service/venue.service';
+import {Test, TestingModule} from '@nestjs/testing';
+import {getRepositoryToken} from '@nestjs/typeorm';
+import {BadRequestException, NotFoundException} from '@nestjs/common';
+import {DataSource} from 'typeorm';
+import {EventService} from './event.service';
+import {Event} from '../entity/event.entity';
+import {ServiceSlot} from '../entity/service-slot.entity';
+import {EventConfigService} from './event-config.service';
+import {VenueService} from '../../venue/service/venue.service';
+import {AuditLogService} from '../../utility/service/audit-log.service';
 
-const makeQb = () => ({
-  where: jest.fn().mockReturnThis(),
-  andWhere: jest.fn().mockReturnThis(),
-  leftJoin: jest.fn().mockReturnThis(),
-  innerJoin: jest.fn().mockReturnThis(),
-  leftJoinAndSelect: jest.fn().mockReturnThis(),
-  select: jest.fn().mockReturnThis(),
-  addSelect: jest.fn().mockReturnThis(),
-  groupBy: jest.fn().mockReturnThis(),
-  orderBy: jest.fn().mockReturnThis(),
-  skip: jest.fn().mockReturnThis(),
-  take: jest.fn().mockReturnThis(),
-  getManyAndCount: jest.fn(),
-  getMany: jest.fn(),
-  getOne: jest.fn(),
-  getRawMany: jest.fn(),
-  getRawOne: jest.fn(),
-  getCount: jest.fn(),
-});
 
 const mockEventRepo = {
-  findOne: jest.fn(),
-  findAndCount: jest.fn(),
-  find: jest.fn(),
-  save: jest.fn(),
-  create: jest.fn(),
-  remove: jest.fn(),
-  createQueryBuilder: jest.fn(),
+    findOne: jest.fn(),
+    findAndCount: jest.fn(),
+    find: jest.fn(),
+    save: jest.fn(),
+    create: jest.fn(),
+    remove: jest.fn(),
+    createQueryBuilder: jest.fn(),
 };
 
 const mockSlotRepo = {
-  findOne: jest.fn(),
-  save: jest.fn(),
-  create: jest.fn(),
-  createQueryBuilder: jest.fn(),
-  update: jest.fn(),
+    findOne: jest.fn(),
+    save: jest.fn(),
+    create: jest.fn(),
+    createQueryBuilder: jest.fn(),
+    update: jest.fn(),
 };
 
 const mockEventConfigService = {
-  get: jest.fn(),
-  create: jest.fn(),
+    get: jest.fn(),
+    create: jest.fn(),
 };
 
 const mockVenueService = {
-  getById: jest.fn(),
+    getById: jest.fn(),
 };
 
-const defaultVenue = { id: 'venue-1', name: 'Main Auditorium', latitude: 6.5244, longitude: 3.3792 };
+const mockAuditLogService = {log: jest.fn()};
+
+const mockDataSource = {
+    createQueryBuilder: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        from: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+    }),
+};
+
+const defaultVenue = {id: 'venue-1', name: 'Main Auditorium', latitude: 6.5244, longitude: 3.3792};
 
 describe('EventService', () => {
-  let service: EventService;
+    let service: EventService;
 
-  beforeEach(async () => {
-    jest.clearAllMocks();
+    beforeEach(async () => {
+        jest.clearAllMocks();
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        EventService,
-        { provide: getRepositoryToken(Event), useValue: mockEventRepo },
-        { provide: getRepositoryToken(ServiceSlot), useValue: mockSlotRepo },
-        { provide: EventConfigService, useValue: mockEventConfigService },
-        { provide: VenueService, useValue: mockVenueService },
-      ],
-    }).compile();
+        const module: TestingModule = await Test.createTestingModule({
+            providers: [
+                EventService,
+                {provide: DataSource, useValue: mockDataSource},
+                {provide: getRepositoryToken(Event), useValue: mockEventRepo},
+                {provide: getRepositoryToken(ServiceSlot), useValue: mockSlotRepo},
+                {provide: EventConfigService, useValue: mockEventConfigService},
+                {provide: VenueService, useValue: mockVenueService},
+                {provide: AuditLogService, useValue: mockAuditLogService},
+            ],
+        }).compile();
 
-    service = module.get<EventService>(EventService);
-  });
-
-  describe('create', () => {
-    it('should throw BadRequestException for an invalid eventDate', async () => {
-      await expect(
-        service.create({ name: 'Test', eventDate: 'not-a-date', isRecurring: false } as any),
-      ).rejects.toThrow(BadRequestException);
+        service = module.get<EventService>(EventService);
     });
 
-    it('should create a single event with explicit service slots', async () => {
-      const slotDto = {
-        name: 'First Service',
-        startTime: '2025-06-01T09:00:00.000Z',
-        endTime: '2025-06-01T11:00:00.000Z',
-      };
-      const slotObj = { name: 'First Service', startTime: new Date(slotDto.startTime), endTime: new Date(slotDto.endTime) };
-      const savedEvent = { id: 'event-1', name: 'Sunday Service', eventDate: new Date('2025-06-01'), serviceSlots: [slotObj] };
+    describe('create', () => {
+        it('should throw BadRequestException for an invalid eventDate', async () => {
+            await expect(
+                service.create({name: 'Test', eventDate: 'not-a-date', isRecurring: false} as any, 'actor-1'),
+            ).rejects.toThrow(BadRequestException);
+        });
 
-      mockSlotRepo.create.mockReturnValue(slotObj);
-      mockEventRepo.create.mockReturnValue({ name: 'Sunday Service', serviceSlots: [] });
-      mockEventRepo.save.mockResolvedValue(savedEvent);
+        it('should create a single event with explicit service slots', async () => {
+            const slotDto = {
+                name: 'First Service',
+                startTime: '2025-06-01T09:00:00.000Z',
+                endTime: '2025-06-01T11:00:00.000Z',
+            };
+            const slotObj = {
+                name: 'First Service',
+                startTime: new Date(slotDto.startTime),
+                endTime: new Date(slotDto.endTime)
+            };
+            const savedEvent = {
+                id: 'event-1',
+                name: 'Sunday Service',
+                eventDate: new Date('2025-06-01'),
+                serviceSlots: [slotObj]
+            };
 
-      const result = await service.create({
-        name: 'Sunday Service',
-        eventDate: '2025-06-01',
-        isRecurring: false,
-        serviceSlots: [slotDto],
-      } as any);
+            mockSlotRepo.create.mockReturnValue(slotObj);
+            mockEventRepo.create.mockReturnValue({name: 'Sunday Service', serviceSlots: []});
+            mockEventRepo.save.mockResolvedValue(savedEvent);
 
-      expect(mockEventRepo.save).toHaveBeenCalled();
-      expect(result).toMatchObject({ id: 'event-1' });
+            const result = await service.create({
+                name: 'Sunday Service',
+                eventDate: '2025-06-01',
+                isRecurring: false,
+                serviceSlots: [slotDto],
+            } as any, 'actor-1');
+
+            expect(mockEventRepo.save).toHaveBeenCalled();
+            expect(result).toMatchObject({id: 'event-1'});
+        });
+
+        it('should throw BadRequestException when recurring event requires recurrence but it is missing', async () => {
+            await expect(
+                service.create({
+                    name: 'Weekly Service',
+                    eventDate: '2025-06-01',
+                    isRecurring: true,
+                    recurrence: undefined,
+                } as any, 'actor-1'),
+            ).rejects.toThrow(BadRequestException);
+        });
+
+        it('should create recurring events correctly when valid recurrence is provided', async () => {
+            const slotObj = {name: 'Service', startTime: new Date(), endTime: new Date()};
+            mockSlotRepo.create.mockReturnValue(slotObj);
+            mockEventRepo.create.mockImplementation((data) => ({...data, serviceSlots: []}));
+            mockEventRepo.save.mockImplementation((events) =>
+                Promise.resolve(Array.isArray(events) ? events.map((e, i) => ({...e, id: `event-${i}`})) : {
+                    ...events,
+                    id: 'event-0'
+                }),
+            );
+
+            const result = await service.create({
+                name: 'Weekly Service',
+                eventDate: '2025-06-01',
+                isRecurring: true,
+                recurrence: {
+                    recurrenceEndDate: '2025-06-22',
+                    recurrencePattern: 'weekly',
+                    recurrenceInterval: 1,
+                },
+                serviceSlots: [{
+                    startTime: '2025-06-01T09:00:00.000Z',
+                    endTime: '2025-06-01T11:00:00.000Z',
+                }],
+            } as any, 'actor-1');
+
+            expect(Array.isArray(result)).toBe(true);
+            expect((result as Event[]).length).toBeGreaterThanOrEqual(1);
+        });
+
+        it('should throw BadRequestException when recurrence end date is more than 1 year away', async () => {
+            await expect(
+                service.create({
+                    name: 'Long Recurring Service',
+                    eventDate: '2025-06-01',
+                    isRecurring: true,
+                    recurrence: {
+                        recurrenceEndDate: '2027-06-01',
+                        recurrencePattern: 'weekly',
+                        recurrenceInterval: 1,
+                    },
+                } as any, 'actor-1'),
+            ).rejects.toThrow(BadRequestException);
+        });
     });
 
-    it('should throw BadRequestException when recurring event requires recurrence but it is missing', async () => {
-      await expect(
-        service.create({
-          name: 'Weekly Service',
-          eventDate: '2025-06-01',
-          isRecurring: true,
-          recurrence: undefined,
-        } as any),
-      ).rejects.toThrow(BadRequestException);
+    describe('getById', () => {
+        it('should throw NotFoundException if event not found', async () => {
+            mockEventRepo.findOne.mockResolvedValue(null);
+
+            await expect(service.getById('nonexistent-id')).rejects.toThrow(NotFoundException);
+        });
+
+        it('should return event when found', async () => {
+            const event = {id: 'event-1', name: 'Sunday Service', serviceSlots: []};
+            mockEventRepo.findOne.mockResolvedValue(event);
+
+            const result = await service.getById('event-1');
+
+            expect(result).toEqual(event);
+        });
+
+        it('should include venue relations in query', async () => {
+            const event = {id: 'event-1', name: 'Sunday Service', serviceSlots: []};
+            mockEventRepo.findOne.mockResolvedValue(event);
+
+            await service.getById('event-1');
+
+            expect(mockEventRepo.findOne).toHaveBeenCalledWith({
+                where: {id: 'event-1'},
+                relations: [
+                    'serviceSlots',
+                    'serviceSlots.config',
+                    'serviceSlots.config.defaultVenue',
+                    'serviceSlots.venueOverride',
+                ],
+            });
+        });
     });
 
-    it('should create recurring events correctly when valid recurrence is provided', async () => {
-      const slotObj = { name: 'Service', startTime: new Date(), endTime: new Date() };
-      mockSlotRepo.create.mockReturnValue(slotObj);
-      mockEventRepo.create.mockImplementation((data) => ({ ...data, serviceSlots: [] }));
-      mockEventRepo.save.mockImplementation((events) =>
-        Promise.resolve(Array.isArray(events) ? events.map((e, i) => ({ ...e, id: `event-${i}` })) : { ...events, id: 'event-0' }),
-      );
+    describe('deleteEvent', () => {
+        it('should throw NotFoundException if event not found', async () => {
+            mockEventRepo.findOne.mockResolvedValue(null);
 
-      const result = await service.create({
-        name: 'Weekly Service',
-        eventDate: '2025-06-01',
-        isRecurring: true,
-        recurrence: {
-          recurrenceEndDate: '2025-06-22',
-          recurrencePattern: 'weekly',
-          recurrenceInterval: 1,
-        },
-        serviceSlots: [{
-          startTime: '2025-06-01T09:00:00.000Z',
-          endTime: '2025-06-01T11:00:00.000Z',
-        }],
-      } as any);
+            await expect(service.deleteEvent('nonexistent-id', 'actor-1')).rejects.toThrow(NotFoundException);
+        });
 
-      expect(Array.isArray(result)).toBe(true);
-      expect((result as Event[]).length).toBeGreaterThanOrEqual(1);
+        it('should throw BadRequestException for past events', async () => {
+            const pastDate = new Date();
+            pastDate.setDate(pastDate.getDate() - 1);
+            mockEventRepo.findOne.mockResolvedValue({
+                id: 'event-past',
+                eventDate: pastDate,
+                serviceSlots: [],
+            });
+
+            await expect(service.deleteEvent('event-past', 'actor-1')).rejects.toThrow(BadRequestException);
+        });
+
+        it('should delete event when it is a future event', async () => {
+            const futureDate = new Date();
+            futureDate.setDate(futureDate.getDate() + 5);
+            const event = {id: 'event-future', eventDate: futureDate, serviceSlots: []};
+            mockEventRepo.findOne.mockResolvedValue(event);
+            mockEventRepo.remove.mockResolvedValue(undefined);
+
+            await service.deleteEvent('event-future', 'actor-1');
+
+            expect(mockEventRepo.remove).toHaveBeenCalledWith(event);
+        });
     });
 
-    it('should throw BadRequestException when recurrence end date is more than 1 year away', async () => {
-      await expect(
-        service.create({
-          name: 'Long Recurring Service',
-          eventDate: '2025-06-01',
-          isRecurring: true,
-          recurrence: {
-            recurrenceEndDate: '2027-06-01',
-            recurrencePattern: 'weekly',
-            recurrenceInterval: 1,
-          },
-        } as any),
-      ).rejects.toThrow(BadRequestException);
+    describe('resolveSlotConfig', () => {
+        it('should throw BadRequestException if slot has no config', () => {
+            const slot = {
+                id: 'slot-1',
+                name: 'Sunday Service',
+                config: null,
+                workerCheckinStartOverride: null,
+                workerLateOverride: null,
+                memberCheckinStartOverride: null,
+                checkinStopOverride: null,
+                allowedDistanceOverride: null,
+                venueOverride: null,
+            } as any;
+
+            expect(() => service.resolveSlotConfig(slot)).toThrow(BadRequestException);
+        });
+
+        it('should throw BadRequestException if no venue is configured', () => {
+            const config = {
+                workerCheckinStartOffsetSeconds: -7200,
+                workerLateOffsetSeconds: 0,
+                memberCheckinStartOffsetSeconds: -3600,
+                checkinStopOffsetSeconds: 7200,
+                allowedDistanceInMeters: 100,
+                defaultVenue: null,
+            } as any;
+
+            const slot = {
+                id: 'slot-1',
+                name: 'Service',
+                config,
+                venueOverride: null,
+                workerCheckinStartOverride: null,
+                workerLateOverride: null,
+                memberCheckinStartOverride: null,
+                checkinStopOverride: null,
+                allowedDistanceOverride: null,
+            } as any;
+
+            expect(() => service.resolveSlotConfig(slot)).toThrow(BadRequestException);
+        });
+
+        it('should use venueOverride when present and fall back to config.defaultVenue', () => {
+            const overrideVenue = {id: 'venue-2', name: 'Chapel', latitude: 6.6, longitude: 3.4};
+            const config = {
+                workerCheckinStartOffsetSeconds: -7200,
+                workerLateOffsetSeconds: 0,
+                memberCheckinStartOffsetSeconds: -3600,
+                checkinStopOffsetSeconds: 7200,
+                allowedDistanceInMeters: 100,
+                defaultVenue,
+            } as any;
+
+            const slot = {
+                id: 'slot-1',
+                name: 'Service',
+                config,
+                venueOverride: overrideVenue,
+                workerCheckinStartOverride: -3600,
+                workerLateOverride: 300,
+                memberCheckinStartOverride: -1800,
+                checkinStopOverride: 3600,
+                allowedDistanceOverride: 50,
+            } as any;
+
+            const result = service.resolveSlotConfig(slot);
+
+            expect(result.venue).toEqual(overrideVenue);
+            expect(result.workerCheckinStartOffsetSeconds).toBe(-3600);
+            expect(result.workerLateOffsetSeconds).toBe(300);
+            expect(result.allowedDistanceInMeters).toBe(50);
+        });
+
+        it('should use config.defaultVenue when venueOverride is null', () => {
+            const config = {
+                workerCheckinStartOffsetSeconds: -7200,
+                workerLateOffsetSeconds: 0,
+                memberCheckinStartOffsetSeconds: -3600,
+                checkinStopOffsetSeconds: 7200,
+                allowedDistanceInMeters: 100,
+                defaultVenue,
+            } as any;
+
+            const slot = {
+                id: 'slot-1',
+                name: 'Service',
+                config,
+                venueOverride: null,
+                workerCheckinStartOverride: null,
+                workerLateOverride: null,
+                memberCheckinStartOverride: null,
+                checkinStopOverride: null,
+                allowedDistanceOverride: null,
+            } as any;
+
+            const result = service.resolveSlotConfig(slot);
+
+            expect(result.venue).toEqual(defaultVenue);
+            expect(result.workerCheckinStartOffsetSeconds).toBe(-7200);
+            expect(result.workerLateOffsetSeconds).toBe(0);
+            expect(result.memberCheckinStartOffsetSeconds).toBe(-3600);
+            expect(result.checkinStopOffsetSeconds).toBe(7200);
+            expect(result.allowedDistanceInMeters).toBe(100);
+        });
     });
-  });
-
-  describe('getById', () => {
-    it('should throw NotFoundException if event not found', async () => {
-      mockEventRepo.findOne.mockResolvedValue(null);
-
-      await expect(service.getById('nonexistent-id')).rejects.toThrow(NotFoundException);
-    });
-
-    it('should return event when found', async () => {
-      const event = { id: 'event-1', name: 'Sunday Service', serviceSlots: [] };
-      mockEventRepo.findOne.mockResolvedValue(event);
-
-      const result = await service.getById('event-1');
-
-      expect(result).toEqual(event);
-    });
-
-    it('should include venue relations in query', async () => {
-      const event = { id: 'event-1', name: 'Sunday Service', serviceSlots: [] };
-      mockEventRepo.findOne.mockResolvedValue(event);
-
-      await service.getById('event-1');
-
-      expect(mockEventRepo.findOne).toHaveBeenCalledWith({
-        where: { id: 'event-1' },
-        relations: [
-          'serviceSlots',
-          'serviceSlots.config',
-          'serviceSlots.config.defaultVenue',
-          'serviceSlots.venueOverride',
-        ],
-      });
-    });
-  });
-
-  describe('deleteEvent', () => {
-    it('should throw NotFoundException if event not found', async () => {
-      mockEventRepo.findOne.mockResolvedValue(null);
-
-      await expect(service.deleteEvent('nonexistent-id')).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw BadRequestException for past events', async () => {
-      const pastDate = new Date();
-      pastDate.setDate(pastDate.getDate() - 1);
-      mockEventRepo.findOne.mockResolvedValue({
-        id: 'event-past',
-        eventDate: pastDate,
-        serviceSlots: [],
-      });
-
-      await expect(service.deleteEvent('event-past')).rejects.toThrow(BadRequestException);
-    });
-
-    it('should delete event when it is a future event', async () => {
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 5);
-      const event = { id: 'event-future', eventDate: futureDate, serviceSlots: [] };
-      mockEventRepo.findOne.mockResolvedValue(event);
-      mockEventRepo.remove.mockResolvedValue(undefined);
-
-      await service.deleteEvent('event-future');
-
-      expect(mockEventRepo.remove).toHaveBeenCalledWith(event);
-    });
-  });
-
-  describe('resolveSlotConfig', () => {
-    it('should throw BadRequestException if slot has no config', () => {
-      const slot = {
-        id: 'slot-1',
-        name: 'Sunday Service',
-        config: null,
-        workerCheckinStartOverride: null,
-        workerLateOverride: null,
-        memberCheckinStartOverride: null,
-        checkinStopOverride: null,
-        allowedDistanceOverride: null,
-        venueOverride: null,
-      } as any;
-
-      expect(() => service.resolveSlotConfig(slot)).toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException if no venue is configured', () => {
-      const config = {
-        workerCheckinStartOffsetSeconds: -7200,
-        workerLateOffsetSeconds: 0,
-        memberCheckinStartOffsetSeconds: -3600,
-        checkinStopOffsetSeconds: 7200,
-        allowedDistanceInMeters: 100,
-        defaultVenue: null,
-      } as any;
-
-      const slot = {
-        id: 'slot-1',
-        name: 'Service',
-        config,
-        venueOverride: null,
-        workerCheckinStartOverride: null,
-        workerLateOverride: null,
-        memberCheckinStartOverride: null,
-        checkinStopOverride: null,
-        allowedDistanceOverride: null,
-      } as any;
-
-      expect(() => service.resolveSlotConfig(slot)).toThrow(BadRequestException);
-    });
-
-    it('should use venueOverride when present and fall back to config.defaultVenue', () => {
-      const overrideVenue = { id: 'venue-2', name: 'Chapel', latitude: 6.6, longitude: 3.4 };
-      const config = {
-        workerCheckinStartOffsetSeconds: -7200,
-        workerLateOffsetSeconds: 0,
-        memberCheckinStartOffsetSeconds: -3600,
-        checkinStopOffsetSeconds: 7200,
-        allowedDistanceInMeters: 100,
-        defaultVenue,
-      } as any;
-
-      const slot = {
-        id: 'slot-1',
-        name: 'Service',
-        config,
-        venueOverride: overrideVenue,
-        workerCheckinStartOverride: -3600,
-        workerLateOverride: 300,
-        memberCheckinStartOverride: -1800,
-        checkinStopOverride: 3600,
-        allowedDistanceOverride: 50,
-      } as any;
-
-      const result = service.resolveSlotConfig(slot);
-
-      expect(result.venue).toEqual(overrideVenue);
-      expect(result.workerCheckinStartOffsetSeconds).toBe(-3600);
-      expect(result.workerLateOffsetSeconds).toBe(300);
-      expect(result.allowedDistanceInMeters).toBe(50);
-    });
-
-    it('should use config.defaultVenue when venueOverride is null', () => {
-      const config = {
-        workerCheckinStartOffsetSeconds: -7200,
-        workerLateOffsetSeconds: 0,
-        memberCheckinStartOffsetSeconds: -3600,
-        checkinStopOffsetSeconds: 7200,
-        allowedDistanceInMeters: 100,
-        defaultVenue,
-      } as any;
-
-      const slot = {
-        id: 'slot-1',
-        name: 'Service',
-        config,
-        venueOverride: null,
-        workerCheckinStartOverride: null,
-        workerLateOverride: null,
-        memberCheckinStartOverride: null,
-        checkinStopOverride: null,
-        allowedDistanceOverride: null,
-      } as any;
-
-      const result = service.resolveSlotConfig(slot);
-
-      expect(result.venue).toEqual(defaultVenue);
-      expect(result.workerCheckinStartOffsetSeconds).toBe(-7200);
-      expect(result.workerLateOffsetSeconds).toBe(0);
-      expect(result.memberCheckinStartOffsetSeconds).toBe(-3600);
-      expect(result.checkinStopOffsetSeconds).toBe(7200);
-      expect(result.allowedDistanceInMeters).toBe(100);
-    });
-  });
 });

@@ -1,18 +1,18 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import {IsOptional, IsString, IsUUID} from 'class-validator';
 
 export class ChildCheckInDto {
-  @IsUUID('4')
-  childId: string;
+    @IsUUID('4')
+    childId: string;
 
-  @IsUUID('4')
-  @IsOptional()
-  serviceSlotId?: string;
+    @IsUUID('4')
+    @IsOptional()
+    serviceSlotId?: string;
 
-  @IsUUID('4')
-  @IsOptional()
-  droppedOffByGuardianId?: string;
+    @IsUUID('4')
+    @IsOptional()
+    droppedOffByGuardianId?: string;
 
-  @IsString()
-  @IsOptional()
-  droppedOffByName?: string;
+    @IsString()
+    @IsOptional()
+    droppedOffByName?: string;
 }

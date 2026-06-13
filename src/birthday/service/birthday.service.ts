@@ -1,0 +1,142 @@
+import {BadRequestException, HttpException, HttpStatus, Injectable, Logger} from '@nestjs/common';
+import {InjectRepository} from '@nestjs/typeorm';
+import {Repository} from 'typeorm';
+import {Cron} from '@nestjs/schedule';
+import {BirthdayWish} from '../entity/birthday-wish.entity';
+import {Member} from '../../member/entity/member.entity';
+import {Announcement} from '../../announcement/entity/announcement.entity';
+import {AnnouncementAudienceEnum} from '../../announcement/enum/announcement-audience.enum';
+import {ConfigService} from '@nestjs/config';
+import {UtilityService} from '../../utility/service/utility.service';
+import {SanitizationService} from '../../utility/service/sanitization.service';
+import {CacheService} from '../../utility/service/cache.service';
+import {MemberStatusEnum} from '../../member/enums/member-status.enum';
+
+
+@Injectable()
+export class BirthdayService {
+    private readonly logger = new Logger(BirthdayService.name);
+
+    constructor(
+        @InjectRepository(BirthdayWish)
+        private readonly wishRepository: Repository<BirthdayWish>,
+        @InjectRepository(Member)
+        private readonly memberRepository: Repository<Member>,
+        @InjectRepository(Announcement)
+        private readonly announcementRepository: Repository<Announcement>,
+        private readonly utilityService: UtilityService,
+        private readonly sanitizationService: SanitizationService,
+        private readonly cacheService: CacheService,
+        private readonly configService: ConfigService,
+    ) {
+    }
+
+    @Cron('0 6 * * *')
+    async triggerBirthdayGreetings(): Promise<void> {
+        const today = new Date();
+        const month = today.getMonth() + 1;
+        const day = today.getDate();
+
+        const birthdayMembers = await this.memberRepository
+            .createQueryBuilder('m')
+            .where('EXTRACT(MONTH FROM m.dateOfBirth) = :month', {month})
+            .andWhere('EXTRACT(DAY FROM m.dateOfBirth) = :day', {day})
+            .andWhere('m.status = :status', {status: MemberStatusEnum.ACTIVE})
+            .getMany();
+
+        if (birthdayMembers.length === 0) return;
+
+        const endOfDay = new Date(today);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        for (const member of birthdayMembers) {
+            await this.createBirthdayAnnouncement(member, endOfDay);
+            this.sendBirthdayEmail(member);
+            this.logger.log(`Birthday greetings sent to ${member.firstname} ${member.lastname}`);
+        }
+    }
+
+    async sendWish(recipientId: string, senderId: string, message: string): Promise<BirthdayWish> {
+        if (recipientId === senderId) {
+            throw new BadRequestException('You cannot send a wish to yourself');
+        }
+
+        const dailyLimit = this.configService.get<number>('WISH_DAILY_LIMIT', 20);
+        const rateKey = this.cacheService.key('wish_rate', senderId);
+        const sentToday = (await this.cacheService.get<number>(rateKey)) ?? 0;
+        if (sentToday >= dailyLimit) {
+            throw new HttpException('You have reached your daily limit for birthday wishes. Please try again tomorrow.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        const year = new Date().getFullYear();
+
+        const existing = await this.wishRepository.findOne({
+            where: {
+                recipient: {id: recipientId},
+                sender: {id: senderId},
+                year,
+            },
+        });
+        if (existing) {
+            throw new BadRequestException('You have already sent a birthday wish to this person this year');
+        }
+
+        const clean = this.sanitizationService.sanitizeText(message);
+
+        const wish = this.wishRepository.create({
+            message: clean,
+            recipient: {id: recipientId} as Member,
+            sender: {id: senderId} as Member,
+            year,
+        });
+
+        const saved = await this.wishRepository.save(wish);
+
+        const now = new Date();
+        const midnight = new Date(now);
+        midnight.setHours(24, 0, 0, 0);
+        const ttl = Math.ceil((midnight.getTime() - now.getTime()) / 1000);
+        await this.cacheService.set(rateKey, sentToday + 1, ttl);
+
+        return saved;
+    }
+
+    async getWishesForMember(recipientId: string, year?: number): Promise<BirthdayWish[]> {
+        const qb = this.wishRepository
+            .createQueryBuilder('w')
+            .leftJoin('w.sender', 'sender')
+            .addSelect(['sender.id', 'sender.firstname', 'sender.lastname'])
+            .where('w.recipient.id = :recipientId', {recipientId})
+            .orderBy('w.createdAt', 'DESC');
+
+        if (year) qb.andWhere('w.year = :year', {year});
+
+        return qb.getMany();
+    }
+
+    private async createBirthdayAnnouncement(member: Member, expiresAt: Date): Promise<void> {
+        const announcement = this.announcementRepository.create({
+            title: `Happy Birthday, ${member.firstname}!`,
+            body: `Today is ${member.firstname} ${member.lastname}'s birthday! Join us in celebrating and sending them your warmest wishes and prayers.`,
+            audience: AnnouncementAudienceEnum.ALL,
+            author: null,
+            department: null,
+            targetMember: null,
+            publishedAt: new Date(),
+            expiresAt,
+        });
+        await this.announcementRepository.save(announcement);
+    }
+
+    private sendBirthdayEmail(member: Member): void {
+        this.utilityService.sendEmailWithTemplate(
+            member.email,
+            `Happy Birthday, ${member.firstname}!`,
+            'happy-birthday',
+            {
+                name: member.firstname,
+                full_name: `${member.firstname} ${member.lastname}`,
+            },
+        );
+    }
+}

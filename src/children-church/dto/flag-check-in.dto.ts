@@ -1,7 +1,7 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import {IsNotEmpty, IsString} from 'class-validator';
 
 export class FlagCheckInDto {
-  @IsString()
-  @IsNotEmpty()
-  reason: string;
+    @IsString()
+    @IsNotEmpty()
+    reason: string;
 }

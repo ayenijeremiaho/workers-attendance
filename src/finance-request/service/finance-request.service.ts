@@ -1,0 +1,255 @@
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    Logger,
+    NotFoundException,
+} from '@nestjs/common';
+import {InjectRepository} from '@nestjs/typeorm';
+import {Repository} from 'typeorm';
+import {FinanceCategory} from '../entity/finance-category.entity';
+import {FinanceRequest} from '../entity/finance-request.entity';
+import {FinanceRequestStatus} from '../enum/finance-request.enum';
+import {CreateFinanceCategoryDto, CreateFinanceRequestDto, RejectFinanceRequestDto, UpdateFinanceCategoryDto} from '../dto/finance-request.dto';
+import {Admin} from '../../admin/entity/admin.entity';
+import {MemberAuth} from '../../auth/interface/auth.interface';
+import {UtilityService} from '../../utility/service/utility.service';
+import {AuditLogService} from '../../utility/service/audit-log.service';
+import {CloudinaryService} from '../../utility/service/cloudinary.service';
+import {AdminPermission} from '../../admin/enum/admin-permission.enum';
+import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
+
+@Injectable()
+export class FinanceRequestService {
+    private readonly logger = new Logger(FinanceRequestService.name);
+
+    constructor(
+        @InjectRepository(FinanceCategory)
+        private readonly categoryRepo: Repository<FinanceCategory>,
+        @InjectRepository(FinanceRequest)
+        private readonly requestRepo: Repository<FinanceRequest>,
+        @InjectRepository(Admin)
+        private readonly adminRepo: Repository<Admin>,
+        private readonly utilityService: UtilityService,
+        private readonly auditLogService: AuditLogService,
+        private readonly cloudinaryService: CloudinaryService,
+    ) {}
+
+    // ── Categories ────────────────────────────────────────────────────────────
+
+    async getCategories(): Promise<FinanceCategory[]> {
+        return this.categoryRepo.find({order: {name: 'ASC'}});
+    }
+
+    async createCategory(dto: CreateFinanceCategoryDto, actorAdmin: Admin): Promise<FinanceCategory> {
+        const exists = await this.categoryRepo.findOne({where: {name: dto.name}});
+        if (exists) throw new ConflictException(`Category "${dto.name}" already exists`);
+
+        const category = await this.categoryRepo.save(this.categoryRepo.create(dto));
+        this.auditLogService.log('FINANCE_CATEGORY_CREATED', {actorId: actorAdmin.member?.id, metadata: {name: dto.name}});
+        return category;
+    }
+
+    async updateCategory(id: string, dto: UpdateFinanceCategoryDto, actorAdmin: Admin): Promise<FinanceCategory> {
+        const category = await this.categoryRepo.findOne({where: {id}});
+        if (!category) throw new NotFoundException('Category not found');
+
+        if (dto.name && dto.name !== category.name) {
+            const exists = await this.categoryRepo.findOne({where: {name: dto.name}});
+            if (exists) throw new ConflictException(`Category "${dto.name}" already exists`);
+        }
+
+        Object.assign(category, dto);
+        const updated = await this.categoryRepo.save(category);
+        this.auditLogService.log('FINANCE_CATEGORY_UPDATED', {actorId: actorAdmin.member?.id, metadata: {id}});
+        return updated;
+    }
+
+    // ── Requests (HOD) ────────────────────────────────────────────────────────
+
+    async createRequest(dto: CreateFinanceRequestDto, user: MemberAuth, attachment?: Express.Multer.File): Promise<FinanceRequest> {
+        const category = await this.categoryRepo.findOne({where: {id: dto.categoryId}});
+        if (!category) throw new NotFoundException('Finance category not found');
+
+        let attachmentUrl: string | null = null;
+        let attachmentPublicId: string | null = null;
+        let attachmentResourceType: string | null = null;
+        if (attachment) {
+            const uploaded = await this.cloudinaryService.uploadBuffer(attachment.buffer, 'finance-requests', `${user.id}-${Date.now()}`);
+            attachmentUrl = uploaded.secureUrl;
+            attachmentPublicId = uploaded.publicId;
+            attachmentResourceType = uploaded.resourceType;
+        }
+
+        const request = await this.requestRepo.save(
+            this.requestRepo.create({
+                requestedBy: {id: user.id},
+                department: {id: dto.departmentId},
+                category: {id: dto.categoryId},
+                reason: dto.reason,
+                amount: dto.amount,
+                recipientBankName: dto.recipientBankName,
+                recipientAccountNumber: dto.recipientAccountNumber,
+                recipientAccountName: dto.recipientAccountName,
+                attachmentUrl,
+                attachmentPublicId,
+                attachmentResourceType,
+            }),
+        );
+
+        this.auditLogService.log('FINANCE_REQUEST_CREATED', {actorId: user.id, metadata: {requestId: request.id, amount: dto.amount}});
+        this.notifyFinanceTeam(request).catch((err) => this.logger.error(`Finance team notification failed: ${err.message}`));
+
+        return request;
+    }
+
+    async getMyDepartmentRequests(departmentId: string, page = 1, limit = 20): Promise<PaginationResponseDto<FinanceRequest>> {
+        const [data, total] = await this.requestRepo.findAndCount({
+            where: {department: {id: departmentId}},
+            relations: ['category', 'reviewedBy', 'reviewedBy.member'],
+            order: {createdAt: 'DESC'},
+            skip: (page - 1) * limit,
+            take: limit,
+        });
+        return UtilityService.createPaginationResponse(data, page, limit, total);
+    }
+
+    // ── Requests (Admin/Finance Team) ─────────────────────────────────────────
+
+    async getAllRequests(page = 1, limit = 20, status?: FinanceRequestStatus, categoryId?: string): Promise<PaginationResponseDto<FinanceRequest>> {
+        const qb = this.requestRepo.createQueryBuilder('r')
+            .leftJoinAndSelect('r.requestedBy', 'requestedBy')
+            .leftJoinAndSelect('r.department', 'department')
+            .leftJoinAndSelect('r.category', 'category')
+            .leftJoinAndSelect('r.reviewedBy', 'reviewedBy')
+            .leftJoinAndSelect('reviewedBy.member', 'reviewedByMember')
+            .orderBy('r.createdAt', 'DESC')
+            .skip((page - 1) * limit)
+            .take(limit);
+
+        if (status) qb.andWhere('r.status = :status', {status});
+        if (categoryId) qb.andWhere('r.category_id = :categoryId', {categoryId});
+
+        const [data, total] = await qb.getManyAndCount();
+        return UtilityService.createPaginationResponse(data, page, limit, total);
+    }
+
+    async getRequest(id: string): Promise<FinanceRequest> {
+        const request = await this.requestRepo.findOne({
+            where: {id},
+            relations: ['requestedBy', 'department', 'category', 'reviewedBy', 'reviewedBy.member'],
+        });
+        if (!request) throw new NotFoundException('Finance request not found');
+        return request;
+    }
+
+    async approveRequest(id: string, actorAdmin: Admin): Promise<void> {
+        const request = await this.getRequest(id);
+        if (request.status !== FinanceRequestStatus.PENDING) {
+            throw new BadRequestException('Only pending requests can be approved');
+        }
+
+        request.status = FinanceRequestStatus.APPROVED;
+        request.reviewedBy = actorAdmin;
+        request.reviewedAt = new Date();
+        await this.requestRepo.save(request);
+
+        this.auditLogService.log('FINANCE_REQUEST_APPROVED', {actorId: actorAdmin.member?.id, metadata: {requestId: id}});
+        this.notifyHod(request, 'approved').catch((err) => this.logger.error(`HOD notification failed: ${err.message}`));
+    }
+
+    async rejectRequest(id: string, dto: RejectFinanceRequestDto, actorAdmin: Admin): Promise<void> {
+        const request = await this.getRequest(id);
+        if (request.status !== FinanceRequestStatus.PENDING) {
+            throw new BadRequestException('Only pending requests can be rejected');
+        }
+
+        request.status = FinanceRequestStatus.REJECTED;
+        request.reviewedBy = actorAdmin;
+        request.reviewedAt = new Date();
+        request.rejectionReason = dto.rejectionReason;
+        await this.requestRepo.save(request);
+
+        this.auditLogService.log('FINANCE_REQUEST_REJECTED', {actorId: actorAdmin.member?.id, metadata: {requestId: id, reason: dto.rejectionReason}});
+        this.notifyHod(request, 'rejected').catch((err) => this.logger.error(`HOD notification failed: ${err.message}`));
+    }
+
+    async attachProof(id: string, file: Express.Multer.File, actorAdmin: Admin): Promise<void> {
+        const request = await this.getRequest(id);
+        if (request.status !== FinanceRequestStatus.APPROVED) {
+            throw new BadRequestException('Proof can only be attached to approved requests');
+        }
+        if (!file) throw new BadRequestException('Proof file is required');
+
+        const uploaded = await this.cloudinaryService.uploadBuffer(file.buffer, 'finance-proofs', `${id}-proof-${Date.now()}`);
+
+        request.proofUrl = uploaded.secureUrl;
+        request.proofPublicId = uploaded.publicId;
+        request.proofResourceType = uploaded.resourceType;
+        await this.requestRepo.save(request);
+
+        this.auditLogService.log('FINANCE_PROOF_ATTACHED', {actorId: actorAdmin.member?.id, metadata: {requestId: id}});
+        this.notifyHod(request, 'proof').catch((err) => this.logger.error(`HOD notification failed: ${err.message}`));
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────────────
+
+    private async notifyFinanceTeam(request: FinanceRequest): Promise<void> {
+        const financeAdmins = await this.adminRepo
+            .createQueryBuilder('a')
+            .leftJoinAndSelect('a.member', 'm')
+            .leftJoinAndSelect('a.adminRole', 'role')
+            .where('a.isActive = true')
+            .getMany();
+
+        const recipients = financeAdmins
+            .filter((a) => a.adminRole?.permissions?.includes(AdminPermission.FINANCE_WRITE))
+            .map((a) => a.member?.email)
+            .filter((e): e is string => !!e);
+
+        if (!recipients.length) return;
+
+        for (const email of recipients) {
+            this.utilityService.sendEmailWithTemplate(
+                email,
+                'New Finance Request Pending Review',
+                'finance-request-submitted',
+                {
+                    amount: Number(request.amount).toLocaleString('en-NG'),
+                    reason: request.reason,
+                    requestId: request.id,
+                },
+            );
+        }
+    }
+
+    private async notifyHod(request: FinanceRequest, event: 'approved' | 'rejected' | 'proof'): Promise<void> {
+        const hod = await this.requestRepo.findOne({where: {id: request.id}, relations: ['requestedBy']});
+        if (!hod?.requestedBy?.email) return;
+
+        const templates: Record<string, string> = {
+            approved: 'finance-request-approved',
+            rejected: 'finance-request-rejected',
+            proof: 'finance-proof-attached',
+        };
+
+        const subjects: Record<string, string> = {
+            approved: 'Your Finance Request Has Been Approved',
+            rejected: 'Your Finance Request Was Not Approved',
+            proof: 'Payment Proof Attached to Your Finance Request',
+        };
+
+        this.utilityService.sendEmailWithTemplate(
+            hod.requestedBy.email,
+            subjects[event],
+            templates[event],
+            {
+                name: UtilityService.capitalizeFirstLetter(hod.requestedBy.firstname),
+                amount: Number(request.amount).toLocaleString('en-NG'),
+                reason: request.reason,
+                rejectionReason: request.rejectionReason ?? '',
+                proofUrl: request.proofUrl ?? '',
+            },
+        );
+    }
+}

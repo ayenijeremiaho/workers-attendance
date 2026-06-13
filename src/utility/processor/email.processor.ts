@@ -8,11 +8,18 @@ import * as nodemailer from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer';
 import {EmailLog} from '../entity/email-log.entity';
 
+export interface EmailAttachment {
+    filename: string;
+    content: string;
+    encoding: 'base64';
+}
+
 export interface EmailJobData {
     to: string | string[];
     cc?: string | string[];
     subject: string;
     html: string;
+    attachments?: EmailAttachment[];
 }
 
 @Injectable()
@@ -40,13 +47,14 @@ export class EmailProcessor {
 
     @Process('send')
     async handleSend(job: Job<EmailJobData>): Promise<void> {
-        const {to, cc, subject, html} = job.data;
+        const {to, cc, subject, html, attachments} = job.data;
         const mailOptions: Mail.Options = {
             from: this.configService.get<string>('EMAIL_USER'),
             to,
             cc,
             subject,
             html,
+            attachments,
         };
         await this.mailTransport.sendMail(mailOptions);
         this.logger.debug(`Email sent: "${subject}" to ${Array.isArray(to) ? to.join(', ') : to} (attempt ${job.attemptsMade + 1})`);

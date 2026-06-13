@@ -11,6 +11,7 @@ import {CreateEventReminderDto, UpdateEventReminderDto} from '../dto/event-remin
 import {AnnouncementAudienceEnum} from '../../announcement/enum/announcement-audience.enum';
 import {PRESET_MINUTES} from '../enum/reminder-interval-preset.enum';
 import {UtilityService} from '../../utility/service/utility.service';
+import {CacheService} from '../../utility/service/cache.service';
 import {MemberStatusEnum} from '../../member/enums/member-status.enum';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
 import {WorkerStatusEnum} from '../../member/enums/worker-status.enum';
@@ -29,8 +30,11 @@ export class EventReminderService {
         @InjectRepository(Announcement)
         private readonly announcementRepo: Repository<Announcement>,
         private readonly utilityService: UtilityService,
+        private readonly cacheService: CacheService,
     ) {
     }
+
+    private static readonly LOCK_KEY = 'lock:dispatch-reminders';
 
     async create(slotId: string, dto: CreateEventReminderDto): Promise<EventReminder> {
         const slot = await this.slotRepo.findOne({where: {id: slotId}});
@@ -91,25 +95,35 @@ export class EventReminderService {
 
     @Cron('*/15 * * * *')
     async dispatchDueReminders(): Promise<void> {
-        const now = new Date();
+        const acquired = await this.cacheService.acquireLock(EventReminderService.LOCK_KEY, 270);
+        if (!acquired) {
+            this.logger.debug('Reminder dispatch skipped — another instance holds the lock');
+            return;
+        }
 
-        const dueReminders = await this.reminderRepo
-            .createQueryBuilder('r')
-            .innerJoinAndSelect('r.serviceSlot', 'slot')
-            .leftJoinAndSelect('r.department', 'dept')
-            .where('r.enabled = true')
-            .andWhere('r.lastSentAt IS NULL')
-            .andWhere('slot.startTime > :now', {now})
-            .getMany();
+        try {
+            const now = new Date();
 
-        const toFire = dueReminders.filter((r) => {
-            const minutesBefore = PRESET_MINUTES[r.intervalPreset];
-            const fireAt = new Date(r.serviceSlot.startTime.getTime() - minutesBefore * 60_000);
-            return fireAt <= now;
-        });
+            const dueReminders = await this.reminderRepo
+                .createQueryBuilder('r')
+                .innerJoinAndSelect('r.serviceSlot', 'slot')
+                .leftJoinAndSelect('r.department', 'dept')
+                .where('r.enabled = true')
+                .andWhere('r.lastSentAt IS NULL')
+                .andWhere('slot.startTime > :now', {now})
+                .getMany();
 
-        for (const reminder of toFire) {
-            await this.fireReminder(reminder, now);
+            const toFire = dueReminders.filter((r) => {
+                const minutesBefore = PRESET_MINUTES[r.intervalPreset];
+                const fireAt = new Date(r.serviceSlot.startTime.getTime() - minutesBefore * 60_000);
+                return fireAt <= now;
+            });
+
+            for (const reminder of toFire) {
+                await this.fireReminder(reminder, now);
+            }
+        } finally {
+            this.cacheService.releaseLock(EventReminderService.LOCK_KEY);
         }
     }
 

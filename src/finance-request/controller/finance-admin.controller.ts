@@ -1,0 +1,99 @@
+import {
+    Body,
+    Controller,
+    Get,
+    Param,
+    ParseUUIDPipe,
+    Patch,
+    Post,
+    Query,
+    UploadedFile,
+    UseGuards,
+    UseInterceptors,
+} from '@nestjs/common';
+import {FileInterceptor} from '@nestjs/platform-express';
+import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
+import {AdminGuard} from '../../admin/guard/admin.guard';
+import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
+import {AdminPermission} from '../../admin/enum/admin-permission.enum';
+import {CurrentAdmin} from '../../admin/decorator/current-admin.decorator';
+import {Admin} from '../../admin/entity/admin.entity';
+import {FinanceRequestService} from '../service/finance-request.service';
+import {CreateFinanceCategoryDto, RejectFinanceRequestDto, UpdateFinanceCategoryDto} from '../dto/finance-request.dto';
+import {FinanceRequestStatus} from '../enum/finance-request.enum';
+
+@UseGuards(JwtAuthGuard, AdminGuard)
+@Controller('admin/finance')
+export class FinanceAdminController {
+    constructor(private readonly financeRequestService: FinanceRequestService) {}
+
+    // ── Categories ────────────────────────────────────────────────────────────
+
+    @RequiresPermission(AdminPermission.FINANCE_READ)
+    @Get('categories')
+    getCategories() {
+        return this.financeRequestService.getCategories();
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_WRITE)
+    @Post('categories')
+    createCategory(@Body() dto: CreateFinanceCategoryDto, @CurrentAdmin() admin: Admin) {
+        return this.financeRequestService.createCategory(dto, admin);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_WRITE)
+    @Patch('categories/:id')
+    updateCategory(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: UpdateFinanceCategoryDto,
+        @CurrentAdmin() admin: Admin,
+    ) {
+        return this.financeRequestService.updateCategory(id, dto, admin);
+    }
+
+    // ── Requests ──────────────────────────────────────────────────────────────
+
+    @RequiresPermission(AdminPermission.FINANCE_READ)
+    @Get('requests')
+    getAllRequests(
+        @Query('page') page = 1,
+        @Query('limit') limit = 20,
+        @Query('status') status?: FinanceRequestStatus,
+        @Query('categoryId') categoryId?: string,
+    ) {
+        return this.financeRequestService.getAllRequests(Number(page), Number(limit), status, categoryId);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_READ)
+    @Get('requests/:id')
+    getRequest(@Param('id', ParseUUIDPipe) id: string) {
+        return this.financeRequestService.getRequest(id);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_WRITE)
+    @Patch('requests/:id/approve')
+    approveRequest(@Param('id', ParseUUIDPipe) id: string, @CurrentAdmin() admin: Admin): Promise<void> {
+        return this.financeRequestService.approveRequest(id, admin);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_WRITE)
+    @Patch('requests/:id/reject')
+    rejectRequest(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: RejectFinanceRequestDto,
+        @CurrentAdmin() admin: Admin,
+    ): Promise<void> {
+        return this.financeRequestService.rejectRequest(id, dto, admin);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_WRITE)
+    @Patch('requests/:id/proof')
+    @UseInterceptors(FileInterceptor('file'))
+    attachProof(
+        @Param('id', ParseUUIDPipe) id: string,
+        @UploadedFile() file: Express.Multer.File,
+        @CurrentAdmin() admin: Admin,
+    ): Promise<void> {
+        return this.financeRequestService.attachProof(id, file, admin);
+    }
+}

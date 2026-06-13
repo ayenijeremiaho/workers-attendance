@@ -24,6 +24,8 @@ export enum AdminPermission {
     ADMIN_READ = 'admin:read',
     ADMIN_WRITE = 'admin:write',
     AUDIT_READ = 'audit:read',
+    FINANCE_READ = 'finance:read',
+    FINANCE_WRITE = 'finance:write',
 }
 
 export const AdminPermissionLabels: Record<AdminPermission, string> = {
@@ -52,4 +54,6 @@ export const AdminPermissionLabels: Record<AdminPermission, string> = {
     [AdminPermission.ADMIN_READ]: 'View Admin Users & Roles',
     [AdminPermission.ADMIN_WRITE]: 'Manage Admin Users & Roles',
     [AdminPermission.AUDIT_READ]: 'View Audit Logs',
+    [AdminPermission.FINANCE_READ]: 'View Finance Records',
+    [AdminPermission.FINANCE_WRITE]: 'Manage Finance Records',
 };

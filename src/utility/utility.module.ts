@@ -13,6 +13,7 @@ import {TypeOrmModule} from '@nestjs/typeorm';
 import {UtilityController} from './controller/utility.controller';
 import {AuditLogController} from './controller/audit-log.controller';
 import {EmailProcessor} from './processor/email.processor';
+import {CloudinaryService} from './service/cloudinary.service';
 
 @Module({
     imports: [
@@ -20,9 +21,9 @@ import {EmailProcessor} from './processor/email.processor';
         TypeOrmModule.forFeature([AuditLog, EmailLog]),
         BullModule.registerQueue({name: 'email'}),
     ],
-    providers: [UtilityService, DateService, CacheService, SanitizationService, EmailQueueService, AuditLogService, EmailProcessor],
+    providers: [UtilityService, DateService, CacheService, SanitizationService, EmailQueueService, AuditLogService, EmailProcessor, CloudinaryService],
     controllers: [UtilityController, AuditLogController],
-    exports: [UtilityService, DateService, CacheService, SanitizationService, EmailQueueService, AuditLogService],
+    exports: [UtilityService, DateService, CacheService, SanitizationService, EmailQueueService, AuditLogService, CloudinaryService],
 })
 export class UtilityModule {
 }

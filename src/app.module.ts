@@ -1,6 +1,7 @@
 import {Module} from '@nestjs/common';
 import {ScheduleModule} from '@nestjs/schedule';
 import {APP_GUARD} from '@nestjs/core';
+import {MulterModule} from '@nestjs/platform-express';
 import {AppController} from './app.controller';
 import {AppService} from './app.service';
 import {UtilityModule} from './utility/utility.module';
@@ -28,6 +29,8 @@ import {ChildrenChurchModule} from './children-church/children-church.module';
 import {BirthdayModule} from './birthday/birthday.module';
 import {AdminModule} from './admin/admin.module';
 import {EnumsModule} from './enums/enums.module';
+import {TitheModule} from './tithe/tithe.module';
+import {FinanceRequestModule} from './finance-request/finance-request.module';
 
 @Module({
     imports: [
@@ -47,6 +50,11 @@ import {EnumsModule} from './enums/enums.module';
         }),
         LoggerModule.forRoot(),
         ScheduleModule.forRoot(),
+        MulterModule.register({
+            limits: {
+                fileSize: Number.parseInt(process.env.MAX_FILE_UPLOAD_BYTES ?? '', 10) || 5 * 1024 * 1024,
+            },
+        }),
         BullModule.forRootAsync({
             useFactory: (config: ConfigService) => ({
                 redis: {
@@ -78,6 +86,8 @@ import {EnumsModule} from './enums/enums.module';
         BirthdayModule,
         AdminModule,
         EnumsModule,
+        TitheModule,
+        FinanceRequestModule,
     ],
     controllers: [AppController],
     providers: [

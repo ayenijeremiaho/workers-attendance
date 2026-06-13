@@ -56,6 +56,8 @@ const mockCacheService = {
     key: jest.fn((ns: string, id: string) => `${ns}:${id}`),
     get: jest.fn().mockResolvedValue(0),
     set: jest.fn().mockResolvedValue(undefined),
+    acquireLock: jest.fn().mockResolvedValue(true),
+    releaseLock: jest.fn(),
 };
 
 const mockConfigService = {

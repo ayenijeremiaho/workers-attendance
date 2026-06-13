@@ -1,0 +1,47 @@
+import {Body, Controller, Get, HttpCode, HttpStatus, ParseIntPipe, Post, Query, Request, UploadedFile, UseGuards, UseInterceptors} from '@nestjs/common';
+import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
+import {TitheService} from '../service/tithe.service';
+import {SubmitTitheProofDto} from '../dto/tithe.dto';
+import {LimitedFileInterceptor} from '../../utility/interceptors/limited-file.interceptor';
+
+const TITHE_PROOF_MAX_BYTES = 2 * 1024 * 1024;
+
+@UseGuards(JwtAuthGuard)
+@Controller('tithes')
+export class TitheMemberController {
+    constructor(private readonly titheService: TitheService) {}
+
+    @Get('me')
+    getMyTithes(
+        @Request() req: any,
+        @Query('page', new ParseIntPipe({optional: true})) page = 1,
+        @Query('limit', new ParseIntPipe({optional: true})) limit = 20,
+    ) {
+        return this.titheService.getMyTithes(req.user, page, limit);
+    }
+
+    @Post('me/download')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    emailStatement(@Request() req: any): Promise<void> {
+        return this.titheService.emailTitheStatement(req.user);
+    }
+
+    @Post('proof')
+    @UseInterceptors(LimitedFileInterceptor('file', TITHE_PROOF_MAX_BYTES))
+    submitProof(
+        @Request() req: any,
+        @Body() dto: SubmitTitheProofDto,
+        @UploadedFile() file: Express.Multer.File,
+    ) {
+        return this.titheService.submitProof(req.user, dto, file);
+    }
+
+    @Get('proof')
+    getMyProofs(
+        @Request() req: any,
+        @Query('page', new ParseIntPipe({optional: true})) page = 1,
+        @Query('limit', new ParseIntPipe({optional: true})) limit = 20,
+    ) {
+        return this.titheService.getMyProofs(req.user, page, limit);
+    }
+}

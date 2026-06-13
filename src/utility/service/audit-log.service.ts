@@ -57,7 +57,26 @@ export type AuditAction =
     // Admin users
     | 'ADMIN_USER_CREATED'
     | 'ADMIN_USER_UPDATED'
-    | 'ADMIN_USER_DEACTIVATED';
+    | 'ADMIN_USER_DEACTIVATED'
+    // Tithe
+    | 'TITHE_BATCH_QUEUED'
+    | 'TITHE_UNMATCHED_RESOLVED'
+    | 'TITHE_UNMATCHED_DISMISSED'
+    | 'TITHE_DISPUTE_APPROVED'
+    | 'TITHE_DISPUTE_REJECTED'
+    // Finance categories
+    | 'FINANCE_CATEGORY_CREATED'
+    | 'FINANCE_CATEGORY_UPDATED'
+    // Finance requests
+    | 'FINANCE_REQUEST_CREATED'
+    | 'FINANCE_REQUEST_APPROVED'
+    | 'FINANCE_REQUEST_REJECTED'
+    | 'FINANCE_PROOF_ATTACHED'
+    // Tithe payment proofs
+    | 'TITHE_PROOF_SUBMITTED'
+    | 'TITHE_PROOF_CONFIRMED'
+    | 'TITHE_PROOF_DECLINED'
+    | 'TITHE_PROOF_EXPIRED_PURGED';
 
 export interface AuditContext {
     actorId?: string;

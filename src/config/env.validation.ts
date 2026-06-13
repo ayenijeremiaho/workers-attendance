@@ -40,6 +40,10 @@ export const envValidationSchema = Joi.object({
     DEVICE_RESET_MAX_ATTEMPTS: Joi.number().default(3),
     DEVICE_RESET_WINDOW_SECONDS: Joi.number().default(86400),
 
+    CLOUDINARY_CLOUD_NAME: Joi.string().required(),
+    CLOUDINARY_API_KEY: Joi.string().required(),
+    CLOUDINARY_API_SECRET: Joi.string().required(),
+
     PRODUCT_NAME: Joi.string().default('Discovery Hub'),
     CHURCH_NAME: Joi.string().default('RCCG Discovery Centre'),
     CHURCH_ADDRESS: Joi.string().default('62 Igi Olugbin Street, Bariga. Lagos, Nigeria'),

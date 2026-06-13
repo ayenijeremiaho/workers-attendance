@@ -29,7 +29,7 @@ export class AdminGuard implements CanActivate {
 
         const admin = await this.adminRepository.findOne({
             where: {member: {id: user.id}, isActive: true},
-            relations: ['adminRole'],
+            relations: ['adminRole', 'member'],
         });
 
         if (!admin) throw new ForbiddenException('Admin access required.');

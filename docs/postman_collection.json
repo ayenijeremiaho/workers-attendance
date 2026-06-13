@@ -5394,6 +5394,1100 @@
           }
         }
       ]
+    },
+    {
+      "name": "Tithes (Admin)",
+      "item": [
+        {
+          "name": "Download Tithe Template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/template",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "template"
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Downloads a 3-sheet Excel workbook: Tithe Template (headers), Instructions, Sample row."
+          }
+        },
+        {
+          "name": "Upload Tithe Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Excel .xlsx file with columns: Email, Amount, Payment Date (YYYY-MM-DD), Reference (optional), Bank Name (optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/upload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "upload"
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Validates headers synchronously; dispatches processing to Bull queue. Returns the created TitheUploadBatch."
+          }
+        },
+        {
+          "name": "List Tithe Batches",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/batches?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "batches"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Paginated list of all upload batches."
+          }
+        },
+        {
+          "name": "Get Tithe Batch",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/batches/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "batches",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Get a single batch with stats."
+          }
+        },
+        {
+          "name": "Requeue Failed Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/batches/:id/requeue",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "batches",
+                ":id",
+                "requeue"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Requeue a FAILED batch using its stored row data. Resets status to PENDING and re-dispatches the Bull job. Returns 204 No Content."
+          }
+        },
+        {
+          "name": "List Unmatched Rows",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/unmatched?batchId=&status=PENDING&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "unmatched"
+              ],
+              "query": [
+                {
+                  "key": "batchId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Rows from any batch where no member matched the email. status defaults to PENDING; pass MATCHED or DISMISSED to review resolved rows."
+          }
+        },
+        {
+          "name": "Match Unmatched Row",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/unmatched/:id/match",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "unmatched",
+                ":id",
+                "match"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Manually links a PENDING unmatched row to a member, creating a TitheRecord and marking the row as MATCHED."
+          }
+        },
+        {
+          "name": "Dismiss Unmatched Row",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/unmatched/:id/dismiss",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "unmatched",
+                ":id",
+                "dismiss"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Marks a PENDING unmatched row as DISMISSED \u2014 intentionally ignored (e.g. test entry, refund, person not in the system). No TitheRecord is created."
+          }
+        },
+        {
+          "name": "List Tithe Disputes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/disputes?status=PENDING&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "disputes"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Rows that matched a member but duplicated an existing TitheRecord by (memberId, paymentDate, amount). status defaults to PENDING; pass CONFIRMED_VALID or REJECTED to review resolved ones."
+          }
+        },
+        {
+          "name": "Approve Tithe Dispute",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/disputes/:id/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "disputes",
+                ":id",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Approves the dispute and creates a TitheRecord."
+          }
+        },
+        {
+          "name": "Reject Tithe Dispute",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/disputes/:id/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "disputes",
+                ":id",
+                "reject"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Rejects the dispute; the row is ignored."
+          }
+        },
+        {
+          "name": "List All Tithe Payment Proofs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/proofs?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "proofs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "disabled": true,
+                  "description": "PENDING | CONFIRMED | DECLINED"
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Lists all member-submitted tithe payment proofs. Optional `status` filter."
+          }
+        },
+        {
+          "name": "Confirm Tithe Payment Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/proofs/:id/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "proofs",
+                ":id",
+                "confirm"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "<proof-uuid>"
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Sets proof status to CONFIRMED and emails the member. Returns 204."
+          }
+        },
+        {
+          "name": "Decline Tithe Payment Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"financeNote\": \"We could not locate this transaction. Please contact your bank and resubmit.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/proofs/:id/decline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "proofs",
+                ":id",
+                "decline"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "<proof-uuid>"
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Sets proof status to DECLINED, stores financeNote, and emails the member. Returns 204."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tithes (Member)",
+      "item": [
+        {
+          "name": "My Tithe Records",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tithes/me?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tithes",
+                "me"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "JwtAuthGuard. Returns the authenticated member's own tithe records (paginated)."
+          }
+        },
+        {
+          "name": "Email Tithe Statement PDF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tithes/me/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tithes",
+                "me",
+                "download"
+              ]
+            },
+            "description": "JwtAuthGuard. Generates a PDF tithe statement and emails it to the caller's registered email address."
+          }
+        },
+        {
+          "name": "Submit Tithe Payment Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Receipt image or PDF. Max 2 MB."
+                },
+                {
+                  "key": "amount",
+                  "value": "10000",
+                  "type": "text"
+                },
+                {
+                  "key": "paymentDate",
+                  "value": "2026-06-10",
+                  "type": "text"
+                },
+                {
+                  "key": "bankName",
+                  "value": "GTB",
+                  "type": "text"
+                },
+                {
+                  "key": "reference",
+                  "value": "TXN123456",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tithes/proof",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tithes",
+                "proof"
+              ]
+            },
+            "description": "JwtAuthGuard. Upload a tithe payment proof (multipart, field: file, max 2 MB). Creates a TithePaymentProof with status PENDING. Finance team is notified by email."
+          }
+        },
+        {
+          "name": "My Tithe Payment Proofs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tithes/proof?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tithes",
+                "proof"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "JwtAuthGuard. Returns the authenticated member's own tithe payment proofs (paginated)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance (Admin)",
+      "item": [
+        {
+          "name": "List Finance Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "finance",
+                "categories"
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Returns all finance categories sorted by name."
+          }
+        },
+        {
+          "name": "Create Finance Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Equipment\",\n  \"description\": \"Purchase or repair of department equipment\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "finance",
+                "categories"
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Creates a new expense category. Name must be unique."
+          }
+        },
+        {
+          "name": "Update Finance Category",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Equipment & Tools\",\n  \"description\": \"Updated description\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/categories/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "finance",
+                "categories",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Updates an existing category."
+          }
+        },
+        {
+          "name": "List Finance Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/requests?page=1&limit=20&status=PENDING",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "finance",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Paginated list of all finance requests. Filterable by status (PENDING/APPROVED/REJECTED) and categoryId."
+          }
+        },
+        {
+          "name": "Get Finance Request",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/requests/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "finance",
+                "requests",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Get a single finance request with full relations."
+          }
+        },
+        {
+          "name": "Approve Finance Request",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/requests/:id/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "finance",
+                "requests",
+                ":id",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Approves a PENDING request. Notifies the HOD by email."
+          }
+        },
+        {
+          "name": "Reject Finance Request",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejectionReason\": \"Budget not available this quarter\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/requests/:id/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "finance",
+                "requests",
+                ":id",
+                "reject"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Rejects a PENDING request. Requires a rejectionReason. Notifies the HOD by email."
+          }
+        },
+        {
+          "name": "Attach Payment Proof",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Payment proof document (image or PDF)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/requests/:id/proof",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "finance",
+                "requests",
+                ":id",
+                "proof"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Uploads payment proof to Cloudinary and attaches the URL to an APPROVED request. Notifies the HOD by email."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance (Worker/HOD)",
+      "item": [
+        {
+          "name": "List Finance Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "finance",
+                "categories"
+              ]
+            },
+            "description": "RolesGuard (WORKER). Returns all finance categories for use in the request creation form."
+          }
+        },
+        {
+          "name": "Create Finance Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "categoryId",
+                  "value": "",
+                  "type": "text"
+                },
+                {
+                  "key": "departmentId",
+                  "value": "",
+                  "type": "text",
+                  "description": "Must match the caller's own department"
+                },
+                {
+                  "key": "reason",
+                  "value": "Purchase of new projector for services",
+                  "type": "text"
+                },
+                {
+                  "key": "amount",
+                  "value": "150000",
+                  "type": "text"
+                },
+                {
+                  "key": "recipientBankName",
+                  "value": "First Bank",
+                  "type": "text"
+                },
+                {
+                  "key": "recipientAccountNumber",
+                  "value": "1234567890",
+                  "type": "text"
+                },
+                {
+                  "key": "recipientAccountName",
+                  "value": "ABC Suppliers Ltd",
+                  "type": "text"
+                },
+                {
+                  "key": "attachment",
+                  "type": "file",
+                  "src": "",
+                  "description": "Optional budget/invoice file"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "finance",
+                "requests"
+              ]
+            },
+            "description": "RolesGuard (WORKER) \u2014 HOD only. Raises a finance request for the caller's department. Server verifies the caller is a department lead and that departmentId matches their department. Notifies all FINANCE_WRITE admins by email."
+          }
+        },
+        {
+          "name": "My Department Finance Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/requests?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "finance",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "RolesGuard (WORKER) \u2014 HOD only. Returns paginated requests for the caller's own department."
+          }
+        },
+        {
+          "name": "Get My Department Request",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/requests/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "finance",
+                "requests",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "RolesGuard (WORKER) \u2014 HOD only. Returns a single finance request belonging to the caller's own department. Includes proofUrl once payment proof has been attached. Returns 404 if the request belongs to a different department."
+          }
+        }
+      ]
     }
   ]
 }

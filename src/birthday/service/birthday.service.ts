@@ -31,8 +31,16 @@ export class BirthdayService {
     ) {
     }
 
+    private static readonly LOCK_KEY = 'lock:birthday-greetings';
+
     @Cron('0 6 * * *')
     async triggerBirthdayGreetings(): Promise<void> {
+        const acquired = await this.cacheService.acquireLock(BirthdayService.LOCK_KEY, 270);
+        if (!acquired) {
+            this.logger.debug('Birthday greetings skipped — another instance holds the lock');
+            return;
+        }
+
         const today = new Date();
         const month = today.getMonth() + 1;
         const day = today.getDate();
@@ -44,15 +52,19 @@ export class BirthdayService {
             .andWhere('m.status = :status', {status: MemberStatusEnum.ACTIVE})
             .getMany();
 
-        if (birthdayMembers.length === 0) return;
+        try {
+            if (birthdayMembers.length === 0) return;
 
-        const endOfDay = new Date(today);
-        endOfDay.setHours(23, 59, 59, 999);
+            const endOfDay = new Date(today);
+            endOfDay.setHours(23, 59, 59, 999);
 
-        for (const member of birthdayMembers) {
-            await this.createBirthdayAnnouncement(member, endOfDay);
-            this.sendBirthdayEmail(member);
-            this.logger.log(`Birthday greetings sent to ${member.firstname} ${member.lastname}`);
+            for (const member of birthdayMembers) {
+                await this.createBirthdayAnnouncement(member, endOfDay);
+                this.sendBirthdayEmail(member);
+                this.logger.log(`Birthday greetings sent to ${member.firstname} ${member.lastname}`);
+            }
+        } finally {
+            this.cacheService.releaseLock(BirthdayService.LOCK_KEY);
         }
     }
 

@@ -114,4 +114,14 @@ export class UtilityService {
     ): void {
         this.emailQueueService.queueEmailWithTemplate(to, subject, templateName, templateData, cc);
     }
+
+    public sendEmailWithAttachment(
+        to: string | [string],
+        subject: string,
+        templateName: string,
+        templateData: Record<string, any>,
+        attachments: Array<{filename: string; content: Buffer}>,
+    ): void {
+        this.emailQueueService.queueEmailWithTemplateAndAttachments(to, subject, templateName, templateData, attachments);
+    }
 }

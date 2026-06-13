@@ -19,7 +19,8 @@
 ## 1. System Overview
 
 A NestJS REST API that manages church membership, service attendance, workforce scheduling, class enrolment, Sunday
-School sessions, Children Church security check-in, and internal announcements for a local church.
+School sessions, Children Church security check-in, internal announcements, tithe records, and internal finance
+requests for a local church.
 
 **Core design principles:**
 
@@ -59,11 +60,13 @@ src/
 ├── sunday-school/    Session-based SS classes, members, sessions, attendance
 ├── children-church/  Age groups, class groups, child profiles, guardians, check-in/out
 ├── admin/            Admin RBAC: AdminRole + Admin entities, AdminGuard, seed (@Global module)
-└── utility/          Email queue, cache, hashing, pagination, email delivery log
+├── tithe/            Batch tithe upload (Excel), queue-based processing, dispute resolution, member PDF statements
+├── finance-request/  Department expense requests lifecycle (submit → approve/reject → proof)
+└── utility/          Email queue, cache, hashing, pagination, email delivery log, Cloudinary file uploads
 ```
 
 **Stack:** NestJS · TypeORM · PostgreSQL · Redis · Bull · ioredis · Argon2 · Passport (JWT + Local) · class-validator · nestjs-schedule ·
-@nestjs/throttler · Handlebars · DOMPurify
+@nestjs/throttler · Handlebars · DOMPurify · ExcelJS · PDFKit · Cloudinary
 
 ---
 
@@ -509,6 +512,133 @@ One check-in/check-out record per child per session.
 | checkedInBy      | Member \| null         | ManyToOne, nullable — staff member who performed the check-in |
 | flagReason       | string \| null         | Reason if status = FLAGGED                                    |
 
+### TitheUploadBatch
+
+A batch record created when the finance team uploads an Excel file of tithe payments.
+
+| Field         | Type               | Notes                                            |
+|---------------|--------------------|--------------------------------------------------|
+| id            | UUID               | PK                                               |
+| uploadedBy    | Admin              | ManyToOne                                        |
+| fileName      | string             |                                                  |
+| status        | TitheBatchStatus   | PENDING \| PROCESSING \| COMPLETED \| FAILED     |
+| totalRows     | int                | Total rows in the spreadsheet                    |
+| matchedRows   | int                | Rows matched to a member                         |
+| unmatchedRows | int                | Rows with no member match                        |
+| disputedRows  | int                | Rows flagged as possible duplicates              |
+| rows          | jsonb \| null      | Parsed row data stored for safe requeue          |
+| errorMessage  | string \| null     | Error detail on FAILED batches                   |
+| processedAt   | timestamptz \| null| Set when processing completes                    |
+
+### TitheRecord
+
+A confirmed tithe payment matched to a member.
+
+| Field       | Type    | Notes                                  |
+|-------------|---------|----------------------------------------|
+| id          | UUID    | PK                                     |
+| member      | Member  | ManyToOne                              |
+| batch       | TitheUploadBatch | ManyToOne                    |
+| amount      | decimal (12,2)  |                               |
+| paymentDate | date    |                                        |
+| reference   | string \| null | Optional bank reference        |
+| bankName    | string \| null | Optional bank name             |
+
+**Duplicate detection:** `(memberId, paymentDate, amount)` — if all three match an existing record, the row is flagged as a dispute instead.
+
+### TitheUnmatchedRecord
+
+Rows from a batch where no member matched the email address.
+
+| Field         | Type                    | Notes                                        |
+|---------------|-------------------------|----------------------------------------------|
+| id            | UUID                    | PK                                           |
+| batch         | TitheUploadBatch        | ManyToOne                                    |
+| rawEmail      | string                  | Email from the spreadsheet                   |
+| amount        | decimal (12,2)          |                                              |
+| paymentDate   | date                    |                                              |
+| reference     | string \| null          |                                              |
+| bankName      | string \| null          |                                              |
+| status        | TitheUnmatchedStatus    | PENDING \| RESOLVED \| IGNORED               |
+| matchedMember | Member \| null          | Set when manually resolved                   |
+| resolvedBy    | Admin \| null           | Set when manually resolved                   |
+| resolvedAt    | timestamptz \| null     |                                              |
+
+### TitheDisputeRecord
+
+Rows that matched a member but would duplicate an existing `TitheRecord`.
+
+| Field          | Type               | Notes                                   |
+|----------------|--------------------|-----------------------------------------|
+| id             | UUID               | PK                                      |
+| batch          | TitheUploadBatch   | ManyToOne                               |
+| existingRecord | TitheRecord        | ManyToOne — the conflicting record      |
+| member         | Member             | ManyToOne                               |
+| amount         | decimal (12,2)     |                                         |
+| paymentDate    | date               |                                         |
+| reference      | string \| null     |                                         |
+| bankName       | string \| null     |                                         |
+| status         | TitheDisputeStatus | PENDING \| APPROVED \| REJECTED         |
+| reviewedBy     | Admin \| null      |                                         |
+| reviewedAt     | timestamptz \| null|                                         |
+
+### TithePaymentProof
+
+A member-submitted proof of tithe payment awaiting finance-team review. Files are stored in Cloudinary and automatically purged after a configurable number of days (default 90, controlled by `TITHE_PROOF_EXPIRY_DAYS`).
+
+| Field        | Type             | Notes                                                 |
+|--------------|------------------|-------------------------------------------------------|
+| id           | UUID             | PK                                                    |
+| member       | Member           | ManyToOne                                             |
+| amount       | decimal (12,2)   |                                                       |
+| paymentDate  | date             |                                                       |
+| bankName     | string \| null   |                                                       |
+| reference    | string \| null   |                                                       |
+| proofUrl     | string           | Cloudinary secure URL                                 |
+| publicId     | string           | Cloudinary public ID (used for deletion)              |
+| resourceType | string           | Cloudinary resource type returned at upload           |
+| status       | TitheProofStatus | PENDING \| CONFIRMED \| DECLINED                      |
+| reviewedBy   | Admin \| null    |                                                       |
+| reviewedAt   | timestamptz \| null |                                                    |
+| financeNote  | string \| null   | Reason supplied when declining                        |
+| expiresAt    | timestamptz      | Set to `TITHE_PROOF_EXPIRY_DAYS` days from submission (default 90); file purged on expiry |
+
+### FinanceCategory
+
+Admin-managed list of expense categories used on finance requests.
+
+| Field       | Type   | Notes  |
+|-------------|--------|--------|
+| id          | UUID   | PK     |
+| name        | string | Unique |
+| description | string \| null |   |
+
+### FinanceRequest
+
+An expense request raised by a department head (HOD).
+
+| Field                | Type                 | Notes                                              |
+|----------------------|----------------------|----------------------------------------------------|
+| id                   | UUID                 | PK                                                 |
+| requestedBy          | Member               | ManyToOne — the HOD who submitted the request      |
+| department           | Department           | ManyToOne                                          |
+| category             | FinanceCategory      | ManyToOne                                          |
+| reason               | text                 | Justification for the expense                      |
+| amount               | decimal (12,2)       |                                                    |
+| recipientBankName    | string               |                                                    |
+| recipientAccountNumber | string             |                                                    |
+| recipientAccountName | string               |                                                    |
+| attachmentUrl        | string \| null       | Cloudinary URL for optional budget/invoice upload  |
+| attachmentPublicId   | string \| null       | Cloudinary public ID for attachment (deletion)     |
+| attachmentResourceType | string \| null     | Cloudinary resource type returned at upload        |
+| status               | FinanceRequestStatus | PENDING \| APPROVED \| REJECTED                    |
+| reviewedBy           | Admin \| null        | Set on approve/reject                              |
+| reviewedAt           | timestamptz \| null  |                                                    |
+| rejectionReason      | text \| null         | Populated on rejection                             |
+| proofUrl             | string \| null       | Cloudinary URL for payment proof, set post-approval|
+| proofPublicId        | string \| null       | Cloudinary public ID for proof (deletion)          |
+| proofResourceType    | string \| null       | Cloudinary resource type for proof                 |
+
 ---
 
 ## 4. Authentication & Authorization
@@ -801,6 +931,8 @@ Template files live in `src/utility/templates/*.html` and use `{{variable}}` for
 conditionals, and `{{#each}}` for loops. Values are HTML-escaped automatically; use `{{{variable}}}` only for
 intentional raw HTML.
 
+**Cloudinary (`CloudinaryService`):** Streams file uploads to Cloudinary via `upload_stream` with `resource_type: 'auto'`. Used for finance request attachments, payment proofs, and tithe payment proofs. `uploadBuffer(buffer, folder, filename?)` returns `{secureUrl, publicId, resourceType}` — callers must persist `publicId` and `resourceType` so that assets can be deleted without re-parsing the URL. `deleteByPublicId(publicId, resourceType)` destroys the asset using the stored values (replaces the old `deleteByUrl` which hardcoded `resource_type: 'raw'`). The service validates all three credentials on module init and throws if any are missing. Credentials are read from `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`.
+
 **Cache (`CacheService`):** A Redis-backed key-value cache. All read operations (`get`) are awaited — the result is
 needed before the request can continue. Write operations (`set`, `del`) are **fire-and-forget** for non-critical
 data (cache population after a DB fetch, cache invalidation on mutations) — if the Redis write is lost, the worst
@@ -863,6 +995,54 @@ a staff member has opened the window on the session.
   members.
 
 **Routes prefix:** `/sunday-school`
+
+### Tithe Module
+
+Enables the finance team to upload Excel tithe payment sheets and lets members view and download their own tithe
+records.
+
+**Upload flow:**
+1. Finance admin uploads `.xlsx` via `POST /admin/tithes/upload` (multipart, field name `file`).
+2. Service validates required columns (`Email`, `Amount`, `Payment Date`) and returns 400 immediately for invalid files.
+3. A `TitheUploadBatch` record is created (with the parsed rows stored as JSONB for safe requeue) and a Bull job
+   (`tithe` queue, `process-batch` job) is dispatched with `attempts: 3, removeOnFail: false`.
+4. The processor runs asynchronously inside a **database transaction**: matches each row to a member by email
+   (case-insensitive), creates `TitheRecord` for matches, `TitheUnmatchedRecord` for no-match rows, and
+   `TitheDisputeRecord` for rows that duplicate an existing record by `(memberId, paymentDate, amount)`.
+   The transaction ensures idempotent retries — a mid-batch failure rolls back all inserts so the next attempt
+   starts from a clean slate.
+
+**Failed batch requeue:** If a batch reaches `FAILED` status, a finance admin can requeue it via
+`POST /admin/tithes/batches/:id/requeue`. The stored `rows` JSONB field is used to reconstruct the job without
+re-uploading the file.
+
+**Excel template:** Three-sheet workbook — `Tithe Template` (headers only), `Instructions`, `Sample`. Served at
+`GET /admin/tithes/template`.
+
+**Member visibility:** Members view their own tithes at `GET /tithes/me` and request a PDF statement emailed to them
+at `POST /tithes/me/download`.
+
+**Tithe payment proof:** Members and workers can submit proof of an offline tithe payment (bank transfer receipt, etc.) via `POST /tithes/proof` (multipart, field: `file`, max 2 MB). The file is uploaded to Cloudinary and a `TithePaymentProof` record is created with status `PENDING` and `expiresAt` set to `TITHE_PROOF_EXPIRY_DAYS` days from submission (default 90). Finance team admins review proofs at `GET /admin/tithes/proofs` and can `CONFIRM` or `DECLINE` each one. Confirming or declining triggers an email to the member. A daily cron at `03:00 UTC` (with distributed Redis lock `lock:tithe-proof-cleanup`) finds all expired proofs (`expiresAt ≤ now`), deletes each file from Cloudinary using the stored `publicId` + `resourceType`, and removes the DB rows.
+
+**Routes prefix (admin):** `/admin/tithes`  
+**Routes prefix (member):** `/tithes`
+
+### Finance Request Module
+
+Manages expense requests raised by department heads (HODs) through a finance team review lifecycle.
+
+**Lifecycle:** `PENDING → APPROVED / REJECTED`. On approval, the finance team attaches proof of payment via a
+separate `PATCH /:id/proof` endpoint.
+
+**Email notifications:**
+- On creation → all admins with `FINANCE_WRITE` permission are notified
+- On approve/reject/proof → the HOD who raised the request is notified
+
+**HOD enforcement:** Only workers with a lead assignment (`DepartmentLead` record) can create or view department
+requests. A worker can only raise a request for their own department (verified server-side).
+
+**Routes prefix (admin):** `/admin/finance`  
+**Routes prefix (worker):** `/finance`
 
 ### Children Church Module
 
@@ -1031,6 +1211,36 @@ Provides a security-grade check-in/check-out system for children. Key features:
 | PATCH  | /children-church/checkin/:id/flag                          | WORKER (CC-dept)                                              | Flag a check-in record                                                                                        |
 | GET    | /children-church/checkin/active?classGroupId=              | WORKER (CC-dept)                                              | List active check-ins                                                                                         |
 | GET    | /children-church/checkin/slot/:slotId                      | AdminGuard (CHILDREN_CHURCH_READ)                             | All check-ins for a service slot                                                                              |
+| GET    | /admin/tithes/template                                     | AdminGuard (FINANCE_READ)                                     | Download the tithe upload Excel template (3-sheet workbook)                                                   |
+| POST   | /admin/tithes/upload                                       | AdminGuard (FINANCE_WRITE)                                    | Upload tithe payment Excel; validates headers, creates batch, dispatches Bull job                              |
+| GET    | /admin/tithes/batches                                      | AdminGuard (FINANCE_READ)                                     | List all upload batches (paginated)                                                                           |
+| GET    | /admin/tithes/batches/:id                                  | AdminGuard (FINANCE_READ)                                     | Get batch by ID                                                                                               |
+| POST   | /admin/tithes/batches/:id/requeue                          | AdminGuard (FINANCE_WRITE)                                    | Requeue a FAILED batch using stored row data; resets status to PENDING                                        |
+| GET    | /admin/tithes/unmatched?status=&page=&limit=               | AdminGuard (FINANCE_READ)                                     | List unmatched rows; `status` defaults to PENDING; pass MATCHED or DISMISSED to review resolved rows          |
+| POST   | /admin/tithes/unmatched/:id/match                          | AdminGuard (FINANCE_WRITE)                                    | Manually match an unmatched row to a member; creates TitheRecord                                              |
+| POST   | /admin/tithes/unmatched/:id/dismiss                        | AdminGuard (FINANCE_WRITE)                                    | Mark an unmatched row as DISMISSED (intentionally ignored)                                                    |
+| GET    | /admin/tithes/disputes?status=&page=&limit=                | AdminGuard (FINANCE_READ)                                     | List dispute records; `status` defaults to PENDING; pass CONFIRMED_VALID or REJECTED to review resolved ones  |
+| PATCH  | /admin/tithes/disputes/:id/approve                         | AdminGuard (FINANCE_WRITE)                                    | Approve a tithe dispute (creates TitheRecord)                                                                 |
+| PATCH  | /admin/tithes/disputes/:id/reject                          | AdminGuard (FINANCE_WRITE)                                    | Reject a tithe dispute                                                                                        |
+| GET    | /tithes/me                                                 | Any (JwtAuthGuard)                                            | Member's own tithe records (paginated)                                                                        |
+| POST   | /tithes/me/download                                        | Any (JwtAuthGuard)                                            | Email a PDF tithe statement to the caller's registered email                                                  |
+| POST   | /tithes/proof                                              | Any (JwtAuthGuard)                                            | Submit tithe payment proof (multipart, field: file, max 2 MB); body: amount, paymentDate, bankName?, reference? |
+| GET    | /tithes/proof                                              | Any (JwtAuthGuard)                                            | List caller's own tithe payment proofs (paginated)                                                            |
+| GET    | /admin/tithes/proofs?status=&page=&limit=                  | AdminGuard (FINANCE_READ)                                     | List all tithe payment proofs; optional `status` filter (PENDING/CONFIRMED/DECLINED)                          |
+| POST   | /admin/tithes/proofs/:id/confirm                           | AdminGuard (FINANCE_WRITE)                                    | Confirm a tithe payment proof; notifies member by email                                                       |
+| POST   | /admin/tithes/proofs/:id/decline                           | AdminGuard (FINANCE_WRITE)                                    | Decline a tithe payment proof (body: financeNote); notifies member by email                                   |
+| GET    | /admin/finance/categories                                  | AdminGuard (FINANCE_READ)                                     | List finance categories                                                                                       |
+| POST   | /admin/finance/categories                                  | AdminGuard (FINANCE_WRITE)                                    | Create finance category                                                                                       |
+| PATCH  | /admin/finance/categories/:id                              | AdminGuard (FINANCE_WRITE)                                    | Update finance category                                                                                       |
+| GET    | /admin/finance/requests                                    | AdminGuard (FINANCE_READ)                                     | List finance requests (paginated; filterable by status, categoryId)                                           |
+| GET    | /admin/finance/requests/:id                                | AdminGuard (FINANCE_READ)                                     | Get finance request by ID                                                                                     |
+| PATCH  | /admin/finance/requests/:id/approve                        | AdminGuard (FINANCE_WRITE)                                    | Approve a pending finance request                                                                             |
+| PATCH  | /admin/finance/requests/:id/reject                         | AdminGuard (FINANCE_WRITE)                                    | Reject a pending finance request (body: rejectionReason)                                                      |
+| PATCH  | /admin/finance/requests/:id/proof                          | AdminGuard (FINANCE_WRITE)                                    | Attach payment proof to an approved request (multipart, field: file)                                          |
+| GET    | /finance/categories                                        | WORKER (RolesGuard)                                           | List finance categories (visible to HOD for request creation)                                                 |
+| POST   | /finance/requests                                          | WORKER — HOD only                                             | Raise a finance request for own department (multipart optional: attachment)                                   |
+| GET    | /finance/requests                                          | WORKER — HOD only                                             | List own department's finance requests (paginated)                                                            |
+| GET    | /finance/requests/:id                                      | WORKER — HOD only                                             | Get a single request from own department (includes proofUrl once attached)                                    |
 
 ---
 
@@ -1153,6 +1363,9 @@ A church worker can also have admin access. They pass `@Roles(WORKER)` routes vi
 | View admin users & roles                      | `ADMIN_READ`            |
 | Create / update / delete admin users & roles  | `ADMIN_WRITE`           |
 | View own admin profile                        | *(any active admin)*    |
+| View tithe batches, records, disputes         | `FINANCE_READ`          |
+| Upload tithes, resolve disputes, approve/reject requests, attach proof | `FINANCE_WRITE` |
+| View finance categories and requests          | `FINANCE_READ`          |
 
 ---
 
@@ -1286,6 +1499,18 @@ with application cache keys.
 | `MEMBER_CHECKIN_START_OFFSET_SECONDS`      | `-900`                  | Members can check in 15 min before start      |
 | `CHECKIN_STOP_OFFSET_SECONDS`              | `3600`                  | Check-in closes 1 hr after start              |
 
+### Cloudinary (file uploads)
+
+Used for finance request attachments and payment proofs.
+
+| Variable                  | Default        | Description                     |
+|---------------------------|----------------|---------------------------------|
+| `CLOUDINARY_CLOUD_NAME`      | — *(required)* | Cloudinary account cloud name                                              |
+| `CLOUDINARY_API_KEY`         | — *(required)* | Cloudinary API key                                                         |
+| `CLOUDINARY_API_SECRET`      | — *(required)* | Cloudinary API secret                                                      |
+| `MAX_FILE_UPLOAD_BYTES`      | `5242880`      | Global hard ceiling for all file uploads (bytes). Registered via `MulterModule` in `AppModule`; individual endpoints may enforce a stricter limit. |
+| `TITHE_PROOF_EXPIRY_DAYS`    | `90`           | Days after which a tithe payment proof is purged from Cloudinary and DB    |
+
 ### App URLs (embedded in emails)
 
 | Variable                      | Description                                                                                 |
@@ -1314,7 +1539,7 @@ Granular permissions assigned to `AdminRole` records:
 `departments:read` · `departments:write` · `attendance:read` · `leave:read` · `leave:write` · `classes:read` ·
 `classes:write` · `announcements:read` · `announcements:write` · `notes:read` · `notes:write` · `dashboard:read` ·
 `sunday_school:read` · `sunday_school:write` · `children_church:read` · `children_church:write` · `admin:read` ·
-`admin:write` · `audit:read`
+`admin:write` · `audit:read` · `finance:read` · `finance:write`
 
 ### MemberStatusEnum / WorkerStatusEnum
 
@@ -1382,3 +1607,19 @@ if the department is not linked to any gated module). Multiple departments can s
 ### ReminderIntervalPresetEnum
 
 `15m` (15 min) · `30m` (30 min) · `1h` (1 hour) · `3h` (3 hours) · `24h` (24 hours) · `48h` (48 hours)
+
+### TitheBatchStatus
+
+`PENDING` · `PROCESSING` · `COMPLETED` · `FAILED`
+
+### TitheUnmatchedStatus
+
+`PENDING` · `MATCHED` · `DISMISSED`
+
+### TitheDisputeStatus
+
+`PENDING` · `CONFIRMED_VALID` · `REJECTED`
+
+### FinanceRequestStatus
+
+`PENDING` · `APPROVED` · `REJECTED`

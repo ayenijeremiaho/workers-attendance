@@ -1,0 +1,24 @@
+export enum TitheBatchStatus {
+    PENDING = 'PENDING',
+    PROCESSING = 'PROCESSING',
+    COMPLETED = 'COMPLETED',
+    FAILED = 'FAILED',
+}
+
+export enum TitheUnmatchedStatus {
+    PENDING = 'PENDING',
+    MATCHED = 'MATCHED',
+    DISMISSED = 'DISMISSED',
+}
+
+export enum TitheDisputeStatus {
+    PENDING = 'PENDING',
+    CONFIRMED_VALID = 'CONFIRMED_VALID',
+    REJECTED = 'REJECTED',
+}
+
+export enum TitheProofStatus {
+    PENDING = 'PENDING',
+    CONFIRMED = 'CONFIRMED',
+    DECLINED = 'DECLINED',
+}

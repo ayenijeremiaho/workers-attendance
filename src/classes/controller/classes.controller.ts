@@ -49,6 +49,11 @@ export class ClassesController {
         return this.classesService.getAllClasses(type, Number(page), Number(limit));
     }
 
+    @Get('my/enrollments')
+    getMyEnrollments(@CurrentUser() user: MemberAuth) {
+        return this.classesService.getMyEnrollments(user.id);
+    }
+
     @Get(':id')
     findOne(@Param('id', ParseUUIDPipe) id: string) {
         return this.classesService.getClass(id);
@@ -69,11 +74,6 @@ export class ClassesController {
         @Body() dto: UpdateEnrollmentStatusDto,
     ) {
         return this.classesService.updateEnrollmentStatus(enrollmentId, dto.status);
-    }
-
-    @Get('my/enrollments')
-    getMyEnrollments(@CurrentUser() user: MemberAuth) {
-        return this.classesService.getMyEnrollments(user.id);
     }
 
     @UseGuards(AdminGuard)

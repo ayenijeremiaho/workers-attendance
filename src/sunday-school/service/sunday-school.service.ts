@@ -1,6 +1,6 @@
 import {BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
-import {In, Repository} from 'typeorm';
+import {In, MoreThan, Repository} from 'typeorm';
 import {SundaySchoolClass} from '../entity/sunday-school-class.entity';
 import {SundaySchoolMember} from '../entity/sunday-school-member.entity';
 import {SundaySchoolSession} from '../entity/sunday-school-session.entity';
@@ -29,6 +29,7 @@ export interface SessionRoster {
     classId: string;
     sessionDate: string;
     selfMarkOpen: boolean;
+    selfMarkClosesAt: Date | null;
     members: SessionRosterEntry[];
 }
 
@@ -223,20 +224,33 @@ export class SundaySchoolService {
             sundaySchoolClass: cls,
             sessionDate: dto.sessionDate,
             notes: dto.notes ?? null,
-            selfMarkOpen: false,
         });
         return this.sessionRepo.save(session);
     }
 
-    async toggleSelfMark(user: MemberAuth, sessionId: string): Promise<SundaySchoolSession> {
+    async openSelfMark(user: MemberAuth, sessionId: string, closesInMinutes: number): Promise<SundaySchoolSession> {
         const session = await this.sessionRepo.findOne({
             where: {id: sessionId},
             relations: ['sundaySchoolClass'],
         });
         if (!session) throw new NotFoundException('Session not found');
         await this.requireSundaySchoolAuth(user, session.sundaySchoolClass.id);
-        this.logger.log(`Toggling self-mark for session ${sessionId}`);
-        session.selfMarkOpen = !session.selfMarkOpen;
+        this.logger.log(`Opening self-mark for session ${sessionId} for ${closesInMinutes} minutes`);
+        const closesAt = new Date();
+        closesAt.setMinutes(closesAt.getMinutes() + closesInMinutes);
+        session.selfMarkClosesAt = closesAt;
+        return this.sessionRepo.save(session);
+    }
+
+    async closeSelfMark(user: MemberAuth, sessionId: string): Promise<SundaySchoolSession> {
+        const session = await this.sessionRepo.findOne({
+            where: {id: sessionId},
+            relations: ['sundaySchoolClass'],
+        });
+        if (!session) throw new NotFoundException('Session not found');
+        await this.requireSundaySchoolAuth(user, session.sundaySchoolClass.id);
+        this.logger.log(`Closing self-mark for session ${sessionId}`);
+        session.selfMarkClosesAt = null;
         return this.sessionRepo.save(session);
     }
 
@@ -246,7 +260,7 @@ export class SundaySchoolService {
             relations: ['sundaySchoolClass'],
         });
         if (!session) throw new NotFoundException('Session not found');
-        if (!session.selfMarkOpen) {
+        if (!session.selfMarkClosesAt || session.selfMarkClosesAt <= new Date()) {
             throw new BadRequestException('Self-marking attendance is not currently open for this session.');
         }
         const assignment = await this.memberAssignRepo.findOne({
@@ -271,6 +285,34 @@ export class SundaySchoolService {
             markedByTeacher: false,
         });
         return this.attendanceRepo.save(attendance);
+    }
+
+    async getMyAttendanceHistory(
+        user: MemberAuth,
+        page: number,
+        limit: number,
+    ): Promise<PaginationResponseDto<SundaySchoolAttendance>> {
+        const [data, totalCount] = await this.attendanceRepo.findAndCount({
+            where: {member: {id: user.id}},
+            relations: ['session', 'session.sundaySchoolClass'],
+            order: {markedAt: 'DESC'},
+            skip: (page - 1) * limit,
+            take: limit,
+        });
+        return {data, page, limit, totalCount, totalPages: Math.ceil(totalCount / limit)};
+    }
+
+    async getOpenSessionsForMember(user: MemberAuth): Promise<SundaySchoolSession[]> {
+        const assignments = await this.memberAssignRepo.find({
+            where: {member: {id: user.id}},
+            relations: ['sundaySchoolClass'],
+        });
+        if (assignments.length === 0) return [];
+        const classIds = assignments.map((a) => a.sundaySchoolClass.id);
+        return this.sessionRepo.find({
+            where: {sundaySchoolClass: {id: In(classIds)}, selfMarkClosesAt: MoreThan(new Date())},
+            relations: ['sundaySchoolClass'],
+        });
     }
 
     async bulkMarkAttendance(
@@ -368,7 +410,8 @@ export class SundaySchoolService {
             sessionId,
             classId: session.sundaySchoolClass.id,
             sessionDate: session.sessionDate,
-            selfMarkOpen: session.selfMarkOpen,
+            selfMarkOpen: !!session.selfMarkClosesAt && new Date() < new Date(session.selfMarkClosesAt),
+            selfMarkClosesAt: session.selfMarkClosesAt,
             members: classMembers.map((cm) => {
                 const att = attendanceMap.get(cm.member.id);
                 return {

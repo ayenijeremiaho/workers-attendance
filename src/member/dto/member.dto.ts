@@ -22,6 +22,9 @@ export class MemberDto {
     phoneNumber: string;
 
     @Expose()
+    changedPassword: boolean;
+
+    @Expose()
     role: MemberRoleEnum;
 
     @Expose()

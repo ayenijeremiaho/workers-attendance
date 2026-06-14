@@ -15,11 +15,17 @@ const mockSundaySchoolService = {
     assignMember: jest.fn(),
     removeMember: jest.fn(),
     getClassMembers: jest.fn(),
+    getSessionsForClass: jest.fn(),
     createSession: jest.fn(),
-    toggleSelfMark: jest.fn(),
+    openSelfMark: jest.fn(),
+    closeSelfMark: jest.fn(),
     selfMarkPresent: jest.fn(),
     bulkMarkAttendance: jest.fn(),
     getSessionRoster: jest.fn(),
+    getSession: jest.fn(),
+    deleteSession: jest.fn(),
+    getOpenSessionsForMember: jest.fn(),
+    getMyAttendanceHistory: jest.fn(),
 };
 
 const mockUser = {id: 'worker-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false, surface: SessionSurface.MEMBER};
@@ -134,15 +140,37 @@ describe('SundaySchoolController', () => {
         expect(mockSundaySchoolService.createSession).toHaveBeenCalledWith(mockUser, dto);
     });
 
-    it('toggleSelfMark — passes req.user and session id', async () => {
-        mockSundaySchoolService.toggleSelfMark.mockResolvedValue({
-            id: 'session-1',
-            selfMarkOpen: true,
-        });
+    it('openSelfMark — passes req.user, session id, and closesInMinutes', async () => {
+        const closesAt = new Date(Date.now() + 30 * 60 * 1000);
+        mockSundaySchoolService.openSelfMark.mockResolvedValue({id: 'session-1', selfMarkClosesAt: closesAt});
 
-        await controller.toggleSelfMark(mockReq, 'session-1');
+        await controller.openSelfMark(mockReq, 'session-1', {closesInMinutes: 30} as any);
 
-        expect(mockSundaySchoolService.toggleSelfMark).toHaveBeenCalledWith(mockUser, 'session-1');
+        expect(mockSundaySchoolService.openSelfMark).toHaveBeenCalledWith(mockUser, 'session-1', 30);
+    });
+
+    it('closeSelfMark — passes req.user and session id', async () => {
+        mockSundaySchoolService.closeSelfMark.mockResolvedValue({id: 'session-1', selfMarkClosesAt: null});
+
+        await controller.closeSelfMark(mockReq, 'session-1');
+
+        expect(mockSundaySchoolService.closeSelfMark).toHaveBeenCalledWith(mockUser, 'session-1');
+    });
+
+    it('getOpenSessions — passes req.user to service', async () => {
+        mockSundaySchoolService.getOpenSessionsForMember.mockResolvedValue([]);
+
+        await controller.getOpenSessions(mockReq);
+
+        expect(mockSundaySchoolService.getOpenSessionsForMember).toHaveBeenCalledWith(mockUser);
+    });
+
+    it('getMyAttendanceHistory — coerces page and limit, passes req.user', async () => {
+        mockSundaySchoolService.getMyAttendanceHistory.mockResolvedValue({data: [], totalCount: 0});
+
+        await controller.getMyAttendanceHistory(mockReq, 1, 20);
+
+        expect(mockSundaySchoolService.getMyAttendanceHistory).toHaveBeenCalledWith(mockUser, 1, 20);
     });
 
     it('selfMarkPresent — passes req.user and session id', async () => {

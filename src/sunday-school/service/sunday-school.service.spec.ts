@@ -63,10 +63,11 @@ const otherWorkerUser = {id: 'other-worker-1', role: MemberRoleEnum.WORKER, requ
 const memberUser = {id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false, surface: SessionSurface.MEMBER};
 
 const mockClass = {id: 'class-1', name: 'Beginners', teacher: {id: 'ss-worker-1'}};
+const futureDate = new Date(Date.now() + 30 * 60 * 1000);
 const mockSession = {
     id: 'session-1',
     sessionDate: '2026-06-08',
-    selfMarkOpen: true,
+    selfMarkClosesAt: futureDate,
     sundaySchoolClass: mockClass,
 };
 
@@ -368,10 +369,10 @@ describe('SundaySchoolService', () => {
             ).rejects.toThrow(BadRequestException);
         });
 
-        it('should create and return the session', async () => {
+        it('should create and return the session with selfMarkClosesAt null', async () => {
             mockClassRepo.findOne.mockResolvedValue(mockClass);
             mockSessionRepo.findOne.mockResolvedValue(null);
-            const session = {id: 'session-1', sessionDate: '2026-06-08', selfMarkOpen: false};
+            const session = {id: 'session-1', sessionDate: '2026-06-08', selfMarkClosesAt: null};
             mockSessionRepo.create.mockReturnValue(session);
             mockSessionRepo.save.mockResolvedValue(session);
 
@@ -380,7 +381,7 @@ describe('SundaySchoolService', () => {
                 sessionDate: '2026-06-08',
             });
 
-            expect(result.selfMarkOpen).toBe(false);
+            expect(result.selfMarkClosesAt).toBeNull();
         });
 
         it('should throw ForbiddenException for unauthorized worker', async () => {
@@ -393,9 +394,9 @@ describe('SundaySchoolService', () => {
         });
     });
 
-    // ─── toggleSelfMark ───────────────────────────────────────────────────────
+    // ─── openSelfMark / closeSelfMark ─────────────────────────────────────────
 
-    describe('toggleSelfMark', () => {
+    describe('openSelfMark', () => {
         beforeEach(() => {
             mockWorkerProfileRepo.findOne.mockResolvedValue(mockSSDeptProfile);
         });
@@ -403,29 +404,48 @@ describe('SundaySchoolService', () => {
         it('should throw NotFoundException when session not found', async () => {
             mockSessionRepo.findOne.mockResolvedValue(null);
 
-            await expect(service.toggleSelfMark(ssWorkerUser, 'bad-id')).rejects.toThrow(
+            await expect(service.openSelfMark(ssWorkerUser, 'bad-id', 30)).rejects.toThrow(
                 NotFoundException,
             );
         });
 
-        it('should toggle selfMarkOpen from false to true', async () => {
-            const session = {id: 'session-1', selfMarkOpen: false, sundaySchoolClass: mockClass};
+        it('should set selfMarkClosesAt to now + closesInMinutes', async () => {
+            const session = {id: 'session-1', selfMarkClosesAt: null, sundaySchoolClass: mockClass};
             mockSessionRepo.findOne.mockResolvedValue(session);
             mockSessionRepo.save.mockImplementation((e) => Promise.resolve(e));
 
-            const result = await service.toggleSelfMark(ssWorkerUser, 'session-1');
+            const before = new Date();
+            const result = await service.openSelfMark(ssWorkerUser, 'session-1', 30);
+            const after = new Date();
 
-            expect(result.selfMarkOpen).toBe(true);
+            expect(result.selfMarkClosesAt).toBeInstanceOf(Date);
+            const closesAtMs = new Date(result.selfMarkClosesAt).getTime();
+            expect(closesAtMs).toBeGreaterThanOrEqual(before.getTime() + 29 * 60 * 1000);
+            expect(closesAtMs).toBeLessThanOrEqual(after.getTime() + 31 * 60 * 1000);
+        });
+    });
+
+    describe('closeSelfMark', () => {
+        beforeEach(() => {
+            mockWorkerProfileRepo.findOne.mockResolvedValue(mockSSDeptProfile);
         });
 
-        it('should toggle selfMarkOpen from true to false', async () => {
-            const session = {id: 'session-1', selfMarkOpen: true, sundaySchoolClass: mockClass};
+        it('should throw NotFoundException when session not found', async () => {
+            mockSessionRepo.findOne.mockResolvedValue(null);
+
+            await expect(service.closeSelfMark(ssWorkerUser, 'bad-id')).rejects.toThrow(
+                NotFoundException,
+            );
+        });
+
+        it('should set selfMarkClosesAt to null', async () => {
+            const session = {id: 'session-1', selfMarkClosesAt: futureDate, sundaySchoolClass: mockClass};
             mockSessionRepo.findOne.mockResolvedValue(session);
             mockSessionRepo.save.mockImplementation((e) => Promise.resolve(e));
 
-            const result = await service.toggleSelfMark(ssWorkerUser, 'session-1');
+            const result = await service.closeSelfMark(ssWorkerUser, 'session-1');
 
-            expect(result.selfMarkOpen).toBe(false);
+            expect(result.selfMarkClosesAt).toBeNull();
         });
     });
 
@@ -439,7 +459,7 @@ describe('SundaySchoolService', () => {
         });
 
         it('should throw BadRequestException when self-marking is closed', async () => {
-            mockSessionRepo.findOne.mockResolvedValue({...mockSession, selfMarkOpen: false});
+            mockSessionRepo.findOne.mockResolvedValue({...mockSession, selfMarkClosesAt: null});
 
             await expect(service.selfMarkPresent(memberUser, 'session-1')).rejects.toThrow(
                 BadRequestException,

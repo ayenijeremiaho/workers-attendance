@@ -420,7 +420,7 @@ One session (meeting) of a Sunday School class.
 | id                | UUID                | PK                                                   |
 | sundaySchoolClass | SundaySchoolClass   | ManyToOne                                            |
 | sessionDate       | string (YYYY-MM-DD) | Date of the session                                  |
-| selfMarkOpen      | boolean             | When true, enrolled members may self-mark attendance |
+| selfMarkClosesAt  | timestamptz \| null | Non-null and in the future means the self-mark window is open |
 | notes             | string              | Optional session notes                               |
 
 **Unique constraint:** (sundaySchoolClass, sessionDate)
@@ -1067,7 +1067,7 @@ a staff member has opened the window on the session.
 
 - Admin or SS-dept worker creates a class and assigns a teacher (optional).
 - Members are assigned to a class via the members sub-resource. Assignments are permanent until explicitly removed.
-- A session is created per class per date. Staff can toggle `selfMarkOpen` to allow enrolled students to self-mark.
+- A session is created per class per date. Staff open a timed self-mark window via `PATCH /sessions/:id/open` (body: `{ closesInMinutes: 5–480 }`); members may self-mark only while `selfMarkClosesAt` is non-null and in the future. Staff can close the window early via `PATCH /sessions/:id/close`. No cron job required — the window expires automatically at query time.
 - Bulk marking is used by teachers/staff; self-mark (`POST /sunday-school/sessions/:id/checkin`) is used by individual
   members.
 
@@ -1190,6 +1190,7 @@ Provides a security-grade check-in/check-out system for children. Key features:
 | POST   | /auth/reset-password                                       | Public                                                        | Verify OTP and set new password; invalidates current session                                                  |
 | POST   | /auth/device-reset/request                                 | Public                                                        | Self-service device reset — rate-limited; issues OTP to registered email; locks in `newDeviceId` at request   |
 | POST   | /auth/device-reset/verify                                  | Public                                                        | Verify OTP and swap `deviceId` to `newDeviceId`; invalidates all active sessions                              |
+| GET    | /members/me                                                | Any (JwtAuthGuard)                                            | Own member profile with workerProfile + department relations                                                  |
 | GET    | /members?page=&limit=&role=&search=                        | AdminGuard (MEMBERS_READ)                                     | List members — filterable by role; `search` matches firstname, lastname, email, or phone (case-insensitive)   |
 | GET    | /members/workers                                           | AdminGuard (MEMBERS_READ)                                     | List workers (filterable by status)                                                                           |
 | GET    | /members/:id                                               | AdminGuard (MEMBERS_READ)                                     | Get member by ID                                                                                              |
@@ -1283,6 +1284,7 @@ Provides a security-grade check-in/check-out system for children. Key features:
 | GET    | /announcements/all                                         | AdminGuard (ANNOUNCEMENTS_READ)                               | All announcements                                                                                             |
 | GET    | /announcements/feed                                        | Any                                                           | My filtered feed                                                                                              |
 | GET    | /announcements/:id                                         | Any                                                           | Get announcement                                                                                              |
+| GET    | /birthday/today                                            | Any (JwtAuthGuard)                                            | List active members with a birthday today (birthDay + birthMonth match current date)                          |
 | POST   | /birthday/wishes/:recipientId                              | Any                                                           | Send a birthday wish (once per year per sender; rate-limited to WISH_DAILY_LIMIT/day)                         |
 | GET    | /birthday/wishes/me                                        | Any                                                           | Read own birthday wishes (?year= filter optional)                                                             |
 | GET    | /birthday/wishes/:memberId                                 | AdminGuard (MEMBERS_READ)                                     | Read any member's birthday wishes                                                                             |
@@ -1304,7 +1306,10 @@ Provides a security-grade check-in/check-out system for children. Key features:
 | DELETE | /sunday-school/classes/:id/members/:memberId               | WORKER (SS-dept or class teacher)                             | Remove member from class                                                                                      |
 | GET    | /sunday-school/classes/:id/members                         | WORKER (SS-dept or class teacher)                             | List class members                                                                                            |
 | POST   | /sunday-school/sessions                                    | WORKER (SS-dept or class teacher)                             | Create SS session                                                                                             |
-| PATCH  | /sunday-school/sessions/:id/toggle-self-mark               | WORKER (SS-dept or class teacher)                             | Open/close self-mark window                                                                                   |
+| PATCH  | /sunday-school/sessions/:id/open                           | WORKER (SS-dept or class teacher)                             | Open self-mark window for N minutes (body: `{ closesInMinutes }`)                                            |
+| PATCH  | /sunday-school/sessions/:id/close                          | WORKER (SS-dept or class teacher)                             | Close self-mark window immediately                                                                            |
+| GET    | /sunday-school/sessions/open                               | Any authenticated member                                      | List sessions with an active self-mark window that the member is enrolled in                                  |
+| GET    | /sunday-school/attendance/me                               | Any authenticated member                                      | Paginated list of the member's own Sunday School attendance history                                           |
 | POST   | /sunday-school/sessions/:id/checkin                        | Any (self-mark; member must be enrolled; window must be open) | Self-mark attendance                                                                                          |
 | POST   | /sunday-school/sessions/:id/bulk-mark                      | WORKER (SS-dept or class teacher)                             | Bulk mark session attendance                                                                                  |
 | GET    | /sunday-school/sessions/:id/roster                         | WORKER (SS-dept or class teacher)                             | Get session attendance roster                                                                                 |

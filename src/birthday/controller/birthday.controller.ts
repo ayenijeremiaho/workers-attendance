@@ -14,6 +14,11 @@ export class BirthdayController {
     constructor(private readonly birthdayService: BirthdayService) {
     }
 
+    @Get('today')
+    getTodaysBirthdays() {
+        return this.birthdayService.getTodaysBirthdays();
+    }
+
     @Post('wishes/:recipientId')
     sendWish(
         @Param('recipientId', ParseUUIDPipe) recipientId: string,

@@ -30,6 +30,7 @@ export class AttendanceController {
     constructor(private readonly attendanceService: AttendanceService) {
     }
 
+    @UseGuards(JwtAuthGuard)
     @HttpCode(HttpStatus.OK)
     @Post('checkin')
     async checkin(@Request() req: any, @Body() dto: CheckInDto) {
@@ -43,6 +44,7 @@ export class AttendanceController {
         return this.attendanceService.confirmOnlineAttendance(req.user.id, dto.eventId);
     }
 
+    @UseGuards(JwtAuthGuard)
     @Get('my-history')
     async getMyHistory(
         @Request() req: any,

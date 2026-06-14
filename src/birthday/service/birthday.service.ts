@@ -68,6 +68,17 @@ export class BirthdayService {
         }
     }
 
+    async getTodaysBirthdays(): Promise<Pick<Member, 'id' | 'firstname' | 'lastname'>[]> {
+        const today = new Date();
+        return this.memberRepository
+            .createQueryBuilder('m')
+            .select(['m.id', 'm.firstname', 'm.lastname'])
+            .where('m.birthMonth = :month', {month: today.getMonth() + 1})
+            .andWhere('m.birthDay = :day', {day: today.getDate()})
+            .andWhere('m.status = :status', {status: MemberStatusEnum.ACTIVE})
+            .getMany();
+    }
+
     async sendWish(recipientId: string, senderId: string, message: string): Promise<BirthdayWish> {
         if (recipientId === senderId) {
             throw new BadRequestException('You cannot send a wish to yourself');

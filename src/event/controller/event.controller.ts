@@ -1,6 +1,7 @@
 import {Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,} from '@nestjs/common';
 import {EventService} from '../service/event.service';
 import {CreateEventDto} from '../dto/create-event.dto';
+import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
 import {CurrentUser} from '../../auth/decorator/current-user.decorator';
 import {MemberAuth} from '../../auth/interface/auth.interface';
 import {OrderBy} from '../types/order-by.type';
@@ -42,6 +43,7 @@ export class EventController {
         return this.eventService.update(id, dto, user.id);
     }
 
+    @UseGuards(JwtAuthGuard)
     @Get(':id')
     async getOne(
         @Param('id', ParseUUIDPipe) id: string,
@@ -50,6 +52,7 @@ export class EventController {
         return this.eventService.getById(id, user.id);
     }
 
+    @UseGuards(JwtAuthGuard)
     @Get()
     async getAll(@CurrentUser() user: MemberAuth, @Query() query: GetEventsQuery) {
         return this.eventService.getAll(

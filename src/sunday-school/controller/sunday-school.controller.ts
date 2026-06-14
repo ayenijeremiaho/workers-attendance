@@ -12,12 +12,13 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import {SundaySchoolService} from '../service/sunday-school.service';
+import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
 import {RolesGuard} from '../../auth/guard/roles.guard';
 import {Roles} from '../../auth/decorator/roles.decorator';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
 import {CreateSundaySchoolClassDto, UpdateSundaySchoolClassDto} from '../dto/create-sunday-school-class.dto';
 import {AssignSundaySchoolMemberDto} from '../dto/assign-sunday-school-member.dto';
-import {CreateSundaySchoolSessionDto} from '../dto/create-sunday-school-session.dto';
+import {CreateSundaySchoolSessionDto, OpenSelfMarkDto} from '../dto/create-sunday-school-session.dto';
 import {BulkMarkAttendanceDto} from '../dto/bulk-mark-attendance.dto';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
@@ -115,6 +116,22 @@ export class SundaySchoolController {
         return this.sundaySchoolService.getSessionsForClass(req.user, classId, +page, +limit);
     }
 
+    @UseGuards(JwtAuthGuard)
+    @Get('attendance/me')
+    async getMyAttendanceHistory(
+        @Request() req: any,
+        @Query('page') page = 1,
+        @Query('limit') limit = 20,
+    ) {
+        return this.sundaySchoolService.getMyAttendanceHistory(req.user, +page, +limit);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('sessions/open')
+    async getOpenSessions(@Request() req: any) {
+        return this.sundaySchoolService.getOpenSessionsForMember(req.user);
+    }
+
     @UseGuards(RolesGuard)
     @Roles(MemberRoleEnum.WORKER)
     @Get('sessions/:id')
@@ -138,11 +155,23 @@ export class SundaySchoolController {
 
     @UseGuards(RolesGuard)
     @Roles(MemberRoleEnum.WORKER)
-    @Patch('sessions/:id/toggle-self-mark')
-    async toggleSelfMark(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
-        return this.sundaySchoolService.toggleSelfMark(req.user, id);
+    @Patch('sessions/:id/open')
+    async openSelfMark(
+        @Request() req: any,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: OpenSelfMarkDto,
+    ) {
+        return this.sundaySchoolService.openSelfMark(req.user, id, dto.closesInMinutes);
     }
 
+    @UseGuards(RolesGuard)
+    @Roles(MemberRoleEnum.WORKER)
+    @Patch('sessions/:id/close')
+    async closeSelfMark(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
+        return this.sundaySchoolService.closeSelfMark(req.user, id);
+    }
+
+    @UseGuards(JwtAuthGuard)
     @Post('sessions/:id/checkin')
     async selfMarkPresent(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
         return this.sundaySchoolService.selfMarkPresent(req.user, id);

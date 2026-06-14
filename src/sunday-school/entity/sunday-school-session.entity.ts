@@ -17,8 +17,8 @@ export class SundaySchoolSession extends BaseEntity {
     @Column({type: 'date'})
     sessionDate: string;
 
-    @Column({default: false})
-    selfMarkOpen: boolean;
+    @Column({nullable: true, type: 'timestamptz', name: 'self_mark_closes_at'})
+    selfMarkClosesAt: Date | null;
 
     @Column({nullable: true, type: 'text'})
     notes: string | null;

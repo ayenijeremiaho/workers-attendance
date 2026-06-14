@@ -23,6 +23,7 @@ import {plainToInstance} from 'class-transformer';
 import {MemberDto} from '../dto/member.dto';
 import {WorkerProfileDto} from '../dto/worker-profile.dto';
 import {UtilityService} from '../../utility/service/utility.service';
+import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
@@ -57,6 +58,16 @@ export class MemberController {
     ) {
         const result = await this.memberService.getWorkers(+page, +limit, status);
         return UtilityService.getPaginationResponseDto(result, MemberDto);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('me')
+    async getMe(@CurrentUser() user: MemberAuth): Promise<MemberDto> {
+        const member = await this.memberService.getById(user.id, [
+            'workerProfile',
+            'workerProfile.department',
+        ]);
+        return plainToInstance(MemberDto, member, {excludeExtraneousValues: true});
     }
 
     @UseGuards(AdminGuard)

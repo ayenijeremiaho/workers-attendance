@@ -632,6 +632,32 @@
           }
         },
         {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/members/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "me"
+              ]
+            },
+            "description": "Any authenticated member (JwtAuthGuard). Returns the caller's own member profile including workerProfile and department relations. Used by the mobile app on launch to populate the logged-in user's profile."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"uuid\", \"firstname\": \"John\", \"lastname\": \"Doe\", \"email\": \"john@example.com\", \"role\": \"WORKER\", \"workerProfile\": { \"department\": { \"id\": \"uuid\", \"name\": \"Sunday School\" } } }"
+            }
+          ]
+        },
+        {
           "name": "Get Member by ID",
           "request": {
             "method": "GET",
@@ -4012,19 +4038,19 @@
                 "sessions"
               ]
             },
-            "description": "ADMIN, SS-dept worker, or class teacher. sessionDate must be unique per class. selfMarkOpen defaults to false."
+            "description": "ADMIN, SS-dept worker, or class teacher. sessionDate must be unique per class. selfMarkClosesAt defaults to null (window closed)."
           },
           "response": [
             {
               "name": "201 Created",
               "status": "Created",
               "code": 201,
-              "body": "{ \"id\": \"uuid\", \"sessionDate\": \"2026-06-15\", \"selfMarkOpen\": false, \"notes\": \"Guest speaker today\" }"
+              "body": "{ \"id\": \"uuid\", \"sessionDate\": \"2026-06-15\", \"selfMarkClosesAt\": null, \"notes\": \"Guest speaker today\" }"
             }
           ]
         },
         {
-          "name": "Toggle Self-Mark Window",
+          "name": "Open Self-Mark Window",
           "request": {
             "method": "PATCH",
             "header": [
@@ -4035,7 +4061,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{}",
+              "raw": "{ \"closesInMinutes\": 30 }",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4043,7 +4069,7 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}/toggle-self-mark",
+              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}/open",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -4051,7 +4077,7 @@
                 "sunday-school",
                 "sessions",
                 "{{ssSessionId}}",
-                "toggle-self-mark"
+                "open"
               ],
               "variable": [
                 {
@@ -4060,8 +4086,108 @@
                 }
               ]
             },
-            "description": "ADMIN, SS-dept worker, or class teacher. Flips selfMarkOpen between true and false. When open, enrolled members can self-mark their attendance."
-          }
+            "description": "WORKER (SS-dept or class teacher). Opens the self-mark window for the given number of minutes (5–480). Sets selfMarkClosesAt to now + closesInMinutes. Enrolled members can self-mark until that timestamp."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"uuid\", \"selfMarkClosesAt\": \"2026-06-15T10:30:00.000Z\" }"
+            }
+          ]
+        },
+        {
+          "name": "Close Self-Mark Window",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions/{{ssSessionId}}/close",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions",
+                "{{ssSessionId}}",
+                "close"
+              ],
+              "variable": [
+                {
+                  "key": "ssSessionId",
+                  "value": "{{ssSessionId}}"
+                }
+              ]
+            },
+            "description": "WORKER (SS-dept or class teacher). Closes the self-mark window immediately by setting selfMarkClosesAt to null."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"uuid\", \"selfMarkClosesAt\": null }"
+            }
+          ]
+        },
+        {
+          "name": "Get Open Sessions for Member",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/sessions/open",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "sessions",
+                "open"
+              ]
+            },
+            "description": "Any authenticated member. Returns all sessions where the member is enrolled and selfMarkClosesAt is in the future. Used by the mobile app to discover active check-in windows."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[ { \"id\": \"uuid\", \"sessionDate\": \"2026-06-15\", \"selfMarkClosesAt\": \"2026-06-15T10:30:00.000Z\", \"sundaySchoolClass\": { \"id\": \"uuid\", \"name\": \"Beginners\" } } ]"
+            }
+          ]
+        },
+        {
+          "name": "Get My Sunday School Attendance History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sunday-school/attendance/me?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sunday-school",
+                "attendance",
+                "me"
+              ],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Any authenticated member. Returns the caller's paginated Sunday School attendance history across all enrolled classes."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"data\": [], \"totalCount\": 0, \"page\": 1, \"limit\": 20, \"totalPages\": 0 }"
+            }
+          ]
         },
         {
           "name": "Self-Mark Attendance (Member Check-In)",
@@ -4100,7 +4226,7 @@
                 }
               ]
             },
-            "description": "Any authenticated user. Caller must be enrolled in the class and the session's selfMarkOpen must be true. Marks the caller PRESENT with markedByTeacher=false."
+            "description": "Any authenticated member. Caller must be enrolled in the class and selfMarkClosesAt must be non-null and in the future. Marks the caller PRESENT with markedByTeacher=false."
           },
           "response": [
             {
@@ -5068,6 +5194,32 @@
       "name": "Birthday",
       "description": "Birthday wish wall. Any authenticated user can send a wish and read their own wall. Admins can read any member's wall. A cron job fires daily at 06:00 to create an announcement and send birthday emails. Wishes are permanent (they outlive the midnight-expiring announcement).",
       "item": [
+        {
+          "name": "Get Today's Birthdays",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/birthday/today",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "birthday",
+                "today"
+              ]
+            },
+            "description": "Any authenticated member (JwtAuthGuard). Returns a list of active members whose birthDay and birthMonth match today's date. Used by the mobile app to surface birthday celebrants."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[ { \"id\": \"uuid\", \"firstname\": \"Jane\", \"lastname\": \"Smith\" } ]"
+            }
+          ]
+        },
         {
           "name": "Send Birthday Wish",
           "request": {

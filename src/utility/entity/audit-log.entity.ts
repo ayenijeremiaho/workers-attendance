@@ -19,7 +19,7 @@ export class AuditLog {
      */
     @Index()
     @ManyToOne(() => Member, {nullable: true, onDelete: 'SET NULL', eager: false})
-    @JoinColumn({name: 'actorId'})
+    @JoinColumn({name: 'actor_id'})
     actor: Member | null;
 
     @Column({nullable: true})

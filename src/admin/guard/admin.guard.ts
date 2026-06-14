@@ -43,6 +43,10 @@ export class AdminGuard implements CanActivate {
             throw new ForbiddenException(`Missing required permission: ${required}`);
         }
 
+        if (admin.member) {
+            delete (admin.member as any).password;
+            delete (admin.member as any).deviceId;
+        }
         request.admin = admin;
         return true;
     }

@@ -12,7 +12,6 @@ import {
     UseInterceptors,
 } from '@nestjs/common';
 import {FileInterceptor} from '@nestjs/platform-express';
-import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
@@ -22,7 +21,7 @@ import {FinanceRequestService} from '../service/finance-request.service';
 import {CreateFinanceCategoryDto, RejectFinanceRequestDto, UpdateFinanceCategoryDto} from '../dto/finance-request.dto';
 import {FinanceRequestStatus} from '../enum/finance-request.enum';
 
-@UseGuards(JwtAuthGuard, AdminGuard)
+@UseGuards(AdminGuard)
 @Controller('admin/finance')
 export class FinanceAdminController {
     constructor(private readonly financeRequestService: FinanceRequestService) {}

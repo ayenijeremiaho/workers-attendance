@@ -1,4 +1,4 @@
-import {IsEmail, IsString, Length, Matches, MinLength} from 'class-validator';
+import {IsEmail, IsString, Matches, MinLength} from 'class-validator';
 import {NormalizeEmail} from '../../utility/decorators/normalize-email.decorator';
 
 export class ResetPasswordDto {
@@ -7,7 +7,7 @@ export class ResetPasswordDto {
     email: string;
 
     @IsString()
-    @Length(6, 6, {message: 'OTP must be exactly 6 digits'})
+    @Matches(/^\d{6}$/, {message: 'OTP must be exactly 6 digits'})
     otp: string;
 
     @IsString()

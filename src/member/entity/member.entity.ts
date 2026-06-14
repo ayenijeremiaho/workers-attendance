@@ -45,8 +45,14 @@ export class Member extends BaseEntity {
     @Column({nullable: true})
     gender: GenderEnum;
 
-    @Column({type: 'date', nullable: true})
-    dateOfBirth: Date | null;
+    @Column({nullable: true, type: 'smallint'})
+    birthDay: number | null;
+
+    @Column({nullable: true, type: 'smallint'})
+    birthMonth: number | null;
+
+    @Column({nullable: true, type: 'smallint'})
+    birthYear: number | null;
 
     @Column({nullable: true})
     maritalStatus: MaritalStatusEnum;
@@ -61,7 +67,7 @@ export class Member extends BaseEntity {
     baptizedWithHolyGhost: boolean;
 
     @Column({nullable: true, type: 'date'})
-    yearJoinedChurch: Date;
+    dateJoinedChurch: Date;
 
     @OneToOne(() => WorkerProfile, (wp) => wp.member, {
         nullable: true,

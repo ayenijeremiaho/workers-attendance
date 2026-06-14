@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h2 style="color: #c0392b;">Follow-Up Overdue Alert</h2>
+  <p>Hi {{adminName}},</p>
+  <p>There {{#if multiple}}are{{else}}is{{/if}} currently <strong>{{count}} overdue follow-up task{{#if multiple}}s{{/if}}</strong> across the follow-up team.</p>
+  <p>Please review the Follow-Up dashboard to reassign or escalate where needed.</p>
+  <p style="color: #777; font-size: 12px; margin-top: 30px;">{{churchName}}</p>
+</body>
+</html>

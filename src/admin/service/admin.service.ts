@@ -1,4 +1,4 @@
-import {BadRequestException, ConflictException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
+import {BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {ConfigService} from '@nestjs/config';
@@ -65,6 +65,12 @@ export class AdminService {
     async update(id: string, dto: UpdateAdminUserDto, actorId: string): Promise<Admin> {
         const admin = await this.findById(id);
 
+        if (admin.member?.id === actorId) {
+            throw new ForbiddenException('You cannot modify your own admin record.');
+        }
+
+        const previousRoleName = admin.adminRole?.name;
+
         if (dto.adminRoleId) {
             admin.adminRole = await this.adminRoleService.getById(dto.adminRoleId);
         }
@@ -75,7 +81,11 @@ export class AdminService {
         this.auditLogService.log('ADMIN_USER_UPDATED', {
             actorId,
             targetId: admin.member?.id,
-            metadata: {changes: Object.keys(dto)},
+            metadata: {
+                changes: Object.keys(dto),
+                ...(dto.adminRoleId && {roleFrom: previousRoleName, roleTo: admin.adminRole?.name}),
+                ...(dto.isActive !== undefined && {isActive: dto.isActive}),
+            },
         });
         return saved;
     }
@@ -100,10 +110,17 @@ export class AdminService {
     }
 
     async getAll(): Promise<Admin[]> {
-        return this.adminRepository.find({
+        const admins = await this.adminRepository.find({
             relations: ['member', 'adminRole'],
             order: {createdAt: 'DESC'},
         });
+        for (const a of admins) {
+            if (a.member) {
+                delete (a.member as any).password;
+                delete (a.member as any).deviceId;
+            }
+        }
+        return admins;
     }
 
     async findById(id: string): Promise<Admin> {
@@ -112,6 +129,10 @@ export class AdminService {
             relations: ['member', 'adminRole'],
         });
         if (!admin) throw new NotFoundException('Admin user not found.');
+        if (admin.member) {
+            delete (admin.member as any).password;
+            delete (admin.member as any).deviceId;
+        }
         return admin;
     }
 

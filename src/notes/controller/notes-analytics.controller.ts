@@ -1,4 +1,4 @@
-import {Controller, Get, Param, Query, UseGuards} from '@nestjs/common';
+import {BadRequestException, Controller, Get, Param, ParseEnumPipe, Query, UseGuards} from '@nestjs/common';
 import {NoteTypeEnum} from '../enums/note-type.enums';
 import {UtilityService} from '../../utility/service/utility.service';
 import {NotesAnalyticsService} from '../service/notes-analytics.service';
@@ -15,7 +15,11 @@ export class NotesAnalyticsController {
 
     @Get('/:type')
     async getAnalytics(
-        @Param('type') type: NoteTypeEnum,
+        @Param('type', new ParseEnumPipe(NoteTypeEnum, {
+            exceptionFactory: () => new BadRequestException(
+                `Invalid note type. Must be one of: ${Object.values(NoteTypeEnum).join(', ')}`,
+            ),
+        })) type: NoteTypeEnum,
         @Query('from') from?: string,
         @Query('to') to?: string,
     ) {
@@ -29,8 +33,6 @@ export class NotesAnalyticsController {
                 return this.noteAnalyticsService.getChildDedicationAnalytics(validFrom, validTo);
             case NoteTypeEnum.MARRIAGE:
                 return this.noteAnalyticsService.getMarriageAnalytics(validFrom, validTo);
-            default:
-                throw new Error('Invalid note type for analytics');
         }
     }
 }

@@ -29,15 +29,15 @@ requests for a local church.
   via the `admins` table.
 - There are two distinct frontends: a **mobile app** for members and workers, and an **admin web portal** managed via
   the Admin RBAC system.
-- Attendance is tracked per **ServiceSlot**, not per Event. One event can have multiple slots (e.g. first service,
-  second service).
-- Members are only ever PRESENT or ABSENT. Workers can also be LATE or ON_LEAVE.
+- Attendance is tracked per **Event**, not per slot. One event can have multiple slots but each member gets exactly one attendance record per event.
+- Members are PRESENT or ABSENT. Workers can also be LATE (arrived after threshold) or ON_LEAVE (approved leave covering the event date). ON_LEAVE is neutral — it neither contributes to nor breaks the attendance streak.
 - Absentees are marked automatically by a background cron job, not by user action.
 - **Sunday School** tracks session-based attendance for permanent class assignments. Both teachers and enrolled students
   can mark attendance; self-mark requires an open window set by staff.
 - **Children Church** provides a full security check-in/check-out system for 1000+ children, with per-session
   6-character pickup codes, multiple guardians per child, automatic age-group assignment by date of birth, and pickup
   email notifications to guardians.
+- **Follow-Up** tracks first-time visitors and online non-responders. A FollowUpTask is auto-created on every first-timer registration and assigned to a FOLLOW_UP-department worker via round-robin (fewest open tasks wins). After every event, thank-you emails are sent to all attendees and online-confirm requests are sent to absent members if `onlineAttendanceEnabled` is set. Members who don't confirm online attendance within `ONLINE_CHECKIN_WINDOW_HOURS` get a follow-up task.
 
 ---
 
@@ -62,6 +62,7 @@ src/
 ├── admin/            Admin RBAC: AdminRole + Admin entities, AdminGuard, seed (@Global module)
 ├── tithe/            Batch tithe upload (Excel), queue-based processing, dispute resolution, member PDF statements
 ├── finance-request/  Department expense requests lifecycle (submit → approve/reject → proof)
+├── follow-up/        First-timer registration, follow-up task management, post-event email jobs, online attendance
 └── utility/          Email queue, cache, hashing, pagination, email delivery log, Cloudinary file uploads
 ```
 
@@ -87,12 +88,14 @@ The universal identity for every person in the system.
 | role                  | MemberRoleEnum    | MEMBER \| WORKER (no ADMIN role — admin access is a separate entity)                                      |
 | status                | MemberStatusEnum  | ACTIVE \| INACTIVE                                                                                        |
 | gender                | GenderEnum        | Optional                                                                                                  |
-| dateOfBirth           | date              | Optional; used by birthday scheduler                                                                      |
+| birthDay              | smallint \| null  | Day of birth (1–31); optional                                                                             |
+| birthMonth            | smallint \| null  | Month of birth (1–12); optional                                                                           |
+| birthYear             | smallint \| null  | Year of birth (1900–2100); optional — may be omitted when unknown                                        |
 | maritalStatus         | MaritalStatusEnum | Optional                                                                                                  |
 | yearBornAgain         | Date              | Stored as Jan 1 of given year                                                                             |
 | yearBaptized          | Date              | Optional                                                                                                  |
 | baptizedWithHolyGhost | boolean           | Optional                                                                                                  |
-| yearJoinedChurch      | Date              | Optional                                                                                                  |
+| dateJoinedChurch      | Date (date only)  | Optional; full YYYY-MM-DD date, stored in `date_joined_church` column                                     |
 | workerProfile         | WorkerProfile     | OneToOne, null for plain members                                                                          |
 | attendances           | Attendance[]      | OneToMany                                                                                                 |
 | enrollments           | ClassEnrollment[] | OneToMany                                                                                                 |
@@ -117,14 +120,19 @@ Created when a member is promoted to WORKER. Deleted when revoked.
 
 A church gathering on a specific date.
 
-| Field            | Type             | Notes                                                 |
-|------------------|------------------|-------------------------------------------------------|
-| id               | UUID             | PK                                                    |
-| name             | string           |                                                       |
-| description      | string           | Optional                                              |
-| eventDate        | Date (date only) |                                                       |
-| recurringEventId | UUID             | Groups events in a recurring series                   |
-| serviceSlots     | ServiceSlot[]    | OneToMany — at least one slot is required at creation |
+| Field             | Type             | Notes                                                                                                   |
+|-------------------|------------------|---------------------------------------------------------------------------------------------------------|
+| id                | UUID             | PK                                                                                                      |
+| name              | string           |                                                                                                         |
+| description       | string           | Optional                                                                                                |
+| eventDate         | Date (date only) | Start date of the event                                                                                 |
+| endDate           | Date (date only) | Last day of the event (defaults to `eventDate` for same-day events). All slot times must fall within `[eventDate 00:00, endDate 23:59]`. |
+| attendanceMarked           | boolean          | Set to `true` by the cron job after absence records are created. Guards against double-processing.      |
+| onlineAttendanceEnabled    | boolean          | Default `false`. When `true`, absent members receive an online-confirm email after the event ends.      |
+| onlineNotificationSentAt   | timestamptz \| null | Set when the online-confirm emails are dispatched. Used to calculate the confirmation window.        |
+| recurringEventId           | UUID             | Groups events in a recurring series                                                                     |
+| serviceSlots      | ServiceSlot[]    | OneToMany — at least one slot is required at creation                                                   |
+| attendances       | Attendance[]     | OneToMany                                                                                               |
 
 ### Venue
 
@@ -155,7 +163,6 @@ The actual check-in target within an event. One event can have multiple slots.
 | endTime           | timestamptz |                                                                   |
 | config            | EventConfig | ManyToOne, nullable                                               |
 | venueOverride     | Venue       | ManyToOne, nullable — overrides config.defaultVenue for this slot |
-| markedAbsent      | boolean     | Set to true after cron marks absentees                            |
 | *Override columns | int         | Per-slot overrides that take priority over EventConfig            |
 
 Override columns: `workerCheckinStartOverride`, `workerLateOverride`, `memberCheckinStartOverride`,
@@ -181,19 +188,25 @@ A reusable timing template assigned to service slots. Venue is now a first-class
 
 ### Attendance
 
-One record per member per service slot.
+One record per member per **event**. Workers and members both receive one attendance record per event; workers are distinguished by a LATE status if they arrive after the threshold.
 
-| Field         | Type                 | Notes                                         |
-|---------------|----------------------|-----------------------------------------------|
-| id            | UUID                 | PK                                            |
-| member        | Member               | ManyToOne                                     |
-| serviceSlot   | ServiceSlot          | ManyToOne                                     |
-| status        | AttendanceStatusEnum | PRESENT \| LATE \| ABSENT \| ON_LEAVE         |
-| checkinTime   | timestamptz          | Null for cron-created ABSENT/ON_LEAVE records |
-| roleAtCheckin | MemberRoleEnum       | Snapshot of role at check-in time             |
-| location      | JSON                 | `{latitude, longitude}` or null               |
+| Field         | Type                 | Notes                                                             |
+|---------------|----------------------|-------------------------------------------------------------------|
+| id            | UUID                 | PK                                                                |
+| member        | Member               | ManyToOne, CASCADE on delete                                      |
+| event         | Event                | ManyToOne, CASCADE on delete — the event being attended           |
+| serviceSlot   | ServiceSlot          | ManyToOne, nullable, SET NULL on delete — which slot they entered |
+| status        | AttendanceStatusEnum | PRESENT \| LATE \| ABSENT \| ON_LEAVE \| ATTENDED_ONLINE          |
+| checkinTime   | timestamptz          | Null for cron-created ABSENT/ON_LEAVE records                     |
+| roleAtCheckin | MemberRoleEnum       | Snapshot of role at check-in time                                 |
+| location      | JSON                 | `{latitude, longitude}` or null; mandatory for workers at check-in |
 
-**Unique constraint:** (member, serviceSlot) — one record per person per slot.
+**Unique constraint:** `(member, event)` — one record per person per event.
+
+**Streak rules:**
+- PRESENT, LATE, and ATTENDED_ONLINE all count as present and increment the streak.
+- ON_LEAVE is neutral — it neither increments nor breaks the streak.
+- ABSENT breaks the streak.
 
 ### Department
 
@@ -214,7 +227,7 @@ Joins a WorkerProfile to a Department as head or assistant lead.
 | Field             | Notes                                            |
 |-------------------|--------------------------------------------------|
 | workerProfile     | ManyToOne → WorkerProfile                        |
-| dateFrom / dateTo | timestamptz                                      |
+| dateFrom / dateTo | date (YYYY-MM-DD, no time component)             |
 | reason            | string                                           |
 | status            | PENDING \| APPROVED \| REJECTED                  |
 | actionedBy        | ManyToOne → Member (admin who approved/rejected) |
@@ -639,6 +652,58 @@ An expense request raised by a department head (HOD).
 | proofPublicId        | string \| null       | Cloudinary public ID for proof (deletion)          |
 | proofResourceType    | string \| null       | Cloudinary resource type for proof                 |
 
+### FirstTimer
+
+A visitor recorded by a follow-up team worker or admin during or after a service.
+
+| Field                | Type                    | Notes                                                                      |
+|----------------------|-------------------------|----------------------------------------------------------------------------|
+| id                   | UUID                    | PK                                                                         |
+| firstname            | string                  |                                                                            |
+| lastname             | string                  |                                                                            |
+| phone                | string                  |                                                                            |
+| email                | string \| null          | Optional                                                                   |
+| source               | FirstTimerSourceEnum    | WALK_IN \| ONLINE \| REFERRAL                                              |
+| wantsToJoinChurch    | boolean                 | Default `false`                                                            |
+| enjoyedAboutChurch   | text \| null            | What the visitor enjoyed                                                   |
+| wantsToJoinWorkforce | boolean                 | Default `false`                                                            |
+| notes                | text \| null            | Additional follow-up notes                                                 |
+| visitedEvent         | Event \| null           | ManyToOne, SET NULL on delete                                              |
+| createdByMember      | Member \| null          | ManyToOne, SET NULL on delete — the follow-up worker who created the record|
+| createdByAdmin       | Admin \| null           | ManyToOne, SET NULL on delete — the admin who created the record           |
+| followUpTask         | FollowUpTask            | OneToOne — auto-created on registration                                    |
+
+### FollowUpTask
+
+A task assigned to a follow-up team worker to engage a first-timer or online non-responder.
+
+| Field        | Type                    | Notes                                                                                  |
+|--------------|-------------------------|----------------------------------------------------------------------------------------|
+| id           | UUID                    | PK                                                                                     |
+| type         | FollowUpTaskTypeEnum    | FIRST_TIMER \| ONLINE_NO_RESPONSE \| MANUAL                                            |
+| status       | FollowUpTaskStatusEnum  | PENDING \| IN_PROGRESS \| COMPLETED \| UNREACHABLE                                     |
+| firstTimer   | FirstTimer \| null      | OneToOne, CASCADE on delete — set when type=FIRST_TIMER                                |
+| member       | Member \| null          | ManyToOne, SET NULL on delete — set when type=ONLINE_NO_RESPONSE                       |
+| event        | Event \| null           | ManyToOne, SET NULL on delete — event context                                          |
+| assignedTo   | WorkerProfile           | ManyToOne, RESTRICT on delete — must be a FOLLOW_UP department worker                  |
+| outcome      | FollowUpOutcomeEnum \| null | JOINED \| DECLINED \| NO_ANSWER \| PRAYED_WITH                                     |
+| outcomeNotes | text \| null            |                                                                                        |
+| dueDate      | date \| null            | Optional target date                                                                   |
+| notes        | FollowUpNote[]          | OneToMany                                                                              |
+
+**Round-robin assignment:** The worker in the FOLLOW_UP department with the fewest open tasks (PENDING or IN_PROGRESS) is automatically selected. If no eligible worker exists, the API returns 400.
+
+### FollowUpNote
+
+A note added by the assigned worker during follow-up interactions.
+
+| Field    | Type            | Notes                              |
+|----------|-----------------|------------------------------------|
+| id       | UUID            | PK                                 |
+| task     | FollowUpTask    | ManyToOne, CASCADE on delete       |
+| addedBy  | WorkerProfile \| null | ManyToOne, SET NULL on delete |
+| content  | text            |                                    |
+
 ---
 
 ## 4. Authentication & Authorization
@@ -811,8 +876,12 @@ Manages the admin RBAC system used by the admin web portal. This module is `@Glo
 - `GET /admin/users/me` — any admin — own admin profile
 - `GET /admin/users/:id` — `ADMIN_READ` — get admin by ID
 - `POST /admin/users` — `ADMIN_WRITE` — grant admin access to a member
-- `PATCH /admin/users/:id` — `ADMIN_WRITE` — change admin role or active status
+- `PATCH /admin/users/:id` — `ADMIN_WRITE` — change admin role or active status; **an admin cannot modify their own record** (403)
 - `POST /admin/users/:id/revoke` — `ADMIN_WRITE` — soft-revoke admin access (`isActive = false`)
+
+**Security notes:**
+- Admin user read endpoints (`GET /admin/users`, `GET /admin/users/me`, `GET /admin/users/:id`) strip `password` and `deviceId` from the joined Member before returning — these fields are never returned to API clients.
+- Role-change audit entries capture the previous and new role name in addition to the changed field list.
 
 **Predefined role seed (migration):** A one-time migration (`SeedPredefinedAdminRoles`) seeds 9 ready-to-use roles
 covering the typical org structure. The migration is idempotent — it uses `ON CONFLICT ("name") DO NOTHING` so
@@ -870,6 +939,8 @@ event creation — create a venue once, reference it by ID in any config or slot
 
 **Distributed absence-marking lock:** The every-5-minute cron job acquires a Redis `SET NX EX 270` lock before running. If a second instance starts while the first is running, it sees the lock and skips silently. The TTL (270 s) is shorter than the cron interval (300 s) so the lock self-expires if the process crashes mid-run. Department-scoped history endpoints (`/history/department`, `/department/event/:eventId`) are automatically scoped to the caller's own department via their lead-role assignment — no `departmentId` query parameter is accepted or needed.
 
+**Duplicate check-in:** The `(member, event)` unique constraint is enforced at DB level. If a member tries to check in twice for the same event, the service catches the `QueryFailedError` (PG error code `23505`) and returns `409 Conflict` with the message "You have already checked in for this event."
+
 **Routes prefix:** `/attendances`
 
 ### Department Module
@@ -887,6 +958,12 @@ by department (`GET /departments/:id/workers`) remains paginated as it can be la
 
 Workers request leave with a date range. Approved leave is checked by the cron job: if a worker has approved leave
 overlapping a slot's time range, they are marked ON_LEAVE instead of ABSENT.
+
+**Submission guards:**
+- A worker with a `PENDING` request cannot submit another until the first is actioned.
+- A worker cannot submit a request whose date range overlaps any already-approved leave (`dateFrom ≤ request.dateTo AND dateTo ≥ request.dateFrom`). Returns `400 Bad Request`.
+
+**Date columns (`dateFrom`, `dateTo`):** stored as PostgreSQL `date` (no time component, format `YYYY-MM-DD`). Overlap checks compare date strings to avoid timezone shifts.
 
 **Routes prefix:** `/leave`
 
@@ -954,7 +1031,7 @@ rate-limit counter clears and increments are fire-and-forget.
 Automatically greets members on their birthday with an email and a congregation-wide announcement. Other members can
 send personal wishes that persist permanently in the member's birthday book.
 
-**Cron:** Runs daily at 6 AM. Queries all active members whose `MONTH(dateOfBirth)` and `DAY(dateOfBirth)` match today,
+**Cron:** Runs daily at 6 AM. Queries all active members whose `birthMonth` and `birthDay` match today,
 then for each:
 
 - Creates an `ALL`-audience announcement with `expiresAt = 23:59:59` tonight
@@ -1034,8 +1111,12 @@ Manages expense requests raised by department heads (HODs) through a finance tea
 **Lifecycle:** `PENDING → APPROVED / REJECTED`. On approval, the finance team attaches proof of payment via a
 separate `PATCH /:id/proof` endpoint.
 
+**Self-approve guard:** An admin cannot approve a request they submitted. Returns `403 Forbidden`.
+
+**Proof replacement:** If `PATCH /:id/proof` is called on a request that already has a proof file, the old Cloudinary asset is deleted before uploading the new one. If the delete fails (network error, already removed), the error is logged and the upload proceeds anyway — the old asset may be orphaned but the request is not blocked.
+
 **Email notifications:**
-- On creation → all admins with `FINANCE_WRITE` permission are notified
+- On creation → all active admins with `FINANCE_WRITE` permission are notified (filtered in SQL via `ANY(r.permissions)`)
 - On approve/reject/proof → the HOD who raised the request is notified
 
 **HOD enforcement:** Only workers with a lead assignment (`DepartmentLead` record) can create or view department
@@ -1043,6 +1124,37 @@ requests. A worker can only raise a request for their own department (verified s
 
 **Routes prefix (admin):** `/admin/finance`  
 **Routes prefix (worker):** `/finance`
+
+### Follow-Up Module
+
+Handles first-timer registration, follow-up task management, and post-event engagement workflows.
+
+**First-timer registration** is available on both the worker mobile app (workers in the FOLLOW_UP department) and the admin portal (admins with `FOLLOW_UP_WRITE`). On creation, a `FollowUpTask` of type `FIRST_TIMER` is automatically created and assigned via round-robin to the FOLLOW_UP-department worker with the fewest open tasks. The pick and task creation run inside a single transaction protected by a PostgreSQL advisory lock (`pg_advisory_xact_lock(hashtext('follow-up:round-robin'))`), serializing concurrent registrations so the open-task count is always accurate.
+
+**Post-event jobs (Bull queue `follow-up`):**
+
+1. After `markAbsentees()` completes for an event, a `post-event` Bull job is dispatched.
+2. `PostEventProcessor.handlePostEvent` sends thank-you emails to all PRESENT/LATE members.
+3. If `event.onlineAttendanceEnabled = true`: sends online-confirm request emails to ABSENT members, sets `event.onlineNotificationSentAt`, and schedules a `online-window-closed` delayed job (`ONLINE_CHECKIN_WINDOW_HOURS` hours later, default 3).
+4. `handleOnlineWindowClosed` creates `ONLINE_NO_RESPONSE` follow-up tasks for all members still marked ABSENT.
+
+**Online confirm flow:**
+
+Members receive an email after an online-attendance-enabled event. They confirm via `POST /attendances/online-confirm { eventId }`. The system:
+1. Checks `event.onlineAttendanceEnabled = true`
+2. Validates that `now ≤ onlineNotificationSentAt + ONLINE_CHECKIN_WINDOW_HOURS`
+3. Finds the ABSENT record for `(member, event)` and updates status to `ATTENDED_ONLINE`
+
+**Task assignment email:** When a `FollowUpTask` is created (first-timer registration or online non-responder) or reassigned, an email is sent to the assigned worker using the `follow-up-task-assigned` template. Includes the first-timer's name, phone, email, and due date. Fire-and-forget via the `email` Bull queue.
+
+**Overdue escalation (daily cron at 08:00):** `FollowUpScheduler.escalateOverdueTasks` runs every day at 08:00. It finds all tasks with status `PENDING` or `IN_PROGRESS` where `dueDate < NOW()`. Each affected worker receives a digest email (`follow-up-overdue-worker`) listing all their overdue contacts. All active admins with `FOLLOW_UP_WRITE` permission receive a summary count email (`follow-up-overdue-admin`).
+
+**Due date:** Tasks auto-set `dueDate = createdAt + FOLLOW_UP_DUE_DAYS` (default 3 days).
+
+**Pastoral report:** `GET /admin/follow-up/report?from=&to=` (requires `FOLLOW_UP_READ`) returns aggregate stats: first-timer totals, source breakdown, wants-to-join counts, task status/outcome breakdown, overdue snapshot, conversion rate, per-worker performance, and per-event first-timer counts. Date range is optional; omitting it returns all-time stats.
+
+**Routes (worker mobile):** `/follow-up/first-timers`, `/follow-up/tasks/mine`, `/follow-up/tasks/:id`  
+**Routes (admin portal):** `/admin/follow-up/first-timers`, `/admin/follow-up/tasks`, `/admin/follow-up/tasks/:id/reassign`, `/admin/follow-up/tasks/bulk`, `/admin/follow-up/report`
 
 ### Children Church Module
 
@@ -1100,18 +1212,29 @@ Provides a security-grade check-in/check-out system for children. Key features:
 | PATCH  | /admin/users/:id                                           | AdminGuard (ADMIN_WRITE)                                      | Update admin user role/status                                                                                 |
 | POST   | /admin/users/:id/revoke                                    | AdminGuard (ADMIN_WRITE)                                      | Revoke admin access                                                                                           |
 | GET    | /admin/audit-logs                                          | AdminGuard (AUDIT_READ)                                       | Paginated audit log; filterable by action, actorId, targetId, dateFrom, dateTo                                |
-| POST   | /attendances/checkin                                       | Any                                                           | Check in to a service slot                                                                                    |
+| POST   | /attendances/checkin                                       | Any                                                           | Check in to a service slot (workers must include `location`; one record per event per member)                 |
 | GET    | /attendances/my-history                                    | Any                                                           | Own attendance records                                                                                        |
 | GET    | /attendances/history                                       | AdminGuard (ATTENDANCE_READ)                                  | All attendance records                                                                                        |
 | GET    | /attendances/history/department?slotId=                    | WORKER                                                        | Department attendance for a slot (scoped to caller's own department via lead role)                            |
 | GET    | /attendances/department/event/:eventId                     | WORKER                                                        | Worker attendance for all slots of an event (scoped to caller's own department via lead role)                 |
 | GET    | /attendances/summary/slot/:slotId                          | AdminGuard (ATTENDANCE_READ)                                  | Status counts for a slot                                                                                      |
 | GET    | /attendances/leaderboard                                   | AdminGuard (ATTENDANCE_READ)                                  | Top workers by attendance                                                                                     |
+| PATCH  | /attendances/:id/correct                                   | AdminGuard (ATTENDANCE_WRITE)                                 | Admin correction of an attendance record status                                                               |
+| POST   | /attendances/online-confirm                                | JwtAuthGuard (any authenticated member)                       | Confirm online attendance for an event (updates ABSENT → ATTENDED_ONLINE within window)                       |
+| POST   | /follow-up/first-timers                                    | WORKER (FOLLOW_UP dept)                                       | Register a first-timer (auto-creates FollowUpTask via round-robin)                                            |
+| GET    | /follow-up/tasks/mine                                      | WORKER (FOLLOW_UP dept)                                       | List follow-up tasks assigned to the caller                                                                   |
+| PATCH  | /follow-up/tasks/:id                                       | WORKER (FOLLOW_UP dept)                                       | Update task status/outcome/notes (caller must be the assignee)                                                |
+| POST   | /admin/follow-up/first-timers                              | AdminGuard (FOLLOW_UP_WRITE)                                  | Register a first-timer from admin portal                                                                      |
+| GET    | /admin/follow-up/first-timers                              | AdminGuard (FOLLOW_UP_READ)                                   | List all first-timers (filterable by eventId)                                                                 |
+| GET    | /admin/follow-up/tasks                                     | AdminGuard (FOLLOW_UP_READ)                                   | List all follow-up tasks (filterable by status, type)                                                         |
+| PATCH  | /admin/follow-up/tasks/:id/reassign                        | AdminGuard (FOLLOW_UP_WRITE)                                  | Reassign a task to a different FOLLOW_UP-dept worker                                                          |
+| PATCH  | /admin/follow-up/tasks/bulk                                | AdminGuard (FOLLOW_UP_WRITE)                                  | Bulk update task statuses                                                                                     |
+| GET    | /admin/follow-up/report                                    | AdminGuard (FOLLOW_UP_READ)                                   | Pastoral report: first-timer totals, task stats, overdue count, conversion rate, by-worker, by-event         |
 | POST   | /events                                                    | AdminGuard (EVENTS_WRITE)                                     | Create event (single or recurring)                                                                            |
 | PATCH  | /events/:id                                                | AdminGuard (EVENTS_WRITE)                                     | Update event                                                                                                  |
 | GET    | /events/:id                                                | Any                                                           | Get event by ID                                                                                               |
-| GET    | /events                                                    | Any                                                           | List events                                                                                                   |
-| DELETE | /events/:id                                                | AdminGuard (EVENTS_WRITE)                                     | Delete single event                                                                                           |
+| GET    | /events                                                    | Any                                                           | List events. Query: `page`, `limit`, `orderBy`, `order`, `from` (YYYY-MM-DD), `to` (YYYY-MM-DD), `upcoming=true` |
+| DELETE | /events/:id                                                | AdminGuard (EVENTS_WRITE)                                     | Delete single event — blocked if `attendanceMarked = true` or event is in the past                           |
 | DELETE | /events/recurring/:recurringEventId                        | AdminGuard (EVENTS_WRITE)                                     | Delete future recurring events                                                                                |
 | POST   | /event-config                                              | AdminGuard (EVENTS_WRITE)                                     | Create timing config                                                                                          |
 | PATCH  | /event-config/:id                                          | AdminGuard (EVENTS_WRITE)                                     | Update timing config                                                                                          |
@@ -1234,7 +1357,7 @@ Provides a security-grade check-in/check-out system for children. Key features:
 | PATCH  | /admin/finance/categories/:id                              | AdminGuard (FINANCE_WRITE)                                    | Update finance category                                                                                       |
 | GET    | /admin/finance/requests                                    | AdminGuard (FINANCE_READ)                                     | List finance requests (paginated; filterable by status, categoryId)                                           |
 | GET    | /admin/finance/requests/:id                                | AdminGuard (FINANCE_READ)                                     | Get finance request by ID                                                                                     |
-| PATCH  | /admin/finance/requests/:id/approve                        | AdminGuard (FINANCE_WRITE)                                    | Approve a pending finance request                                                                             |
+| PATCH  | /admin/finance/requests/:id/approve                        | AdminGuard (FINANCE_WRITE)                                    | Approve a pending finance request — 403 if the approver is the same member who raised the request            |
 | PATCH  | /admin/finance/requests/:id/reject                         | AdminGuard (FINANCE_WRITE)                                    | Reject a pending finance request (body: rejectionReason)                                                      |
 | PATCH  | /admin/finance/requests/:id/proof                          | AdminGuard (FINANCE_WRITE)                                    | Attach payment proof to an approved request (multipart, field: file)                                          |
 | GET    | /finance/categories                                        | WORKER (RolesGuard)                                           | List finance categories (visible to HOD for request creation)                                                 |
@@ -1253,34 +1376,35 @@ POST /attendances/checkin
 
 **Step-by-step:**
 
-1. **Load slot** — fetches `ServiceSlot` with its `EventConfig` and parent `Event`. Throws 404 if not found.
+1. **Load slot** — fetches `ServiceSlot` with relations `event`, `config`, `config.defaultVenue`, `venueOverride`. Throws 404 if not found.
 
-2. **Load member** — fetches the authenticated member with `workerProfile.department`.
+2. **Load member** — fetches the authenticated member with `workerProfile`.
 
 3. **Assert active** — throws 400 if `member.status = INACTIVE`. Also throws if the member is a WORKER with
    `workerProfile.status = INACTIVE`.
 
-4. **Duplicate check** — throws 400 if an attendance record already exists for (member, slot).
+4. **Worker location** — workers **must** provide `location` coordinates. Throws 400 if `location` is absent for a WORKER.
 
-5. **Resolve config** — merges per-slot overrides over EventConfig values. If the slot has no config and no overrides,
-   throws 400.
+5. **Duplicate check** — throws 400 if an attendance record already exists for `(member, event)`. One record per event, regardless of which slot the member enters.
 
-6. **Validate window:**
+6. **Resolve config** — merges per-slot overrides over EventConfig values. Throws 400 if no config and no overrides.
+
+7. **Validate window:**
     - Workers: window opens at `startTime + workerCheckinStartOffsetSeconds` (typically negative)
     - Members: window opens at `startTime + memberCheckinStartOffsetSeconds`
     - Both close at `startTime + checkinStopOffsetSeconds`
 
-7. **Validate location** *(if location provided)*: Resolves `effectiveVenue` (
+8. **Validate location** *(if location provided)*: Resolves `effectiveVenue` (
    `slot.venueOverride ?? slot.config.defaultVenue`). Calculates Haversine distance between submitted coordinates and
    the venue's `latitude`/`longitude`. If distance exceeds `allowedDistanceInMeters` and `ENFORCE_DISTANCE_CHECK=true`,
    throws 400.
 
-8. **Resolve status:**
+9. **Resolve status:**
     - Member → always `PRESENT`
     - Worker before late threshold → `PRESENT`
     - Worker at or after `startTime + workerLateOffsetSeconds` → `LATE`
 
-9. **Save record** — creates `Attendance` with `roleAtCheckin` snapshot and optional location.
+10. **Save record** — creates `Attendance` with references to both `event` and `serviceSlot`, `roleAtCheckin` snapshot, and optional location.
 
 ---
 
@@ -1290,16 +1414,15 @@ A cron job runs every 5 minutes (`EVERY_5_MINUTES`).
 
 **Logic:**
 
-1. Finds all `ServiceSlot` records where `markedAbsent = false` AND `endTime < now`.
-2. For each slot:
-    - Gets all **members** (ACTIVE, any role) who have no attendance record for the slot → marks them `ABSENT` with role
-      snapshot `MEMBER`.
-    - Gets all **workers** (WORKER role, ACTIVE worker profile) with no record:
-        - Checks `request_leave` table: if the worker has an APPROVED leave whose date range overlaps the slot's
-          start–end time → marks `ON_LEAVE`.
-        - Otherwise → marks `ABSENT`.
-3. All records for the slot are saved in a single DB transaction.
-4. Sets `slot.markedAbsent = true` so the job skips it next run.
+1. Finds all `Event` records where `attendanceMarked = false` AND `endDate < today` AND the event has at least one service slot.
+2. For each event:
+    - Gets all **members** (ACTIVE, role=MEMBER) who have no `PRESENT` or `LATE` attendance record for the event → creates one `ABSENT` record per member referencing the event (`serviceSlot = null`).
+    - Gets all **workers** (ACTIVE, role=WORKER) who have no `PRESENT` or `LATE` record for the event:
+        - Checks `request_leave` table: if the worker has an APPROVED leave whose `date_from ≤ event.eventDate ≤ date_to` → creates `ON_LEAVE` record.
+        - Otherwise → creates `ABSENT` record.
+3. All absence records for the event are saved in a single DB transaction.
+4. Sets `event.attendanceMarked = true` so the job skips it next run.
+5. Dispatches a `post-event` job to the `follow-up` Bull queue for thank-you emails and optional online-confirm notifications (fire-and-forget, inside the loop but outside the transaction).
 
 ---
 
@@ -1334,6 +1457,9 @@ A church worker can also have admin access. They pass `@Roles(WORKER)` routes vi
 | SS bulk-mark / roster                           | —               | ✓ (SS-dept or class teacher) |
 | CC child/guardian management                    | —               | ✓ (CC-dept worker)           |
 | CC check-in / check-out / flag                  | —               | ✓ (CC-dept worker)           |
+| Register first-timers                           | —               | ✓ (FOLLOW_UP-dept worker)    |
+| View / update own follow-up tasks               | —               | ✓ (FOLLOW_UP-dept worker)    |
+| Confirm online attendance                       | ✓               | ✓                            |
 
 ### Admin Portal (`AdminGuard` + permission)
 
@@ -1347,6 +1473,7 @@ A church worker can also have admin access. They pass `@Roles(WORKER)` routes vi
 | View departments / leads                      | `DEPARTMENTS_READ`      |
 | Create / update / delete departments & leads  | `DEPARTMENTS_WRITE`     |
 | View all attendance, leaderboard              | `ATTENDANCE_READ`       |
+| Correct an attendance record status           | `ATTENDANCE_WRITE`      |
 | View all leave requests                       | `LEAVE_READ`            |
 | Approve / reject leave                        | `LEAVE_WRITE`           |
 | View classes & enrolments                     | `CLASSES_READ`          |
@@ -1366,6 +1493,8 @@ A church worker can also have admin access. They pass `@Roles(WORKER)` routes vi
 | View tithe batches, records, disputes         | `FINANCE_READ`          |
 | Upload tithes, resolve disputes, approve/reject requests, attach proof | `FINANCE_WRITE` |
 | View finance categories and requests          | `FINANCE_READ`          |
+| View first-timers and follow-up tasks         | `FOLLOW_UP_READ`        |
+| Register first-timers, reassign / bulk-update tasks | `FOLLOW_UP_WRITE` |
 
 ---
 
@@ -1478,9 +1607,11 @@ with application cache keys.
 
 ### Attendance / Check-In
 
-| Variable                 | Default | Description                                                        |
-|--------------------------|---------|--------------------------------------------------------------------|
-| `ENFORCE_DISTANCE_CHECK` | `false` | Require members to be within `allowedDistanceInMeters` to check in |
+| Variable                      | Default | Description                                                        |
+|-------------------------------|---------|--------------------------------------------------------------------|
+| `ENFORCE_DISTANCE_CHECK`      | `false` | Require members to be within `allowedDistanceInMeters` to check in |
+| `ONLINE_CHECKIN_WINDOW_HOURS` | `3`     | Hours after online-confirm emails are sent during which members can confirm online attendance |
+| `FOLLOW_UP_DUE_DAYS`          | `3`     | Days from task creation before a follow-up task is considered overdue (sets `dueDate`) |
 
 ### Default Seed Data (applied on first boot)
 
@@ -1536,10 +1667,10 @@ Admin portal access is not a member role — it is managed via the `Admin` entit
 Granular permissions assigned to `AdminRole` records:
 
 `members:read` · `members:write` · `events:read` · `events:write` · `venues:read` · `venues:write` ·
-`departments:read` · `departments:write` · `attendance:read` · `leave:read` · `leave:write` · `classes:read` ·
+`departments:read` · `departments:write` · `attendance:read` · `attendance:write` · `leave:read` · `leave:write` · `classes:read` ·
 `classes:write` · `announcements:read` · `announcements:write` · `notes:read` · `notes:write` · `dashboard:read` ·
 `sunday_school:read` · `sunday_school:write` · `children_church:read` · `children_church:write` · `admin:read` ·
-`admin:write` · `audit:read` · `finance:read` · `finance:write`
+`admin:write` · `audit:read` · `finance:read` · `finance:write` · `follow_up:read` · `follow_up:write`
 
 ### MemberStatusEnum / WorkerStatusEnum
 
@@ -1555,7 +1686,7 @@ Granular permissions assigned to `AdminRole` records:
 
 ### AttendanceStatusEnum
 
-`PRESENT` · `LATE` *(workers only)* · `ABSENT` · `ON_LEAVE` *(workers only)*
+`PRESENT` · `LATE` *(workers only)* · `ABSENT` · `ON_LEAVE` *(workers only)* · `ATTENDED_ONLINE`
 
 ### LeaveStatusEnum
 
@@ -1590,7 +1721,7 @@ Granular permissions assigned to `AdminRole` records:
 Access-control categories for department-gated modules. A department's `key` field uses one of these values (or is null
 if the department is not linked to any gated module). Multiple departments can share the same key.
 
-`SUNDAY_SCHOOL` · `CHILDREN_CHURCH` · `MEDIA` *(example — extend as needed)*
+`SUNDAY_SCHOOL` · `CHILDREN_CHURCH` · `WORSHIP` · `USHERING` · `MEDIA` · `PROTOCOL` · `WELFARE` · `PRAYER` · `EVANGELISM` · `YOUTH` · `YOUNG_ADULTS` · `FOLLOW_UP`
 
 ### SundaySchoolAttendanceStatus
 
@@ -1623,3 +1754,19 @@ if the department is not linked to any gated module). Multiple departments can s
 ### FinanceRequestStatus
 
 `PENDING` · `APPROVED` · `REJECTED`
+
+### FirstTimerSourceEnum
+
+`WALK_IN` · `ONLINE` · `REFERRAL`
+
+### FollowUpTaskTypeEnum
+
+`FIRST_TIMER` · `ONLINE_NO_RESPONSE` · `MANUAL`
+
+### FollowUpTaskStatusEnum
+
+`PENDING` · `IN_PROGRESS` · `COMPLETED` · `UNREACHABLE`
+
+### FollowUpOutcomeEnum
+
+`JOINED` · `DECLINED` · `NO_ANSWER` · `PRAYED_WITH`

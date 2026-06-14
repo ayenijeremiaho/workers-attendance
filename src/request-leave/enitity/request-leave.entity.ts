@@ -15,11 +15,11 @@ export class RequestLeave extends BaseEntity {
     workerProfile: WorkerProfile;
 
     @Index()
-    @Column({type: 'timestamptz'})
+    @Column({type: 'date'})
     dateFrom: Date;
 
     @Index()
-    @Column({type: 'timestamptz'})
+    @Column({type: 'date'})
     dateTo: Date;
 
     @Column({type: 'varchar', length: 500})

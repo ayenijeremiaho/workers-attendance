@@ -18,6 +18,12 @@ import {DepartmentService} from '../../department/service/department.service';
 import {DateService} from '../../utility/service/date.service';
 import {CacheService} from '../../utility/service/cache.service';
 import {SessionSurface} from '../../auth/enum/session-surface.enum';
+import {getQueueToken} from '@nestjs/bull';
+import {FOLLOW_UP_QUEUE} from '../../follow-up/processor/post-event.processor';
+
+const mockFollowUpQueue = {
+    add: jest.fn().mockResolvedValue({id: 'job-1'}),
+};
 
 const mockCacheService = {
     key: jest.fn().mockImplementation((ns: string, id: string) => `${ns}:${id}`),
@@ -66,13 +72,13 @@ const mockSlotRepo = {
 const mockMemberService = {
     getById: jest.fn(),
     count: jest.fn(),
-    getMembersNotCheckedInForSlot: jest.fn(),
-    getWorkersNotCheckedInForSlot: jest.fn(),
+    getMembersNotCheckedInForEvent: jest.fn(),
+    getWorkersNotCheckedInForEvent: jest.fn(),
 };
 
 const mockEventService = {
     resolveSlotConfig: jest.fn(),
-    findSlotsNotMarkedAbsent: jest.fn(),
+    findEventsReadyForAbsenceMarking: jest.fn(),
 };
 
 const mockConfigService = {
@@ -101,12 +107,15 @@ const defaultConfig = {
     allowedDistanceInMeters: 100,
 };
 
+const defaultLocation = {latitude: 6.5244, longitude: 3.3792};
+
 function makeSlot(startTime: Date): any {
     return {
         id: 'slot-1',
         name: 'Sunday Service',
         startTime,
         endTime: addHours(startTime, 3),
+        event: {id: 'event-1', name: 'Sunday Service'},
         config: {
             workerCheckinStartOffsetSeconds: -7200,
             workerLateOffsetSeconds: 0,
@@ -121,8 +130,6 @@ function makeSlot(startTime: Date): any {
         memberCheckinStartOverride: null,
         checkinStopOverride: null,
         allowedDistanceOverride: null,
-        locationLatitude: '6.52440000',
-        locationLongitude: '3.37920000',
     };
 }
 
@@ -145,6 +152,7 @@ describe('AttendanceService', () => {
                 {provide: UtilityService, useValue: {sendEmailWithTemplate: jest.fn()}},
                 {provide: DateService, useValue: new DateService()},
                 {provide: CacheService, useValue: mockCacheService},
+                {provide: getQueueToken(FOLLOW_UP_QUEUE), useValue: mockFollowUpQueue},
             ],
         }).compile();
 
@@ -176,6 +184,22 @@ describe('AttendanceService', () => {
             await expect(service.checkin(user, dto as any)).rejects.toThrow(BadRequestException);
         });
 
+        it('should throw BadRequestException if worker does not provide location', async () => {
+            const now = new Date();
+            const slot = makeSlot(addHours(now, 1));
+            mockSlotRepo.findOne.mockResolvedValue(slot);
+            mockMemberService.getById.mockResolvedValue({
+                id: 'worker-1',
+                role: MemberRoleEnum.WORKER,
+                status: MemberStatusEnum.ACTIVE,
+                workerProfile: {id: 'wp-1', status: WorkerStatusEnum.ACTIVE},
+            });
+
+            await expect(
+                service.checkin({...user, id: 'worker-1', role: MemberRoleEnum.WORKER}, {serviceSlotId: 'slot-1'} as any),
+            ).rejects.toThrow('Workers must provide their location to check in.');
+        });
+
         it('should throw BadRequestException if member already checked in', async () => {
             const now = new Date();
             const slot = makeSlot(addHours(now, 1));
@@ -190,14 +214,13 @@ describe('AttendanceService', () => {
             mockAttendanceRepo.findOne.mockResolvedValue({
                 id: 'att-1',
                 status: AttendanceStatusEnum.PRESENT,
-                checkinTime: new Date()
+                checkinTime: new Date(),
             });
 
             await expect(service.checkin(user, dto as any)).rejects.toThrow(BadRequestException);
         });
 
         it('should mark PRESENT for a regular member checking in within window', async () => {
-            // startTime = 1 hour in future; member window opens 3600s before start = now; close = 2h after start
             const now = new Date();
             const startTime = addHours(now, 1);
             const slot = makeSlot(startTime);
@@ -215,10 +238,10 @@ describe('AttendanceService', () => {
             mockAttendanceRepo.save.mockResolvedValue({id: 'att-1', status: AttendanceStatusEnum.PRESENT});
             mockConfigService.get.mockReturnValue('false');
 
-            const result = await service.checkin({
-                id: 'member-1',
-                role: MemberRoleEnum.MEMBER,
-                requiresPasswordChange: false, surface: SessionSurface.MEMBER}, dto as any);
+            const result = await service.checkin(
+                {id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false, surface: SessionSurface.MEMBER},
+                dto as any,
+            );
 
             expect(result).toEqual({message: 'Check-in successful'});
             expect(mockAttendanceRepo.create).toHaveBeenCalledWith(
@@ -226,9 +249,35 @@ describe('AttendanceService', () => {
             );
         });
 
-        it('should mark PRESENT for worker checking in before late threshold', async () => {
-            // startTime = 1 hour in future; workerCheckinStart = -7200s (2h before) = 1h before now = open
-            // workerLateOffset = 0 = startTime; now is before startTime so PRESENT
+        it('should save event reference on checkin record', async () => {
+            const now = new Date();
+            const startTime = addHours(now, 1);
+            const slot = makeSlot(startTime);
+
+            mockSlotRepo.findOne.mockResolvedValue(slot);
+            mockMemberService.getById.mockResolvedValue({
+                id: 'member-1',
+                role: MemberRoleEnum.MEMBER,
+                status: MemberStatusEnum.ACTIVE,
+                workerProfile: null,
+            });
+            mockEventService.resolveSlotConfig.mockReturnValue(defaultConfig);
+            mockAttendanceRepo.findOne.mockResolvedValue(null);
+            mockAttendanceRepo.create.mockReturnValue({});
+            mockAttendanceRepo.save.mockResolvedValue({id: 'att-1'});
+            mockConfigService.get.mockReturnValue('false');
+
+            await service.checkin(
+                {id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false, surface: SessionSurface.MEMBER},
+                dto as any,
+            );
+
+            expect(mockAttendanceRepo.create).toHaveBeenCalledWith(
+                expect.objectContaining({event: slot.event, serviceSlot: slot}),
+            );
+        });
+
+        it('should mark PRESENT for worker checking in before late threshold with location', async () => {
             const now = new Date();
             const startTime = addHours(now, 1);
             const slot = makeSlot(startTime);
@@ -246,10 +295,10 @@ describe('AttendanceService', () => {
             mockAttendanceRepo.save.mockResolvedValue({id: 'att-1', status: AttendanceStatusEnum.PRESENT});
             mockConfigService.get.mockReturnValue('false');
 
-            const result = await service.checkin({
-                id: 'worker-1',
-                role: MemberRoleEnum.WORKER,
-                requiresPasswordChange: false, surface: SessionSurface.MEMBER}, dto as any);
+            const result = await service.checkin(
+                {id: 'worker-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false, surface: SessionSurface.MEMBER},
+                {serviceSlotId: 'slot-1', location: defaultLocation} as any,
+            );
 
             expect(result).toEqual({message: 'Check-in successful'});
             expect(mockAttendanceRepo.create).toHaveBeenCalledWith(
@@ -258,14 +307,9 @@ describe('AttendanceService', () => {
         });
 
         it('should mark LATE for worker checking in after late threshold', async () => {
-            // startTime = 1 hour ago; workerLateOffset = 0 = 1 hour ago; now is after that = LATE
-            // workerCheckinStart = -7200 = 3 hours ago = open; checkinStop = +7200 = 1 hour from now = open
             const now = new Date();
             const startTime = subHours(now, 1);
-            const cfg = {
-                ...defaultConfig,
-                workerLateOffsetSeconds: 0,
-            };
+            const cfg = {...defaultConfig, workerLateOffsetSeconds: 0};
             const slot = makeSlot(startTime);
 
             mockSlotRepo.findOne.mockResolvedValue(slot);
@@ -281,14 +325,173 @@ describe('AttendanceService', () => {
             mockAttendanceRepo.save.mockResolvedValue({id: 'att-1', status: AttendanceStatusEnum.LATE});
             mockConfigService.get.mockReturnValue('false');
 
-            const result = await service.checkin({
-                id: 'worker-1',
-                role: MemberRoleEnum.WORKER,
-                requiresPasswordChange: false, surface: SessionSurface.MEMBER}, dto as any);
+            const result = await service.checkin(
+                {id: 'worker-1', role: MemberRoleEnum.WORKER, requiresPasswordChange: false, surface: SessionSurface.MEMBER},
+                {serviceSlotId: 'slot-1', location: defaultLocation} as any,
+            );
 
             expect(result).toEqual({message: 'Check-in successful'});
             expect(mockAttendanceRepo.create).toHaveBeenCalledWith(
                 expect.objectContaining({status: AttendanceStatusEnum.LATE}),
+            );
+        });
+    });
+
+    describe('markAbsentees', () => {
+        it('should do nothing when no events are ready', async () => {
+            mockEventService.findEventsReadyForAbsenceMarking.mockResolvedValue([]);
+
+            await service.markAbsentees();
+
+            expect(mockDataSource.transaction).not.toHaveBeenCalled();
+        });
+
+        it('should create absence records per event and mark event as processed', async () => {
+            const event = {id: 'event-1', name: 'Sunday Service', eventDate: new Date('2026-06-01')};
+            mockEventService.findEventsReadyForAbsenceMarking.mockResolvedValue([event]);
+
+            const absentMembers = [{id: 'member-2'}];
+            const absentWorkers = [{id: 'worker-2'}];
+            mockMemberService.getMembersNotCheckedInForEvent.mockResolvedValue(absentMembers);
+            mockMemberService.getWorkersNotCheckedInForEvent.mockResolvedValue(absentWorkers);
+
+            const managerSave = jest.fn().mockResolvedValue(undefined);
+            const managerUpdate = jest.fn().mockResolvedValue(undefined);
+            mockDataSource.transaction.mockImplementation(async (cb: any) => {
+                await cb({save: managerSave, update: managerUpdate, createQueryBuilder: () => makeQb()});
+            });
+            // mock leave query (no workers on leave)
+            mockDataSource.createQueryBuilder = jest.fn().mockReturnValue({
+                ...makeQb(),
+                getRawMany: jest.fn().mockResolvedValue([]),
+            });
+
+            await service.markAbsentees();
+
+            expect(managerSave).toHaveBeenCalledWith(
+                Attendance,
+                expect.arrayContaining([
+                    expect.objectContaining({event, status: AttendanceStatusEnum.ABSENT, roleAtCheckin: MemberRoleEnum.MEMBER}),
+                    expect.objectContaining({event, status: AttendanceStatusEnum.ABSENT, roleAtCheckin: MemberRoleEnum.WORKER}),
+                ]),
+            );
+            expect(managerUpdate).toHaveBeenCalledWith(expect.anything(), 'event-1', {attendanceMarked: true});
+        });
+
+        it('should mark worker ON_LEAVE when approved leave covers event date', async () => {
+            const eventDate = new Date('2026-06-01');
+            const event = {id: 'event-1', name: 'Sunday Service', eventDate};
+            mockEventService.findEventsReadyForAbsenceMarking.mockResolvedValue([event]);
+
+            mockMemberService.getMembersNotCheckedInForEvent.mockResolvedValue([]);
+            mockMemberService.getWorkersNotCheckedInForEvent.mockResolvedValue([{id: 'worker-2'}]);
+
+            const managerSave = jest.fn().mockResolvedValue(undefined);
+            const managerUpdate = jest.fn().mockResolvedValue(undefined);
+            mockDataSource.transaction.mockImplementation(async (cb: any) => {
+                await cb({save: managerSave, update: managerUpdate});
+            });
+            mockDataSource.createQueryBuilder = jest.fn().mockReturnValue({
+                ...makeQb(),
+                getRawMany: jest.fn().mockResolvedValue([{memberId: 'worker-2'}]),
+            });
+
+            await service.markAbsentees();
+
+            expect(managerSave).toHaveBeenCalledWith(
+                Attendance,
+                expect.arrayContaining([
+                    expect.objectContaining({status: AttendanceStatusEnum.ON_LEAVE}),
+                ]),
+            );
+        });
+    });
+
+    describe('getAttendanceStreak', () => {
+        it('should return streak count for consecutive PRESENT/LATE records', async () => {
+            mockAttendanceRepo.find.mockResolvedValue([
+                {status: AttendanceStatusEnum.PRESENT},
+                {status: AttendanceStatusEnum.LATE},
+                {status: AttendanceStatusEnum.PRESENT},
+            ]);
+
+            const streak = await service.getAttendanceStreak('member-1', MemberRoleEnum.MEMBER);
+
+            expect(streak).toBe(3);
+        });
+
+        it('should break streak on ABSENT record', async () => {
+            mockAttendanceRepo.find.mockResolvedValue([
+                {status: AttendanceStatusEnum.PRESENT},
+                {status: AttendanceStatusEnum.ABSENT},
+                {status: AttendanceStatusEnum.PRESENT},
+            ]);
+
+            const streak = await service.getAttendanceStreak('member-1', MemberRoleEnum.MEMBER);
+
+            expect(streak).toBe(1);
+        });
+
+        it('should skip ON_LEAVE records without breaking the streak', async () => {
+            mockAttendanceRepo.find.mockResolvedValue([
+                {status: AttendanceStatusEnum.PRESENT},
+                {status: AttendanceStatusEnum.ON_LEAVE},
+                {status: AttendanceStatusEnum.LATE},
+                {status: AttendanceStatusEnum.ON_LEAVE},
+                {status: AttendanceStatusEnum.PRESENT},
+            ]);
+
+            const streak = await service.getAttendanceStreak('member-1', MemberRoleEnum.MEMBER);
+
+            expect(streak).toBe(3);
+        });
+
+        it('should return 0 for empty record list', async () => {
+            mockAttendanceRepo.find.mockResolvedValue([]);
+
+            const streak = await service.getAttendanceStreak('member-1', MemberRoleEnum.MEMBER);
+
+            expect(streak).toBe(0);
+        });
+
+        it('should return 0 when most recent record is ABSENT', async () => {
+            mockAttendanceRepo.find.mockResolvedValue([
+                {status: AttendanceStatusEnum.ABSENT},
+                {status: AttendanceStatusEnum.PRESENT},
+            ]);
+
+            const streak = await service.getAttendanceStreak('member-1', MemberRoleEnum.MEMBER);
+
+            expect(streak).toBe(0);
+        });
+    });
+
+    describe('correctAttendance', () => {
+        it('should throw NotFoundException if record not found', async () => {
+            mockAttendanceRepo.findOne.mockResolvedValue(null);
+
+            await expect(
+                service.correctAttendance('att-1', AttendanceStatusEnum.PRESENT, 'admin-1'),
+            ).rejects.toThrow(NotFoundException);
+        });
+
+        it('should update the status and return the saved record', async () => {
+            const existing = {
+                id: 'att-1',
+                status: AttendanceStatusEnum.ABSENT,
+                member: {id: 'member-1'},
+                event: {id: 'event-1'},
+            };
+            const updated = {...existing, status: AttendanceStatusEnum.PRESENT};
+
+            mockAttendanceRepo.findOne.mockResolvedValue(existing);
+            mockAttendanceRepo.save.mockResolvedValue(updated);
+
+            const result = await service.correctAttendance('att-1', AttendanceStatusEnum.PRESENT, 'admin-1');
+
+            expect(result.status).toBe(AttendanceStatusEnum.PRESENT);
+            expect(mockAttendanceRepo.save).toHaveBeenCalledWith(
+                expect.objectContaining({status: AttendanceStatusEnum.PRESENT}),
             );
         });
     });
@@ -312,10 +515,11 @@ describe('AttendanceService', () => {
                 totalPages: 1,
             });
 
-            const result = await service.getMyHistory({
-                id: 'member-1',
-                role: MemberRoleEnum.MEMBER,
-                requiresPasswordChange: false, surface: SessionSurface.MEMBER}, 1, 10);
+            const result = await service.getMyHistory(
+                {id: 'member-1', role: MemberRoleEnum.MEMBER, requiresPasswordChange: false, surface: SessionSurface.MEMBER},
+                1,
+                10,
+            );
 
             expect(result.data).toHaveLength(1);
             expect(result.page).toBe(1);
@@ -409,9 +613,7 @@ describe('AttendanceService', () => {
         it('should throw ForbiddenException if user is not a department lead', async () => {
             mockDepartmentService.getDepartmentIdForLead.mockResolvedValue(null);
 
-            await expect(service.getDepartmentHistory(user, 'slot-1')).rejects.toThrow(
-                ForbiddenException,
-            );
+            await expect(service.getDepartmentHistory(user, 'slot-1')).rejects.toThrow(ForbiddenException);
         });
 
         it('should return attendance records filtered by department and slot', async () => {
@@ -435,20 +637,15 @@ describe('AttendanceService', () => {
         it('should throw ForbiddenException if user is not a department lead', async () => {
             mockDepartmentService.getDepartmentIdForLead.mockResolvedValue(null);
 
-            await expect(service.getDepartmentEventAttendance(user, 'event-1')).rejects.toThrow(
-                ForbiddenException,
-            );
+            await expect(service.getDepartmentEventAttendance(user, 'event-1')).rejects.toThrow(ForbiddenException);
         });
 
         it('should throw NotFoundException if event has no slots', async () => {
             mockDepartmentService.getDepartmentIdForLead.mockResolvedValue('dept-1');
-            mockSlotRepo.findOne = jest.fn();
             mockDepartmentService.getWorkersInDepartment.mockResolvedValue([]);
             mockSlotRepo.find = jest.fn().mockResolvedValue([]);
 
-            await expect(service.getDepartmentEventAttendance(user, 'event-1')).rejects.toThrow(
-                NotFoundException,
-            );
+            await expect(service.getDepartmentEventAttendance(user, 'event-1')).rejects.toThrow(NotFoundException);
         });
 
         it('should return attendance matrix with null status for absent workers', async () => {
@@ -481,9 +678,7 @@ describe('AttendanceService', () => {
             expect(result.slots).toHaveLength(2);
             expect(result.workers).toHaveLength(1);
             expect(result.workers[0].name).toBe('John Doe');
-            // slot-1: attended
             expect(result.workers[0].attendance[0].status).toBe(AttendanceStatusEnum.PRESENT);
-            // slot-2: not yet recorded
             expect(result.workers[0].attendance[1].status).toBeNull();
         });
 

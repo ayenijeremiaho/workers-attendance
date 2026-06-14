@@ -31,6 +31,7 @@ import {AdminModule} from './admin/admin.module';
 import {EnumsModule} from './enums/enums.module';
 import {TitheModule} from './tithe/tithe.module';
 import {FinanceRequestModule} from './finance-request/finance-request.module';
+import {FollowUpModule} from './follow-up/follow-up.module';
 
 @Module({
     imports: [
@@ -88,6 +89,7 @@ import {FinanceRequestModule} from './finance-request/finance-request.module';
         EnumsModule,
         TitheModule,
         FinanceRequestModule,
+        FollowUpModule,
     ],
     controllers: [AppController],
     providers: [

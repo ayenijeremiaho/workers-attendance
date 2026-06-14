@@ -1,6 +1,7 @@
 import {
     BadRequestException,
     ConflictException,
+    ForbiddenException,
     Injectable,
     Logger,
     NotFoundException,
@@ -148,6 +149,9 @@ export class FinanceRequestService {
         if (request.status !== FinanceRequestStatus.PENDING) {
             throw new BadRequestException('Only pending requests can be approved');
         }
+        if (request.requestedBy?.id === actorAdmin.member?.id) {
+            throw new ForbiddenException('You cannot approve your own finance request');
+        }
 
         request.status = FinanceRequestStatus.APPROVED;
         request.reviewedBy = actorAdmin;
@@ -181,6 +185,14 @@ export class FinanceRequestService {
         }
         if (!file) throw new BadRequestException('Proof file is required');
 
+        if (request.proofPublicId) {
+            try {
+                await this.cloudinaryService.deleteByPublicId(request.proofPublicId, request.proofResourceType);
+            } catch (err) {
+                this.logger.error(`Failed to delete old proof asset ${request.proofPublicId}: ${err.message}`);
+            }
+        }
+
         const uploaded = await this.cloudinaryService.uploadBuffer(file.buffer, 'finance-proofs', `${id}-proof-${Date.now()}`);
 
         request.proofUrl = uploaded.secureUrl;
@@ -195,23 +207,18 @@ export class FinanceRequestService {
     // ── Notifications ─────────────────────────────────────────────────────────
 
     private async notifyFinanceTeam(request: FinanceRequest): Promise<void> {
-        const financeAdmins = await this.adminRepo
+        const admins = await this.adminRepo
             .createQueryBuilder('a')
-            .leftJoinAndSelect('a.member', 'm')
-            .leftJoinAndSelect('a.adminRole', 'role')
+            .innerJoinAndSelect('a.member', 'm')
+            .innerJoin('a.adminRole', 'r')
             .where('a.isActive = true')
+            .andWhere(':perm = ANY(r.permissions)', {perm: AdminPermission.FINANCE_WRITE})
             .getMany();
 
-        const recipients = financeAdmins
-            .filter((a) => a.adminRole?.permissions?.includes(AdminPermission.FINANCE_WRITE))
-            .map((a) => a.member?.email)
-            .filter((e): e is string => !!e);
-
-        if (!recipients.length) return;
-
-        for (const email of recipients) {
+        for (const admin of admins) {
+            if (!admin.member?.email) continue;
             this.utilityService.sendEmailWithTemplate(
-                email,
+                admin.member.email,
                 'New Finance Request Pending Review',
                 'finance-request-submitted',
                 {

@@ -1,4 +1,4 @@
-import {IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID} from 'class-validator';
+import {IsDateString, IsNotEmpty, IsOptional, IsString, IsUrl, IsUUID} from 'class-validator';
 
 export class CreateChildProfileDto {
     @IsString()
@@ -12,7 +12,7 @@ export class CreateChildProfileDto {
     @IsDateString()
     dateOfBirth: string;
 
-    @IsString()
+    @IsUrl({}, {message: 'photoUrl must be a valid URL'})
     @IsOptional()
     photoUrl?: string;
 
@@ -40,7 +40,7 @@ export class UpdateChildProfileDto {
     @IsOptional()
     dateOfBirth?: string;
 
-    @IsString()
+    @IsUrl({}, {message: 'photoUrl must be a valid URL'})
     @IsOptional()
     photoUrl?: string;
 

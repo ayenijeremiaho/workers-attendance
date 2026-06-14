@@ -125,8 +125,7 @@ describe('EventService', () => {
         });
 
         it('should create recurring events correctly when valid recurrence is provided', async () => {
-            const slotObj = {name: 'Service', startTime: new Date(), endTime: new Date()};
-            mockSlotRepo.create.mockReturnValue(slotObj);
+            mockSlotRepo.create.mockImplementation((d: any) => ({...d, startTime: new Date(d.startTime), endTime: new Date(d.endTime)}));
             mockEventRepo.create.mockImplementation((data) => ({...data, serviceSlots: []}));
             mockEventRepo.save.mockImplementation((events) =>
                 Promise.resolve(Array.isArray(events) ? events.map((e, i) => ({...e, id: `event-${i}`})) : {
@@ -167,6 +166,70 @@ describe('EventService', () => {
                     },
                 } as any, 'actor-1'),
             ).rejects.toThrow(BadRequestException);
+        });
+
+        it('should throw BadRequestException when endDate is before eventDate', async () => {
+            await expect(
+                service.create({
+                    name: 'Bad Range',
+                    eventDate: '2025-06-05',
+                    endDate: '2025-06-01',
+                    isRecurring: false,
+                    serviceSlots: [],
+                } as any, 'actor-1'),
+            ).rejects.toThrow('endDate must not be before eventDate');
+        });
+
+        it('should throw BadRequestException when slot times fall outside event date range', async () => {
+            mockSlotRepo.create.mockImplementation((d) => ({...d, startTime: new Date(d.startTime), endTime: new Date(d.endTime)}));
+
+            await expect(
+                service.create({
+                    name: 'Out of Bounds',
+                    eventDate: '2025-06-01',
+                    endDate: '2025-06-01',
+                    isRecurring: false,
+                    serviceSlots: [{
+                        name: 'Late Night',
+                        startTime: '2025-06-02T00:30:00.000Z',
+                        endTime: '2025-06-02T02:00:00.000Z',
+                    }],
+                } as any, 'actor-1'),
+            ).rejects.toThrow(BadRequestException);
+        });
+
+        it('should throw BadRequestException when slots overlap', async () => {
+            mockSlotRepo.create.mockImplementation((d) => ({...d, startTime: new Date(d.startTime), endTime: new Date(d.endTime)}));
+
+            await expect(
+                service.create({
+                    name: 'Overlapping',
+                    eventDate: '2025-06-01',
+                    isRecurring: false,
+                    serviceSlots: [
+                        {name: 'First', startTime: '2025-06-01T09:00:00.000Z', endTime: '2025-06-01T11:00:00.000Z'},
+                        {name: 'Second', startTime: '2025-06-01T10:00:00.000Z', endTime: '2025-06-01T12:00:00.000Z'},
+                    ],
+                } as any, 'actor-1'),
+            ).rejects.toThrow('overlaps');
+        });
+
+        it('should accept slots where startTime of second equals endTime of first', async () => {
+            mockSlotRepo.create.mockImplementation((d) => ({...d, startTime: new Date(d.startTime), endTime: new Date(d.endTime)}));
+            mockEventRepo.create.mockReturnValue({name: 'Back to Back', serviceSlots: []});
+            mockEventRepo.save.mockResolvedValue({id: 'event-1', name: 'Back to Back'});
+
+            await expect(
+                service.create({
+                    name: 'Back to Back',
+                    eventDate: '2025-06-01',
+                    isRecurring: false,
+                    serviceSlots: [
+                        {name: 'First', startTime: '2025-06-01T09:00:00.000Z', endTime: '2025-06-01T11:00:00.000Z'},
+                        {name: 'Second', startTime: '2025-06-01T11:00:00.000Z', endTime: '2025-06-01T13:00:00.000Z'},
+                    ],
+                } as any, 'actor-1'),
+            ).resolves.toBeDefined();
         });
     });
 

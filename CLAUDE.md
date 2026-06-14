@@ -18,7 +18,9 @@ NestJS backend for RCCG Discovery Centre church management. Stack: PostgreSQL ·
 ## Migration Rules (CRITICAL)
 - **Never edit an existing migration file.** Once a migration has been committed or run, it is immutable history.
 - All schema changes (new table, new column, new index, seed data) require a **new file** with a fresh timestamp.
-- File format: `src/migrations/{13-digit-timestamp}-{PascalCaseName}.ts`
+- File format: `src/migrations/{13-digit-unix-ms}-{PascalCaseName}.ts`
+- Class name format: `{PascalCaseName}{13-digit-unix-ms}` — timestamp at the END, matching TypeORM CLI output.
+- **Never use 14-digit date strings** (e.g. `20260614120000`) as timestamps. TypeORM extracts the timestamp via `substr(-13)`; a 14-digit suffix produces a truncated, out-of-order value that breaks migration execution order.
 - Use `/new-migration` to scaffold a new migration correctly.
 
 ## Redis / Cache Conventions

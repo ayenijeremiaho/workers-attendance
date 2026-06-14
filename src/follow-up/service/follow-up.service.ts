@@ -1,0 +1,547 @@
+import {
+    BadRequestException,
+    ForbiddenException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
+import {InjectRepository} from '@nestjs/typeorm';
+import {DataSource, In, Repository} from 'typeorm';
+import {ConfigService} from '@nestjs/config';
+import {FirstTimer} from '../entity/first-timer.entity';
+import {FollowUpTask} from '../entity/follow-up-task.entity';
+import {FollowUpNote} from '../entity/follow-up-note.entity';
+import {WorkerProfile} from '../../member/entity/worker-profile.entity';
+import {CreateFirstTimerDto} from '../dto/create-first-timer.dto';
+import {UpdateFollowUpTaskDto} from '../dto/update-follow-up-task.dto';
+import {BulkUpdateTasksDto} from '../dto/bulk-update-tasks.dto';
+import {ReassignTaskDto} from '../dto/reassign-task.dto';
+import {FollowUpOutcomeEnum, FollowUpTaskStatusEnum, FollowUpTaskTypeEnum} from '../enums/follow-up.enum';
+import {DepartmentKeyEnum} from '../../department/enums/department-key.enum';
+import {WorkerStatusEnum} from '../../member/enums/worker-status.enum';
+import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
+import {UtilityService} from '../../utility/service/utility.service';
+import {EmailQueueService} from '../../utility/service/email-queue.service';
+
+const OPEN_STATUSES = [FollowUpTaskStatusEnum.PENDING, FollowUpTaskStatusEnum.IN_PROGRESS];
+
+@Injectable()
+export class FollowUpService {
+    private readonly followUpDueDays: number;
+    private readonly churchName: string;
+
+    constructor(
+        private readonly dataSource: DataSource,
+        private readonly configService: ConfigService,
+        private readonly emailQueueService: EmailQueueService,
+        @InjectRepository(FirstTimer)
+        private readonly firstTimerRepo: Repository<FirstTimer>,
+        @InjectRepository(FollowUpTask)
+        private readonly taskRepo: Repository<FollowUpTask>,
+        @InjectRepository(FollowUpNote)
+        private readonly noteRepo: Repository<FollowUpNote>,
+        @InjectRepository(WorkerProfile)
+        private readonly workerProfileRepo: Repository<WorkerProfile>,
+    ) {
+        this.followUpDueDays = this.configService.get<number>('FOLLOW_UP_DUE_DAYS', 3);
+        this.churchName = this.configService.get<string>('CHURCH_NAME', 'RCCG Discovery Centre');
+    }
+
+    async createFirstTimerByWorker(dto: CreateFirstTimerDto, memberId: string): Promise<FirstTimer> {
+        await this.assertWorkerInFollowUpDept(memberId);
+        return this.doCreateFirstTimer(dto, {memberCreatorId: memberId});
+    }
+
+    async createFirstTimerByAdmin(dto: CreateFirstTimerDto, adminId: string): Promise<FirstTimer> {
+        return this.doCreateFirstTimer(dto, {adminCreatorId: adminId});
+    }
+
+    async getFirstTimers(
+        page = 1,
+        limit = 20,
+        eventId?: string,
+    ): Promise<PaginationResponseDto<FirstTimer>> {
+        if (page < 1) throw new BadRequestException('Page must be greater than 0');
+
+        const qb = this.firstTimerRepo
+            .createQueryBuilder('ft')
+            .leftJoinAndSelect('ft.visitedEvent', 'event')
+            .leftJoinAndSelect('ft.followUpTask', 'task')
+            .leftJoinAndSelect('task.assignedTo', 'wp')
+            .leftJoinAndSelect('wp.member', 'wm')
+            .orderBy('ft.createdAt', 'DESC')
+            .skip((page - 1) * limit)
+            .take(limit);
+
+        if (eventId) qb.andWhere('event.id = :eventId', {eventId});
+
+        const [data, total] = await qb.getManyAndCount();
+        return UtilityService.createPaginationResponse(data, page, limit, total);
+    }
+
+    async getMyTasks(
+        memberId: string,
+        page = 1,
+        limit = 20,
+        status?: FollowUpTaskStatusEnum,
+    ): Promise<PaginationResponseDto<FollowUpTask>> {
+        await this.assertWorkerInFollowUpDept(memberId);
+
+        const profile = await this.workerProfileRepo.findOne({where: {member: {id: memberId}}});
+        if (!profile) throw new NotFoundException('Worker profile not found');
+
+        if (page < 1) throw new BadRequestException('Page must be greater than 0');
+
+        const qb = this.taskRepo
+            .createQueryBuilder('task')
+            .leftJoinAndSelect('task.firstTimer', 'ft')
+            .leftJoinAndSelect('task.member', 'member')
+            .leftJoinAndSelect('task.event', 'event')
+            .leftJoinAndSelect('task.notes', 'notes')
+            .where('task.assignedTo = :profileId', {profileId: profile.id})
+            .orderBy('task.createdAt', 'DESC')
+            .skip((page - 1) * limit)
+            .take(limit);
+
+        if (status) qb.andWhere('task.status = :status', {status});
+
+        const [data, total] = await qb.getManyAndCount();
+        return UtilityService.createPaginationResponse(data, page, limit, total);
+    }
+
+    async getAllTasks(
+        page = 1,
+        limit = 20,
+        status?: FollowUpTaskStatusEnum,
+        type?: FollowUpTaskTypeEnum,
+    ): Promise<PaginationResponseDto<FollowUpTask>> {
+        if (page < 1) throw new BadRequestException('Page must be greater than 0');
+
+        const qb = this.taskRepo
+            .createQueryBuilder('task')
+            .leftJoinAndSelect('task.firstTimer', 'ft')
+            .leftJoinAndSelect('task.member', 'member')
+            .leftJoinAndSelect('task.event', 'event')
+            .leftJoinAndSelect('task.assignedTo', 'wp')
+            .leftJoinAndSelect('wp.member', 'wm')
+            .orderBy('task.createdAt', 'DESC')
+            .skip((page - 1) * limit)
+            .take(limit);
+
+        if (status) qb.andWhere('task.status = :status', {status});
+        if (type) qb.andWhere('task.type = :type', {type});
+
+        const [data, total] = await qb.getManyAndCount();
+        return UtilityService.createPaginationResponse(data, page, limit, total);
+    }
+
+    async updateTask(
+        taskId: string,
+        dto: UpdateFollowUpTaskDto,
+        memberId: string,
+    ): Promise<FollowUpTask> {
+        await this.assertWorkerInFollowUpDept(memberId);
+
+        const profile = await this.workerProfileRepo.findOne({where: {member: {id: memberId}}});
+        if (!profile) throw new NotFoundException('Worker profile not found');
+
+        const task = await this.taskRepo.findOne({
+            where: {id: taskId, assignedTo: {id: profile.id}},
+            relations: ['assignedTo', 'notes'],
+        });
+        if (!task) throw new NotFoundException('Task not found or not assigned to you');
+
+        if (dto.status) task.status = dto.status;
+        if (dto.outcome) task.outcome = dto.outcome;
+        if (dto.outcomeNotes !== undefined) task.outcomeNotes = dto.outcomeNotes;
+
+        const saved = await this.taskRepo.save(task);
+
+        if (dto.noteContent) {
+            await this.noteRepo.save(
+                this.noteRepo.create({task: saved, addedBy: profile, content: dto.noteContent}),
+            );
+        }
+
+        return saved;
+    }
+
+    async reassignTask(taskId: string, dto: ReassignTaskDto, actorAdminId: string): Promise<FollowUpTask> {
+        const [task, targetProfile] = await Promise.all([
+            this.taskRepo.findOne({where: {id: taskId}, relations: ['assignedTo']}),
+            this.workerProfileRepo.findOne({
+                where: {id: dto.workerProfileId},
+                relations: ['department', 'member'],
+            }),
+        ]);
+
+        if (!task) throw new NotFoundException('Task not found');
+        if (!targetProfile) throw new NotFoundException('Worker profile not found');
+
+        const isInFollowUpDept = await this.isFollowUpWorker(targetProfile);
+        if (!isInFollowUpDept) {
+            throw new BadRequestException('Target worker must be in the Follow-Up department');
+        }
+
+        task.assignedTo = targetProfile;
+        const saved = await this.taskRepo.save(task);
+
+        if (targetProfile.member?.email) {
+            this.emailQueueService.queueEmailWithTemplate(
+                targetProfile.member.email,
+                `Follow-Up Task Reassigned to You — ${this.churchName}`,
+                'follow-up-task-assigned',
+                {
+                    workerName: targetProfile.member.firstname,
+                    firstTimerName: 'Reassigned task',
+                    phone: 'See app for details',
+                    email: null,
+                    dueDate: task.dueDate ? new Date(task.dueDate).toDateString() : 'Not set',
+                    churchName: this.churchName,
+                },
+            );
+        }
+
+        return saved;
+    }
+
+    async bulkUpdateTasks(dto: BulkUpdateTasksDto): Promise<{updated: number}> {
+        const ids = dto.tasks.map((t) => t.id);
+        const tasks = await this.taskRepo.find({where: {id: In(ids)}});
+
+        const statusMap = new Map(dto.tasks.map((t) => [t.id, t.status]));
+        for (const task of tasks) {
+            const newStatus = statusMap.get(task.id);
+            if (newStatus) task.status = newStatus;
+        }
+
+        await this.taskRepo.save(tasks);
+        return {updated: tasks.length};
+    }
+
+    async createTaskForOnlineNonResponder(memberId: string, eventId: string): Promise<FollowUpTask | null> {
+        const assignee = await this.pickRoundRobinAssignee();
+        if (!assignee) return null;
+
+        const dueDate = this.computeDueDate();
+
+        const task = await this.taskRepo.save(
+            this.taskRepo.create({
+                type: FollowUpTaskTypeEnum.ONLINE_NO_RESPONSE,
+                status: FollowUpTaskStatusEnum.PENDING,
+                member: {id: memberId},
+                event: {id: eventId},
+                assignedTo: assignee,
+                dueDate,
+            }),
+        );
+
+        if (assignee.member?.email) {
+            this.emailQueueService.queueEmailWithTemplate(
+                assignee.member.email,
+                `New Follow-Up Task Assigned — ${this.churchName}`,
+                'follow-up-task-assigned',
+                {
+                    workerName: assignee.member.firstname,
+                    firstTimerName: 'Online non-responder',
+                    phone: 'See app for details',
+                    email: null,
+                    dueDate: dueDate.toDateString(),
+                    churchName: this.churchName,
+                },
+            );
+        }
+
+        return task;
+    }
+
+    async getReport(from?: Date, to?: Date) {
+        const hasRange = from !== undefined && to !== undefined;
+
+        const [
+            firstTimerRows,
+            sourceRows,
+            taskStatusRows,
+            outcomeRows,
+            overdueResult,
+            workerRows,
+            eventRows,
+        ] = await Promise.all([
+            // Total first-timers + wants-to-join counts
+            (() => {
+                const qb = this.dataSource
+                    .createQueryBuilder()
+                    .select('COUNT(*)', 'total')
+                    .addSelect('SUM(CASE WHEN ft.wants_to_join_church THEN 1 ELSE 0 END)', 'wantsToJoinChurch')
+                    .addSelect('SUM(CASE WHEN ft.wants_to_join_workforce THEN 1 ELSE 0 END)', 'wantsToJoinWorkforce')
+                    .from('first_timers', 'ft');
+                if (hasRange) qb.where('ft.created_at BETWEEN :from AND :to', {from, to});
+                return qb.getRawOne<{total: string; wantsToJoinChurch: string; wantsToJoinWorkforce: string}>();
+            })(),
+
+            // By source
+            (() => {
+                const qb = this.dataSource
+                    .createQueryBuilder()
+                    .select('ft.source', 'source')
+                    .addSelect('COUNT(*)', 'count')
+                    .from('first_timers', 'ft')
+                    .groupBy('ft.source');
+                if (hasRange) qb.where('ft.created_at BETWEEN :from AND :to', {from, to});
+                return qb.getRawMany<{source: string; count: string}>();
+            })(),
+
+            // Task status breakdown (tasks in period)
+            (() => {
+                const qb = this.dataSource
+                    .createQueryBuilder()
+                    .select('task.status', 'status')
+                    .addSelect('COUNT(*)', 'count')
+                    .from('follow_up_tasks', 'task')
+                    .groupBy('task.status');
+                if (hasRange) qb.where('task.created_at BETWEEN :from AND :to', {from, to});
+                return qb.getRawMany<{status: string; count: string}>();
+            })(),
+
+            // Outcome breakdown
+            (() => {
+                const qb = this.dataSource
+                    .createQueryBuilder()
+                    .select('task.outcome', 'outcome')
+                    .addSelect('COUNT(*)', 'count')
+                    .from('follow_up_tasks', 'task')
+                    .where('task.outcome IS NOT NULL')
+                    .groupBy('task.outcome');
+                if (hasRange) qb.andWhere('task.created_at BETWEEN :from AND :to', {from, to});
+                return qb.getRawMany<{outcome: string; count: string}>();
+            })(),
+
+            // Overdue count (always current snapshot, no date filter)
+            this.dataSource
+                .createQueryBuilder()
+                .select('COUNT(*)', 'count')
+                .from('follow_up_tasks', 'task')
+                .where('task.status IN (:...statuses)', {statuses: OPEN_STATUSES})
+                .andWhere('task.due_date < NOW()')
+                .andWhere('task.due_date IS NOT NULL')
+                .getRawOne<{count: string}>(),
+
+            // By worker
+            (() => {
+                const qb = this.dataSource
+                    .createQueryBuilder()
+                    .select("m.firstname || ' ' || m.lastname", 'workerName')
+                    .addSelect('COUNT(task.id)', 'assigned')
+                    .addSelect(`COUNT(CASE WHEN task.status = '${FollowUpTaskStatusEnum.COMPLETED}' THEN 1 END)`, 'completed')
+                    .addSelect(`COUNT(CASE WHEN task.outcome = '${FollowUpOutcomeEnum.JOINED}' THEN 1 END)`, 'joined')
+                    .from('follow_up_tasks', 'task')
+                    .innerJoin('worker_profiles', 'wp', 'wp.id = task.assigned_to_id')
+                    .innerJoin('members', 'm', 'm.id = wp.member_id')
+                    .groupBy('m.id, m.firstname, m.lastname')
+                    .orderBy('assigned', 'DESC');
+                if (hasRange) qb.where('task.created_at BETWEEN :from AND :to', {from, to});
+                return qb.getRawMany<{workerName: string; assigned: string; completed: string; joined: string}>();
+            })(),
+
+            // By event
+            (() => {
+                const qb = this.dataSource
+                    .createQueryBuilder()
+                    .select('e.name', 'eventName')
+                    .addSelect('COUNT(ft.id)', 'firstTimers')
+                    .from('first_timers', 'ft')
+                    .innerJoin('events', 'e', 'e.id = ft.visited_event_id')
+                    .groupBy('e.id, e.name')
+                    .orderBy('"firstTimers"', 'DESC');
+                if (hasRange) qb.where('ft.created_at BETWEEN :from AND :to', {from, to});
+                return qb.getRawMany<{eventName: string; firstTimers: string}>();
+            })(),
+        ]);
+
+        const totalTasks = taskStatusRows.reduce((sum, r) => sum + Number(r.count), 0);
+        const joinedCount = Number(
+            outcomeRows.find((r) => r.outcome === FollowUpOutcomeEnum.JOINED)?.count ?? 0,
+        );
+        const conversionRate =
+            totalTasks > 0 ? `${((joinedCount / totalTasks) * 100).toFixed(1)}%` : '0%';
+
+        const bySource: Record<string, number> = {};
+        for (const row of sourceRows) bySource[row.source] = Number(row.count);
+
+        const byStatus: Record<string, number> = {};
+        for (const row of taskStatusRows) byStatus[row.status] = Number(row.count);
+
+        const byOutcome: Record<string, number> = {};
+        for (const row of outcomeRows) byOutcome[row.outcome] = Number(row.count);
+
+        return {
+            period: {
+                from: from?.toISOString() ?? null,
+                to: to?.toISOString() ?? null,
+            },
+            firstTimers: {
+                total: Number(firstTimerRows?.total ?? 0),
+                bySource,
+                wantsToJoinChurch: Number(firstTimerRows?.wantsToJoinChurch ?? 0),
+                wantsToJoinWorkforce: Number(firstTimerRows?.wantsToJoinWorkforce ?? 0),
+            },
+            tasks: {
+                total: totalTasks,
+                byStatus,
+                byOutcome,
+                overdue: Number(overdueResult?.count ?? 0),
+                conversionRate,
+            },
+            byWorker: workerRows.map((r) => ({
+                workerName: r.workerName,
+                assigned: Number(r.assigned),
+                completed: Number(r.completed),
+                joined: Number(r.joined),
+            })),
+            byEvent: eventRows.map((r) => ({
+                eventName: r.eventName,
+                firstTimers: Number(r.firstTimers),
+            })),
+        };
+    }
+
+    async pickRoundRobinAssignee(): Promise<WorkerProfile | null> {
+        const rows = await this.dataSource
+            .createQueryBuilder()
+            .select('wp.id', 'id')
+            .addSelect(
+                `COUNT(CASE WHEN ft.status IN ('PENDING','IN_PROGRESS') THEN 1 END)`,
+                'openCount',
+            )
+            .from('worker_profiles', 'wp')
+            .innerJoin('departments', 'd', 'd.id = wp.department_id')
+            .leftJoin('follow_up_tasks', 'ft', 'ft.assigned_to_id = wp.id')
+            .where('d.key = :key', {key: DepartmentKeyEnum.FOLLOW_UP})
+            .andWhere('wp.status = :status', {status: WorkerStatusEnum.ACTIVE})
+            .groupBy('wp.id')
+            .orderBy('"openCount"', 'ASC')
+            .limit(1)
+            .getRawMany<{id: string; openCount: string}>();
+
+        if (!rows.length) return null;
+        return this.workerProfileRepo.findOne({where: {id: rows[0].id}, relations: ['member']});
+    }
+
+    async assertWorkerInFollowUpDept(memberId: string): Promise<void> {
+        const profile = await this.workerProfileRepo.findOne({
+            where: {member: {id: memberId}},
+            relations: ['department', 'secondaryDepartment'],
+        });
+
+        if (!profile) throw new ForbiddenException('Worker profile not found');
+
+        const inDept =
+            profile.department?.key === DepartmentKeyEnum.FOLLOW_UP ||
+            profile.secondaryDepartment?.key === DepartmentKeyEnum.FOLLOW_UP;
+
+        if (!inDept) {
+            throw new ForbiddenException('Access restricted to Follow-Up department workers');
+        }
+    }
+
+    private computeDueDate(): Date {
+        const due = new Date();
+        due.setDate(due.getDate() + this.followUpDueDays);
+        return due;
+    }
+
+    private async isFollowUpWorker(profile: WorkerProfile): Promise<boolean> {
+        const full = await this.workerProfileRepo.findOne({
+            where: {id: profile.id},
+            relations: ['department', 'secondaryDepartment'],
+        });
+        return (
+            full?.department?.key === DepartmentKeyEnum.FOLLOW_UP ||
+            full?.secondaryDepartment?.key === DepartmentKeyEnum.FOLLOW_UP
+        );
+    }
+
+    private async doCreateFirstTimer(
+        dto: CreateFirstTimerDto,
+        actor: {memberCreatorId?: string; adminCreatorId?: string},
+    ): Promise<FirstTimer> {
+        let assignee: WorkerProfile | null = null;
+        let savedFirstTimer: FirstTimer;
+        const dueDate = this.computeDueDate();
+
+        await this.dataSource.transaction(async (manager) => {
+            // Serialize concurrent picks so round-robin is accurate under load
+            await manager.query(`SELECT pg_advisory_xact_lock(hashtext('follow-up:round-robin'))`);
+
+            const rows: {id: string}[] = await manager.query(
+                `SELECT wp.id
+                 FROM worker_profiles wp
+                 INNER JOIN departments d ON d.id = wp.department_id
+                 LEFT JOIN follow_up_tasks ft
+                     ON ft.assigned_to_id = wp.id AND ft.status IN ('PENDING', 'IN_PROGRESS')
+                 WHERE d.key = $1 AND wp.status = $2
+                 GROUP BY wp.id
+                 ORDER BY COUNT(ft.id) ASC
+                 LIMIT 1`,
+                [DepartmentKeyEnum.FOLLOW_UP, WorkerStatusEnum.ACTIVE],
+            );
+
+            if (!rows.length) {
+                throw new BadRequestException(
+                    'No active Follow-Up team members available. Assign at least one worker to the Follow-Up department.',
+                );
+            }
+
+            assignee = await manager.findOne(WorkerProfile, {
+                where: {id: rows[0].id},
+                relations: ['member'],
+            });
+
+            const firstTimer = manager.create(FirstTimer, {
+                firstname: dto.firstname,
+                lastname: dto.lastname,
+                phone: dto.phone,
+                email: dto.email ?? null,
+                source: dto.source,
+                wantsToJoinChurch: dto.wantsToJoinChurch ?? false,
+                enjoyedAboutChurch: dto.enjoyedAboutChurch ?? null,
+                wantsToJoinWorkforce: dto.wantsToJoinWorkforce ?? false,
+                notes: dto.notes ?? null,
+                visitedEvent: dto.visitedEventId ? {id: dto.visitedEventId} : null,
+                createdByMember: actor.memberCreatorId ? {id: actor.memberCreatorId} : null,
+                createdByAdmin: actor.adminCreatorId ? {id: actor.adminCreatorId} : null,
+            });
+
+            const ft = await manager.save(FirstTimer, firstTimer);
+
+            await manager.save(
+                manager.create(FollowUpTask, {
+                    type: FollowUpTaskTypeEnum.FIRST_TIMER,
+                    status: FollowUpTaskStatusEnum.PENDING,
+                    firstTimer: ft,
+                    assignedTo: assignee,
+                    dueDate,
+                }),
+            );
+
+            savedFirstTimer = ft;
+        });
+
+        if (assignee?.member?.email) {
+            this.emailQueueService.queueEmailWithTemplate(
+                assignee.member.email,
+                `New Follow-Up Task Assigned — ${this.churchName}`,
+                'follow-up-task-assigned',
+                {
+                    workerName: assignee.member.firstname,
+                    firstTimerName: `${dto.firstname} ${dto.lastname}`,
+                    phone: dto.phone,
+                    email: dto.email ?? null,
+                    dueDate: dueDate.toDateString(),
+                    churchName: this.churchName,
+                },
+            );
+        }
+
+        return savedFirstTimer!;
+    }
+}

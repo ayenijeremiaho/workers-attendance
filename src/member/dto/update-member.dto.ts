@@ -1,4 +1,4 @@
-import {IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Matches,} from 'class-validator';
+import {IsBoolean, IsEmail, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, MaxLength, Min,} from 'class-validator';
 import {GenderEnum} from '../enums/gender.enum';
 import {MaritalStatusEnum} from '../enums/marital-status.enum';
 import {NormalizeEmail} from '../../utility/decorators/normalize-email.decorator';
@@ -6,10 +6,14 @@ import {NormalizeEmail} from '../../utility/decorators/normalize-email.decorator
 export class UpdateMemberDto {
     @IsOptional()
     @IsString()
+    @IsNotEmpty()
+    @MaxLength(50)
     firstname?: string;
 
     @IsOptional()
     @IsString()
+    @IsNotEmpty()
+    @MaxLength(50)
     lastname?: string;
 
     @IsOptional()
@@ -19,6 +23,8 @@ export class UpdateMemberDto {
 
     @IsOptional()
     @IsString()
+    @Matches(/^\+?\d{7,20}$/, {message: 'phoneNumber must be 7–20 digits, optionally prefixed with +'})
+    @MaxLength(20)
     phoneNumber?: string;
 
     @IsOptional()
@@ -26,8 +32,22 @@ export class UpdateMemberDto {
     gender?: GenderEnum;
 
     @IsOptional()
-    @Matches(/^\d{4}-\d{2}-\d{2}$/, {message: 'dateOfBirth must be YYYY-MM-DD'})
-    dateOfBirth?: string;
+    @IsInt()
+    @Min(1)
+    @Max(31)
+    birthDay?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    @Max(12)
+    birthMonth?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(1900)
+    @Max(2100)
+    birthYear?: number;
 
     @IsOptional()
     @IsEnum(MaritalStatusEnum)
@@ -46,6 +66,6 @@ export class UpdateMemberDto {
     baptizedWithHolyGhost?: boolean;
 
     @IsOptional()
-    @Matches(/^\d{4}$/, {message: 'yearJoinedChurch must be a 4-digit year'})
-    yearJoinedChurch?: string;
+    @Matches(/^\d{4}-\d{2}-\d{2}$/, {message: 'dateJoinedChurch must be YYYY-MM-DD'})
+    dateJoinedChurch?: string;
 }

@@ -1,6 +1,12 @@
+import {IsEnum} from 'class-validator';
 import {AttendanceStatusEnum} from '../enums/check-in.enum';
 import {Exclude, Expose} from 'class-transformer';
 import {ToDateString} from '../../utility/dto/date-converter';
+
+export class CorrectAttendanceDto {
+    @IsEnum(AttendanceStatusEnum)
+    status: AttendanceStatusEnum;
+}
 
 @Exclude()
 export class AttendanceDto {

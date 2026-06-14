@@ -1,9 +1,12 @@
-import {BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
+import {BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
+import {InjectQueue} from '@nestjs/bull';
+import {Queue} from 'bull';
 import {InjectRepository} from '@nestjs/typeorm';
-import {Between, DataSource, In, Repository} from 'typeorm';
+import {Between, DataSource, In, QueryFailedError, Repository} from 'typeorm';
 import {ConfigService} from '@nestjs/config';
 import {Attendance} from '../entity/attendance.entity';
 import {AttendanceStatusEnum} from '../enums/check-in.enum';
+import {POST_EVENT_JOB, FOLLOW_UP_QUEUE} from '../../follow-up/processor/post-event.processor';
 import {CheckInDto} from '../dto/check-in.dto';
 import {MemberAuth} from '../../auth/interface/auth.interface';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
@@ -12,6 +15,7 @@ import {WorkerStatusEnum} from '../../member/enums/worker-status.enum';
 import {Member} from '../../member/entity/member.entity';
 import {MemberService} from '../../member/service/member.service';
 import {ServiceSlot} from '../../event/entity/service-slot.entity';
+import {Event} from '../../event/entity/event.entity';
 import {EventService} from '../../event/service/event.service';
 import {DepartmentService} from '../../department/service/department.service';
 import {UtilityService} from '../../utility/service/utility.service';
@@ -57,6 +61,7 @@ export class AttendanceService {
         private readonly utilityService: UtilityService,
         private readonly dateService: DateService,
         private readonly cacheService: CacheService,
+        @InjectQueue(FOLLOW_UP_QUEUE) private readonly followUpQueue: Queue,
         @InjectRepository(Attendance)
         private readonly attendanceRepository: Repository<Attendance>,
         @InjectRepository(ServiceSlot)
@@ -70,14 +75,20 @@ export class AttendanceService {
     }
 
     async checkin(user: MemberAuth, dto: CheckInDto): Promise<{ message: string }> {
-        const [slot, member, existing] = await Promise.all([
+        const [slot, member] = await Promise.all([
             this.getSlotOrThrow(dto.serviceSlotId),
             this.memberService.getById(user.id, ['workerProfile']),
-            this.alreadyCheckedIn(user.id, dto.serviceSlotId),
         ]);
 
         this.assertMemberActive(member);
 
+        const isWorker = member.role === MemberRoleEnum.WORKER;
+
+        if (isWorker && !dto.location) {
+            throw new BadRequestException('Workers must provide their location to check in.');
+        }
+
+        const existing = await this.alreadyCheckedIn(user.id, slot.event.id);
         if (existing) {
             const time = existing.checkinTime
                 ? ` at ${this.dateService.format(existing.checkinTime, DateService.PATTERNS.EMAIL_TIME)}`
@@ -86,7 +97,6 @@ export class AttendanceService {
         }
 
         const cfg = this.eventService.resolveSlotConfig(slot);
-        const isWorker = member.role === MemberRoleEnum.WORKER;
         const now = this.dateService.now();
 
         this.validateCheckinWindow(now, slot, cfg, isWorker);
@@ -97,16 +107,24 @@ export class AttendanceService {
 
         const status = this.resolveStatus(now, slot, cfg, isWorker);
 
-        await this.attendanceRepository.save(
-            this.attendanceRepository.create({
-                member,
-                serviceSlot: slot,
-                checkinTime: now,
-                status,
-                roleAtCheckin: member.role,
-                location: dto.location ?? null,
-            }),
-        );
+        try {
+            await this.attendanceRepository.save(
+                this.attendanceRepository.create({
+                    member,
+                    event: slot.event,
+                    serviceSlot: slot,
+                    checkinTime: now,
+                    status,
+                    roleAtCheckin: member.role,
+                    location: dto.location ?? null,
+                }),
+            );
+        } catch (err) {
+            if (err instanceof QueryFailedError && (err as any).driverError?.code === '23505') {
+                throw new ConflictException('You have already checked in for this event.');
+            }
+            throw err;
+        }
 
         const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
         const formattedStartTime = this.dateService.format(slot.startTime, DateService.PATTERNS.EMAIL_DATE);
@@ -135,43 +153,47 @@ export class AttendanceService {
     async markAbsentees(): Promise<void> {
         this.logger.log('Running absence marking job...');
 
-        const slots = await this.eventService.findSlotsNotMarkedAbsent();
-        if (!slots.length) {
-            this.logger.log('No slots pending absence marking');
+        const events = await this.eventService.findEventsReadyForAbsenceMarking();
+        if (!events.length) {
+            this.logger.log('No events pending absence marking');
             return;
         }
 
-        this.logger.log(`Processing ${slots.length} slot(s) for absence marking`);
+        this.logger.log(`Processing ${events.length} event(s) for absence marking`);
 
         await this.dataSource.transaction(async (manager) => {
-            for (const slot of slots) {
-                this.logger.log(`Processing slot: ${slot.name} (${slot.id})`);
+            for (const event of events) {
+                this.logger.log(`Processing event: ${event.name} (${event.id})`);
 
                 const [absentMembers, absentWorkers] = await Promise.all([
-                    this.memberService.getMembersNotCheckedInForSlot(slot.id),
-                    this.memberService.getWorkersNotCheckedInForSlot(slot.id),
+                    this.memberService.getMembersNotCheckedInForEvent(event.id),
+                    this.memberService.getWorkersNotCheckedInForEvent(event.id),
                 ]);
 
                 const records: Partial<Attendance>[] = [];
 
                 for (const m of absentMembers) {
-                    records.push(this.buildAbsenceRecord(m, slot, MemberRoleEnum.MEMBER, false));
+                    records.push(this.buildAbsenceRecord(m, event, MemberRoleEnum.MEMBER, false));
                 }
 
                 const onLeaveIds = await this.getBatchApprovedLeave(
                     absentWorkers.map((w) => w.id),
-                    slot,
+                    event,
                 );
                 for (const w of absentWorkers) {
-                    records.push(this.buildAbsenceRecord(w, slot, MemberRoleEnum.WORKER, onLeaveIds.has(w.id)));
+                    records.push(this.buildAbsenceRecord(w, event, MemberRoleEnum.WORKER, onLeaveIds.has(w.id)));
                 }
 
                 if (records.length > 0) {
                     await manager.save(Attendance, records);
-                    this.logger.log(`Marked ${records.length} absence(s) for slot "${slot.name}"`);
+                    this.logger.log(`Marked ${records.length} absence(s) for event "${event.name}"`);
                 }
 
-                await manager.update(ServiceSlot, slot.id, {markedAbsent: true});
+                await manager.update(Event, event.id, {attendanceMarked: true});
+                this.followUpQueue.add(POST_EVENT_JOB, {eventId: event.id}, {
+                    attempts: 2,
+                    backoff: {type: 'fixed', delay: 5000},
+                });
             }
         });
 
@@ -313,6 +335,39 @@ export class AttendanceService {
         };
     }
 
+    async confirmOnlineAttendance(memberId: string, eventId: string): Promise<{message: string}> {
+        const event = await this.dataSource.getRepository(Event).findOne({where: {id: eventId}});
+        if (!event) throw new NotFoundException('Event not found');
+
+        if (!event.onlineAttendanceEnabled) {
+            throw new BadRequestException('Online attendance is not enabled for this event');
+        }
+
+        const windowHours = this.configService.get<number>('ONLINE_CHECKIN_WINDOW_HOURS', 3);
+        if (!event.onlineNotificationSentAt) {
+            throw new BadRequestException('Online attendance window has not opened yet');
+        }
+        const windowCloseTime = new Date(
+            event.onlineNotificationSentAt.getTime() + windowHours * 60 * 60 * 1000,
+        );
+        if (new Date() > windowCloseTime) {
+            throw new BadRequestException('The online attendance window has closed');
+        }
+
+        const record = await this.attendanceRepository.findOne({
+            where: {member: {id: memberId}, event: {id: eventId}},
+        });
+
+        if (!record) throw new NotFoundException('No attendance record found for this event');
+        if (record.status !== AttendanceStatusEnum.ABSENT) {
+            throw new BadRequestException('Your attendance for this event is already recorded');
+        }
+
+        record.status = AttendanceStatusEnum.ATTENDED_ONLINE;
+        await this.attendanceRepository.save(record);
+        return {message: 'Online attendance confirmed'};
+    }
+
     async getSlotSummary(slotId: string): Promise<Record<AttendanceStatusEnum, number>> {
         const rows = await this.attendanceRepository
             .createQueryBuilder('attendance')
@@ -327,6 +382,7 @@ export class AttendanceService {
             [AttendanceStatusEnum.LATE]: 0,
             [AttendanceStatusEnum.ABSENT]: 0,
             [AttendanceStatusEnum.ON_LEAVE]: 0,
+            [AttendanceStatusEnum.ATTENDED_ONLINE]: 0,
         };
 
         for (const row of rows) {
@@ -512,10 +568,11 @@ export class AttendanceService {
 
         let streak = 0;
         for (const record of records) {
+            if (record.status === AttendanceStatusEnum.ON_LEAVE) continue;
             if (
                 record.status === AttendanceStatusEnum.PRESENT ||
                 record.status === AttendanceStatusEnum.LATE ||
-                record.status === AttendanceStatusEnum.ON_LEAVE
+                record.status === AttendanceStatusEnum.ATTENDED_ONLINE
             ) {
                 streak++;
             } else {
@@ -655,6 +712,22 @@ export class AttendanceService {
         }));
     }
 
+    async correctAttendance(id: string, status: AttendanceStatusEnum, actorId: string): Promise<Attendance> {
+        const record = await this.attendanceRepository.findOne({
+            where: {id},
+            relations: ['member', 'event'],
+        });
+        if (!record) throw new NotFoundException('Attendance record not found');
+        const previousStatus = record.status;
+        record.status = status;
+        const saved = await this.attendanceRepository.save(record);
+        this.logger.log(
+            `Admin ${actorId} corrected attendance ${id}: ${previousStatus} → ${status} ` +
+            `(member=${record.member?.id}, event=${record.event?.id})`,
+        );
+        return saved;
+    }
+
     async getTotalCheckInsToday(): Promise<number> {
         const startOfDay = this.dateService.startOfDay();
         const endOfDay = this.dateService.endOfDay();
@@ -668,7 +741,7 @@ export class AttendanceService {
     private async getSlotOrThrow(slotId: string): Promise<ServiceSlot> {
         const slot = await this.slotRepository.findOne({
             where: {id: slotId},
-            relations: ['config', 'config.defaultVenue', 'venueOverride'],
+            relations: ['event', 'config', 'config.defaultVenue', 'venueOverride'],
         });
         if (!slot) throw new NotFoundException('Service slot not found');
         return slot;
@@ -737,13 +810,14 @@ export class AttendanceService {
 
     private buildAbsenceRecord(
         member: Member,
-        slot: ServiceSlot,
+        event: Event,
         role: MemberRoleEnum,
         onLeave: boolean,
     ): Partial<Attendance> {
         return {
             member,
-            serviceSlot: slot,
+            event,
+            serviceSlot: null,
             checkinTime: null,
             status: onLeave ? AttendanceStatusEnum.ON_LEAVE : AttendanceStatusEnum.ABSENT,
             roleAtCheckin: role,
@@ -751,14 +825,14 @@ export class AttendanceService {
         };
     }
 
-    private async alreadyCheckedIn(memberId: string, slotId: string): Promise<Attendance | null> {
+    private async alreadyCheckedIn(memberId: string, eventId: string): Promise<Attendance | null> {
         return this.attendanceRepository.findOne({
-            where: {member: {id: memberId}, serviceSlot: {id: slotId}},
+            where: {member: {id: memberId}, event: {id: eventId}},
             select: {id: true, status: true, checkinTime: true},
         });
     }
 
-    private async getBatchApprovedLeave(memberIds: string[], slot: ServiceSlot): Promise<Set<string>> {
+    private async getBatchApprovedLeave(memberIds: string[], event: Event): Promise<Set<string>> {
         if (!memberIds.length) return new Set();
         const rows = await this.dataSource
             .createQueryBuilder()
@@ -767,8 +841,8 @@ export class AttendanceService {
             .innerJoin('worker_profiles', 'profile', 'profile.id = leave.worker_profile_id')
             .where('profile.member_id IN (:...memberIds)', {memberIds})
             .andWhere('leave.status = :status', {status: 'APPROVED'})
-            .andWhere('leave.date_from <= :slotEnd', {slotEnd: slot.endTime})
-            .andWhere('leave.date_to >= :slotStart', {slotStart: slot.startTime})
+            .andWhere('leave.date_from <= :eventDate', {eventDate: event.eventDate})
+            .andWhere('leave.date_to >= :eventDate', {eventDate: event.eventDate})
             .getRawMany<{ memberId: string }>();
         return new Set(rows.map((r) => r.memberId));
     }

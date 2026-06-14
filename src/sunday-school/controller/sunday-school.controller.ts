@@ -53,6 +53,8 @@ export class SundaySchoolController {
         return this.sundaySchoolService.deleteClass(id);
     }
 
+    @UseGuards(RolesGuard)
+    @Roles(MemberRoleEnum.WORKER)
     @Get('classes')
     async getAllClasses(
         @Query('page') page = 1,
@@ -61,6 +63,8 @@ export class SundaySchoolController {
         return this.sundaySchoolService.getAllClasses(+page, +limit);
     }
 
+    @UseGuards(RolesGuard)
+    @Roles(MemberRoleEnum.WORKER)
     @Get('classes/:id')
     async getClass(@Param('id', ParseUUIDPipe) id: string) {
         return this.sundaySchoolService.getClass(id);

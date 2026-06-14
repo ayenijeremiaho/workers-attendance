@@ -170,7 +170,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"firstname\": \"John\",\n  \"lastname\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"gender\": \"MALE\",\n  \"dateOfBirth\": \"1990-05-15\",\n  \"maritalStatus\": \"MARRIED\",\n  \"yearBornAgain\": \"2010\",\n  \"yearBaptized\": \"2011\",\n  \"baptizedWithHolyGhost\": true,\n  \"yearJoinedChurch\": \"2012\",\n  \"joinWorkforce\": false\n}",
+              "raw": "{\n  \"firstname\": \"John\",\n  \"lastname\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"gender\": \"MALE\",\n  \"birthDay\": 15,\n  \"birthMonth\": 5,\n  \"birthYear\": 1990,\n  \"maritalStatus\": \"MARRIED\",\n  \"yearBornAgain\": \"2010\",\n  \"yearBaptized\": \"2011\",\n  \"baptizedWithHolyGhost\": true,\n  \"joinWorkforce\": false,\n  \"dateJoinedChurch\": \"2012-03-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -665,7 +665,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"firstname\": \"Johnny\",\n  \"lastname\": \"Doe\",\n  \"phoneNumber\": \"+2348011223344\",\n  \"gender\": \"MALE\",\n  \"dateOfBirth\": \"1990-05-15\",\n  \"maritalStatus\": \"MARRIED\",\n  \"yearBornAgain\": \"2010\",\n  \"yearBaptized\": \"2011\",\n  \"baptizedWithHolyGhost\": true,\n  \"yearJoinedChurch\": \"2012\",\n  \"email\": \"newemail@example.com\"\n}",
+              "raw": "{\n  \"firstname\": \"Johnny\",\n  \"lastname\": \"Doe\",\n  \"phoneNumber\": \"+2348011223344\",\n  \"gender\": \"MALE\",\n  \"birthDay\": 15,\n  \"birthMonth\": 5,\n  \"birthYear\": 1990,\n  \"maritalStatus\": \"MARRIED\",\n  \"yearBornAgain\": \"2010\",\n  \"yearBaptized\": \"2011\",\n  \"baptizedWithHolyGhost\": true,\n  \"email\": \"newemail@example.com\",\n  \"dateJoinedChurch\": \"2012-03-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1343,7 +1343,7 @@
                 "checkin"
               ]
             },
-            "description": "Any authenticated user (MEMBER or WORKER) can check in. location is optional for members. Workers providing location will have distance validated if ENFORCE_DISTANCE_CHECK=true. Members are always marked PRESENT; workers are PRESENT or LATE depending on workerLateOffsetSeconds."
+            "description": "Any authenticated user (MEMBER or WORKER) can check in. Workers MUST include location coordinates. Members may omit location. Location distance is validated if ENFORCE_DISTANCE_CHECK=true. One record per member per event \u2014 checking in to any slot of an event covers the whole event. Members are always PRESENT; workers are PRESENT or LATE depending on workerLateOffsetSeconds. Duplicate check-ins return 409 (enforced at DB level via unique constraint on (member, event))."
           },
           "response": [
             {
@@ -1353,10 +1353,10 @@
               "body": "{ \"message\": \"Check-in successful\" }"
             },
             {
-              "name": "400 Already checked in",
-              "status": "Bad Request",
-              "code": 400,
-              "body": "{ \"statusCode\": 400, \"message\": \"You have already checked in for this service.\" }"
+              "name": "409 Already checked in",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{ \"statusCode\": 409, \"message\": \"You have already checked in for this event.\" }"
             },
             {
               "name": "400 Window not open",
@@ -1369,6 +1369,12 @@
               "status": "Bad Request",
               "code": 400,
               "body": "{ \"statusCode\": 400, \"message\": \"Check-in is closed.\" }"
+            },
+            {
+              "name": "400 Worker missing location",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"Workers must provide their location to check in.\" }"
             }
           ]
         },
@@ -1578,6 +1584,105 @@
             "description": "Returns attendance records for the caller's department for a specific event. Includes all service slots within that event. WORKER only (resolves the caller's department from their profile)."
           },
           "response": []
+        },
+        {
+          "name": "Correct Attendance (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PRESENT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendances/{{attendanceId}}/correct",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "{{attendanceId}}",
+                "correct"
+              ]
+            },
+            "description": "Admin correction of a specific attendance record. Requires ATTENDANCE_WRITE permission. Body: { status: PRESENT | LATE | ABSENT | ON_LEAVE }."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"...\", \"status\": \"PRESENT\" }"
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{ \"statusCode\": 404, \"message\": \"Attendance record not found\" }"
+            }
+          ]
+        },
+        {
+          "name": "Confirm Online Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendances/online-confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "online-confirm"
+              ]
+            },
+            "description": "Confirms that the authenticated member attended the event online. Valid only while the online window is open (ONLINE_CHECKIN_WINDOW_HOURS after notification was sent). Updates the ABSENT record to ATTENDED_ONLINE."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"message\": \"Online attendance confirmed\" }"
+            },
+            {
+              "name": "400 Window closed",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"The online attendance window has closed\" }"
+            },
+            {
+              "name": "404 No record",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{ \"statusCode\": 404, \"message\": \"No attendance record found for this event\" }"
+            }
+          ]
         }
       ]
     },
@@ -1596,7 +1701,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Sunday Service\",\n  \"description\": \"Regular Sunday morning service\",\n  \"eventDate\": \"2026-06-15\",\n  \"isRecurring\": false,\n  \"serviceSlots\": [\n    {\n      \"name\": \"First Service\",\n      \"startTime\": \"2026-06-15T07:00:00.000Z\",\n      \"endTime\": \"2026-06-15T09:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    },\n    {\n      \"name\": \"Second Service\",\n      \"startTime\": \"2026-06-15T10:00:00.000Z\",\n      \"endTime\": \"2026-06-15T12:00:00.000Z\",\n      \"configId\": \"{{configId}}\",\n      \"venueOverrideId\": \"{{venueId}}\"\n    }\n  ]\n}",
+              "raw": "{\n  \"name\": \"Sunday Service\",\n  \"description\": \"Regular Sunday morning service\",\n  \"eventDate\": \"2026-06-15\",\n  \"isRecurring\": false,\n  \"serviceSlots\": [\n    {\n      \"name\": \"First Service\",\n      \"startTime\": \"2026-06-15T07:00:00.000Z\",\n      \"endTime\": \"2026-06-15T09:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    },\n    {\n      \"name\": \"Second Service\",\n      \"startTime\": \"2026-06-15T10:00:00.000Z\",\n      \"endTime\": \"2026-06-15T12:00:00.000Z\",\n      \"configId\": \"{{configId}}\",\n      \"venueOverrideId\": \"{{venueId}}\"\n    }\n  ],\n  \"endDate\": \"2026-06-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1612,7 +1717,7 @@
                 "events"
               ]
             },
-            "description": "ADMIN only. Each slot references a configId (which carries a defaultVenue). Supply an optional venueOverrideId on individual slots to override the config venue for just that slot."
+            "description": "Create a single non-recurring event. endDate defaults to eventDate if omitted. Slot times must fall within [eventDate 00:00, endDate 23:59]. Slots are auto-sorted ASC and validated for no overlap."
           }
         },
         {
@@ -1742,7 +1847,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/events?page=1&limit=10&orderBy=eventDate&order=DESC",
+              "raw": "{{baseUrl}}/events?page=1&limit=10&orderBy=eventDate&order=DESC&from=&to=&upcoming=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1767,6 +1872,24 @@
                   "key": "order",
                   "value": "DESC",
                   "description": "ASC | DESC"
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "YYYY-MM-DD \u2014 filter events on or after this date",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "YYYY-MM-DD \u2014 filter events on or before this date",
+                  "disabled": true
+                },
+                {
+                  "key": "upcoming",
+                  "value": "true",
+                  "description": "true \u2014 return only future events (eventDate >= today)",
+                  "disabled": true
                 }
               ]
             }
@@ -2288,7 +2411,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"dateFrom\": \"2026-07-01 08:00\",\n  \"dateTo\": \"2026-07-07 18:00\",\n  \"reason\": \"Family vacation\"\n}",
+              "raw": "{\n  \"dateFrom\": \"2026-07-01\",\n  \"dateTo\": \"2026-07-07\",\n  \"reason\": \"Family vacation\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2304,14 +2427,14 @@
                 "leave"
               ]
             },
-            "description": "WORKER only. Dates must be in format: YYYY-MM-DD HH:mm. Creates a PENDING leave request."
+            "description": "WORKER only. Dates must be in format: YYYY-MM-DD (date only, no time). dateTo must be on or after dateFrom. Creates a PENDING leave request."
           },
           "response": [
             {
               "name": "201 Created",
               "status": "Created",
               "code": 201,
-              "body": "{\n  \"id\": \"uuid\",\n  \"status\": \"PENDING\",\n  \"dateFrom\": \"2026-07-01T08:00:00.000Z\",\n  \"dateTo\": \"2026-07-07T18:00:00.000Z\",\n  \"reason\": \"Family vacation\"\n}"
+              "body": "{\n  \"id\": \"uuid\",\n  \"status\": \"PENDING\",\n  \"dateFrom\": \"2026-07-01\",\n  \"dateTo\": \"2026-07-07\",\n  \"reason\": \"Family vacation\"\n}"
             }
           ]
         },
@@ -6486,6 +6609,417 @@
             },
             "description": "RolesGuard (WORKER) \u2014 HOD only. Returns a single finance request belonging to the caller's own department. Includes proofUrl once payment proof has been attached. Returns 404 if the request belongs to a different department."
           }
+        }
+      ]
+    },
+    {
+      "name": "Follow-Up (Worker)",
+      "item": [
+        {
+          "name": "Register First-Timer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstname\": \"Emeka\",\n  \"lastname\": \"Obi\",\n  \"phone\": \"08011112222\",\n  \"email\": \"emeka@example.com\",\n  \"source\": \"WALK_IN\",\n  \"wantsToJoinChurch\": true,\n  \"enjoyedAboutChurch\": \"The worship was amazing\",\n  \"wantsToJoinWorkforce\": false,\n  \"visitedEventId\": \"{{eventId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/follow-up/first-timers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "follow-up",
+                "first-timers"
+              ]
+            },
+            "description": "Register a first-time visitor. Caller must be a WORKER in the FOLLOW_UP department. Auto-creates a FollowUpTask assigned via round-robin."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"...\", \"firstname\": \"Emeka\", \"lastname\": \"Obi\" }"
+            },
+            {
+              "name": "400 No assignee",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"No active Follow-Up team members available.\" }"
+            },
+            {
+              "name": "403 Not in FOLLOW_UP dept",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{ \"statusCode\": 403, \"message\": \"Access restricted to Follow-Up department workers\" }"
+            }
+          ]
+        },
+        {
+          "name": "My Follow-Up Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/follow-up/tasks/mine?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "follow-up",
+                "tasks",
+                "mine"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List follow-up tasks assigned to the authenticated FOLLOW_UP-dept worker. Optional ?status= filter."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"data\": [...], \"total\": 5, \"page\": 1, \"limit\": 20 }"
+            }
+          ]
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"outcome\": \"JOINED\",\n  \"outcomeNotes\": \"Member confirmed joining\",\n  \"noteContent\": \"Called on Sunday, very receptive\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/follow-up/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "follow-up",
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "description": "Update a follow-up task. Caller must be the assigned worker. Optionally adds a note."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"...\", \"status\": \"COMPLETED\", \"outcome\": \"JOINED\" }"
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{ \"statusCode\": 404, \"message\": \"Task not found or not assigned to you\" }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Follow-Up (Admin)",
+      "item": [
+        {
+          "name": "Register First-Timer (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstname\": \"Tola\",\n  \"lastname\": \"Adebayo\",\n  \"phone\": \"08022223333\",\n  \"source\": \"WALK_IN\",\n  \"wantsToJoinChurch\": true,\n  \"wantsToJoinWorkforce\": true,\n  \"visitedEventId\": \"{{eventId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/first-timers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "first-timers"
+              ]
+            },
+            "description": "Register a first-timer from the admin portal. Requires FOLLOW_UP_WRITE permission."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{ \"id\": \"...\", \"firstname\": \"Tola\" }"
+            }
+          ]
+        },
+        {
+          "name": "List First-Timers (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/first-timers?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "first-timers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "eventId",
+                  "value": "{{eventId}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all first-timers. Requires FOLLOW_UP_READ permission. Optional ?eventId= filter."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"data\": [...], \"total\": 10 }"
+            }
+          ]
+        },
+        {
+          "name": "List All Tasks (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/tasks?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "FIRST_TIMER",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all follow-up tasks. Requires FOLLOW_UP_READ. Optional filters: status, type."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"data\": [...], \"total\": 15 }"
+            }
+          ]
+        },
+        {
+          "name": "Reassign Task (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workerProfileId\": \"{{workerProfileId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/tasks/{{taskId}}/reassign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "tasks",
+                "{{taskId}}",
+                "reassign"
+              ]
+            },
+            "description": "Reassign a follow-up task to a different FOLLOW_UP-dept worker. Requires FOLLOW_UP_WRITE permission."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"id\": \"...\", \"assignedTo\": { \"id\": \"...\" } }"
+            },
+            {
+              "name": "400 Not in FOLLOW_UP dept",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{ \"statusCode\": 400, \"message\": \"Target worker must be in the Follow-Up department\" }"
+            }
+          ]
+        },
+        {
+          "name": "Bulk Update Tasks (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tasks\": [\n    {\n      \"id\": \"{{taskId}}\",\n      \"status\": \"COMPLETED\"\n    },\n    {\n      \"id\": \"{{taskId2}}\",\n      \"status\": \"UNREACHABLE\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/tasks/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "tasks",
+                "bulk"
+              ]
+            },
+            "description": "Bulk update status for multiple follow-up tasks. Requires FOLLOW_UP_WRITE permission."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{ \"updated\": 2 }"
+            }
+          ]
+        },
+        {
+          "name": "Follow-Up Report (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/report",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "report"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "2026-06-30",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Pastoral aggregate report. Requires FOLLOW_UP_READ permission. Optional ?from= and ?to= (ISO date strings) filter by period; omit both for all-time stats. Returns: first-timer totals, source breakdown, wants-to-join counts, task status/outcome breakdown, overdue count, conversion rate, per-worker performance, per-event first-timer counts."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"period\": {\n    \"from\": \"2026-01-01T00:00:00.000Z\",\n    \"to\": \"2026-06-30T00:00:00.000Z\"\n  },\n  \"firstTimers\": {\n    \"total\": 47,\n    \"bySource\": {\n      \"WALK_IN\": 38,\n      \"ONLINE\": 6,\n      \"REFERRAL\": 3\n    },\n    \"wantsToJoinChurch\": 29,\n    \"wantsToJoinWorkforce\": 14\n  },\n  \"tasks\": {\n    \"total\": 47,\n    \"byStatus\": {\n      \"PENDING\": 5,\n      \"IN_PROGRESS\": 8,\n      \"COMPLETED\": 30,\n      \"UNREACHABLE\": 4\n    },\n    \"byOutcome\": {\n      \"JOINED\": 18,\n      \"DECLINED\": 7,\n      \"NO_ANSWER\": 4,\n      \"PRAYED_WITH\": 1\n    },\n    \"overdue\": 3,\n    \"conversionRate\": \"38.3%\"\n  },\n  \"byWorker\": [\n    {\n      \"workerName\": \"Ada Obi\",\n      \"assigned\": 12,\n      \"completed\": 10,\n      \"joined\": 5\n    }\n  ],\n  \"byEvent\": [\n    {\n      \"eventName\": \"Sunday 1st June\",\n      \"firstTimers\": 8\n    }\n  ]\n}"
+            }
+          ]
         }
       ]
     }

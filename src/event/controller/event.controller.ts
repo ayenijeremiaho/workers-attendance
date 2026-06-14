@@ -9,6 +9,16 @@ import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 
+interface GetEventsQuery {
+    page?: string;
+    limit?: string;
+    orderBy?: OrderBy;
+    order?: Order;
+    from?: string;
+    to?: string;
+    upcoming?: string;
+}
+
 @Controller('events')
 export class EventController {
     constructor(private readonly eventService: EventService) {
@@ -41,14 +51,17 @@ export class EventController {
     }
 
     @Get()
-    async getAll(
-        @CurrentUser() user: MemberAuth,
-        @Query('page') page = 1,
-        @Query('limit') limit = 10,
-        @Query('orderBy') orderBy?: OrderBy,
-        @Query('order') order?: Order,
-    ) {
-        return this.eventService.getAll(+page, +limit, orderBy, order, user.id);
+    async getAll(@CurrentUser() user: MemberAuth, @Query() query: GetEventsQuery) {
+        return this.eventService.getAll(
+            +(query.page ?? 1),
+            +(query.limit ?? 10),
+            query.orderBy,
+            query.order,
+            user.id,
+            query.from ? new Date(query.from) : undefined,
+            query.to ? new Date(query.to) : undefined,
+            query.upcoming === 'true',
+        );
     }
 
     @UseGuards(AdminGuard)

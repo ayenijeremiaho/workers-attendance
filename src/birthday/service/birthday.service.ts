@@ -47,8 +47,8 @@ export class BirthdayService {
 
         const birthdayMembers = await this.memberRepository
             .createQueryBuilder('m')
-            .where('EXTRACT(MONTH FROM m.dateOfBirth) = :month', {month})
-            .andWhere('EXTRACT(DAY FROM m.dateOfBirth) = :day', {day})
+            .where('m.birthMonth = :month', {month})
+            .andWhere('m.birthDay = :day', {day})
             .andWhere('m.status = :status', {status: MemberStatusEnum.ACTIVE})
             .getMany();
 

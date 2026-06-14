@@ -48,4 +48,6 @@ export const envValidationSchema = Joi.object({
     CHURCH_NAME: Joi.string().default('RCCG Discovery Centre'),
     CHURCH_ADDRESS: Joi.string().default('62 Igi Olugbin Street, Bariga. Lagos, Nigeria'),
     DEFAULT_VENUE_NAME: Joi.string().default('RCCG Discovery Centre'),
+    ONLINE_CHECKIN_WINDOW_HOURS: Joi.number().default(3),
+    FOLLOW_UP_DUE_DAYS: Joi.number().default(3),
 }).options({allowUnknown: true});

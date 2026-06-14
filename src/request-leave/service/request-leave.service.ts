@@ -1,6 +1,6 @@
 import {BadRequestException, Injectable, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
-import {LessThanOrEqual, MoreThanOrEqual, Repository} from 'typeorm';
+import {Repository} from 'typeorm';
 import {RequestLeave} from '../enitity/request-leave.entity';
 import {CreateRequestLeaveDto} from '../dto/create-request-leave.dto';
 import {LeaveStatusEnum} from '../enums/leave-status.enum';
@@ -39,6 +39,26 @@ export class RequestLeaveService {
 
         if (hasPending) {
             throw new BadRequestException('You already have a pending leave request');
+        }
+
+        const fromDateStr = String(dto.dateFrom).substring(0, 10);
+        const toDateStr = String(dto.dateTo).substring(0, 10);
+
+        if (toDateStr < fromDateStr) {
+            throw new BadRequestException('dateTo must be on or after dateFrom');
+        }
+
+        const hasApprovedOverlap = (await this.repo
+            .createQueryBuilder('rl')
+            .innerJoin('rl.workerProfile', 'wp')
+            .where('wp.id = :profileId', {profileId: member.workerProfile.id})
+            .andWhere('rl.status = :status', {status: LeaveStatusEnum.APPROVED})
+            .andWhere('rl.dateFrom <= :toDate', {toDate: toDateStr})
+            .andWhere('rl.dateTo >= :fromDate', {fromDate: fromDateStr})
+            .getCount()) > 0;
+
+        if (hasApprovedOverlap) {
+            throw new BadRequestException('You already have approved leave covering those dates');
         }
 
         const saved = await this.repo.save(
@@ -103,8 +123,8 @@ export class RequestLeaveService {
                 {
                     name: firstName,
                     actionStatus,
-                    dateFrom: leave.dateFrom.toLocaleDateString('en-GB', {dateStyle: 'medium'}),
-                    dateTo: leave.dateTo.toLocaleDateString('en-GB', {dateStyle: 'medium'}),
+                    dateFrom: new Date(leave.dateFrom).toLocaleDateString('en-GB', {dateStyle: 'medium'}),
+                    dateTo: new Date(leave.dateTo).toLocaleDateString('en-GB', {dateStyle: 'medium'}),
                 },
             );
         }
@@ -199,14 +219,4 @@ export class RequestLeaveService {
         return this.repo.count({where});
     }
 
-    async hasApprovedLeave(workerProfileId: string, slotStart: Date, slotEnd: Date): Promise<boolean> {
-        return this.repo.exists({
-            where: {
-                workerProfile: {id: workerProfileId},
-                status: LeaveStatusEnum.APPROVED,
-                dateFrom: LessThanOrEqual(slotStart),
-                dateTo: MoreThanOrEqual(slotEnd),
-            },
-        });
-    }
 }

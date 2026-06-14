@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h2 style="color: #1a5276;">New Follow-Up Task Assigned</h2>
+  <p>Hi {{workerName}},</p>
+  <p>A new follow-up task has been assigned to you. Please reach out to this visitor as soon as possible.</p>
+  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5; font-weight: bold; width: 40%;">Name</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">{{firstTimerName}}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5; font-weight: bold;">Phone</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">{{phone}}</td>
+    </tr>
+    {{#if email}}
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5; font-weight: bold;">Email</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">{{email}}</td>
+    </tr>
+    {{/if}}
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5; font-weight: bold;">Due Date</td>
+      <td style="padding: 8px; border: 1px solid #ddd; color: #c0392b;"><strong>{{dueDate}}</strong></td>
+    </tr>
+  </table>
+  <p style="color: #777; font-size: 12px; margin-top: 30px;">{{churchName}}</p>
+</body>
+</html>

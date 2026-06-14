@@ -22,6 +22,8 @@ const mockCategoryRepo = {
 
 const makeQb = () => ({
     leftJoinAndSelect: jest.fn().mockReturnThis(),
+    innerJoinAndSelect: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
@@ -288,17 +290,13 @@ describe('FinanceRequestService', () => {
             );
         });
 
-        it('should not email admins without FINANCE_WRITE permission', async () => {
+        it('should not email admins when no admins have FINANCE_WRITE permission', async () => {
             mockCategoryRepo.findOne.mockResolvedValue(mockCategory);
             mockRequestRepo.create.mockReturnValue(pendingRequest);
             mockRequestRepo.save.mockResolvedValue(pendingRequest);
 
-            const readOnlyAdmin = {
-                ...mockAdmin,
-                adminRole: {permissions: [AdminPermission.FINANCE_READ]},
-            };
             const adminQb = makeQb();
-            adminQb.getMany.mockResolvedValue([readOnlyAdmin]);
+            adminQb.getMany.mockResolvedValue([]);
             mockAdminRepo.createQueryBuilder.mockReturnValue(adminQb);
 
             await service.createRequest(dto, mockUser);

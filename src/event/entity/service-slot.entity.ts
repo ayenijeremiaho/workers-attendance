@@ -62,10 +62,6 @@ export class ServiceSlot extends BaseEntity {
         return this.venueOverride ?? this.config?.defaultVenue ?? null;
     }
 
-    @Index()
-    @Column({default: false})
-    markedAbsent: boolean;
-
     @OneToMany(() => Attendance, (attendance) => attendance.serviceSlot)
     attendances: Attendance[];
 

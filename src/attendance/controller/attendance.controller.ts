@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Request,
@@ -13,6 +14,9 @@ import {
 } from '@nestjs/common';
 import {AttendanceService} from '../service/attendance.service';
 import {CheckInDto} from '../dto/check-in.dto';
+import {CorrectAttendanceDto} from '../dto/attendance.dto';
+import {OnlineConfirmDto} from '../../follow-up/dto/online-confirm.dto';
+import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
 import {RolesGuard} from '../../auth/guard/roles.guard';
 import {Roles} from '../../auth/decorator/roles.decorator';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
@@ -30,6 +34,13 @@ export class AttendanceController {
     @Post('checkin')
     async checkin(@Request() req: any, @Body() dto: CheckInDto) {
         return this.attendanceService.checkin(req.user, dto);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(HttpStatus.OK)
+    @Post('online-confirm')
+    async confirmOnlineAttendance(@Request() req: any, @Body() dto: OnlineConfirmDto) {
+        return this.attendanceService.confirmOnlineAttendance(req.user.id, dto.eventId);
     }
 
     @Get('my-history')
@@ -94,5 +105,16 @@ export class AttendanceController {
         @Param('eventId', ParseUUIDPipe) eventId: string,
     ) {
         return this.attendanceService.getDepartmentEventAttendance(req.user, eventId);
+    }
+
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.ATTENDANCE_WRITE)
+    @Patch(':id/correct')
+    async correctAttendance(
+        @Request() req: any,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: CorrectAttendanceDto,
+    ) {
+        return this.attendanceService.correctAttendance(id, dto.status, req.user.id);
     }
 }

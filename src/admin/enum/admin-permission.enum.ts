@@ -8,6 +8,7 @@ export enum AdminPermission {
     DEPARTMENTS_READ = 'departments:read',
     DEPARTMENTS_WRITE = 'departments:write',
     ATTENDANCE_READ = 'attendance:read',
+    ATTENDANCE_WRITE = 'attendance:write',
     LEAVE_READ = 'leave:read',
     LEAVE_WRITE = 'leave:write',
     CLASSES_READ = 'classes:read',
@@ -26,6 +27,8 @@ export enum AdminPermission {
     AUDIT_READ = 'audit:read',
     FINANCE_READ = 'finance:read',
     FINANCE_WRITE = 'finance:write',
+    FOLLOW_UP_READ = 'follow_up:read',
+    FOLLOW_UP_WRITE = 'follow_up:write',
 }
 
 export const AdminPermissionLabels: Record<AdminPermission, string> = {
@@ -38,6 +41,7 @@ export const AdminPermissionLabels: Record<AdminPermission, string> = {
     [AdminPermission.DEPARTMENTS_READ]: 'View Departments',
     [AdminPermission.DEPARTMENTS_WRITE]: 'Manage Departments',
     [AdminPermission.ATTENDANCE_READ]: 'View Attendance',
+    [AdminPermission.ATTENDANCE_WRITE]: 'Manage Attendance',
     [AdminPermission.LEAVE_READ]: 'View Leave Requests',
     [AdminPermission.LEAVE_WRITE]: 'Manage Leave Requests',
     [AdminPermission.CLASSES_READ]: 'View Church Classes',
@@ -56,4 +60,6 @@ export const AdminPermissionLabels: Record<AdminPermission, string> = {
     [AdminPermission.AUDIT_READ]: 'View Audit Logs',
     [AdminPermission.FINANCE_READ]: 'View Finance Records',
     [AdminPermission.FINANCE_WRITE]: 'Manage Finance Records',
+    [AdminPermission.FOLLOW_UP_READ]: 'View Follow-Up',
+    [AdminPermission.FOLLOW_UP_WRITE]: 'Manage Follow-Up',
 };

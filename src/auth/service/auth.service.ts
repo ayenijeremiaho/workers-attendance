@@ -297,7 +297,7 @@ export class AuthService {
             this.deviceResetOtpRepository.create({memberId: member.id, otpHash, newDeviceId, expiresAt, usedAt: null}),
         );
 
-        this.incrementDeviceResetAttempts(email);
+        await this.incrementDeviceResetAttempts(email);
         this.logger.log(`Device reset OTP issued for member ${member.id}`);
         this.auditLogService.log('DEVICE_RESET_REQUESTED', {targetId: member.id, targetEmail: member.email});
 

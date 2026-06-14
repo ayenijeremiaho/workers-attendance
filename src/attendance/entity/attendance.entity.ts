@@ -2,17 +2,17 @@ import {Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Un
 import {AttendanceStatusEnum} from '../enums/check-in.enum';
 import {Member} from '../../member/entity/member.entity';
 import {ServiceSlot} from '../../event/entity/service-slot.entity';
+import {Event} from '../../event/entity/event.entity';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
 import {BaseEntity} from '../../utility/entity/base.entity';
 
-// Type for location data stored in JSON column
 interface LocationData {
     longitude: number;
     latitude: number;
 }
 
 @Entity({name: 'attendances'})
-@Unique(['member', 'serviceSlot'])
+@Unique(['member', 'event'])
 @Index(['member', 'roleAtCheckin', 'createdAt'])
 export class Attendance extends BaseEntity {
     @PrimaryGeneratedColumn('uuid')
@@ -24,9 +24,14 @@ export class Attendance extends BaseEntity {
     member: Member;
 
     @Index()
-    @ManyToOne(() => ServiceSlot, (slot) => slot.attendances, {onDelete: 'CASCADE'})
+    @ManyToOne(() => Event, (event) => event.attendances, {onDelete: 'CASCADE'})
+    @JoinColumn({name: 'event_id'})
+    event: Event;
+
+    // Which slot they physically walked into. Null for absence and online records.
+    @ManyToOne(() => ServiceSlot, (slot) => slot.attendances, {nullable: true, onDelete: 'SET NULL'})
     @JoinColumn({name: 'service_slot_id'})
-    serviceSlot: ServiceSlot;
+    serviceSlot: ServiceSlot | null;
 
     @Index()
     @Column({type: 'timestamptz', nullable: true})

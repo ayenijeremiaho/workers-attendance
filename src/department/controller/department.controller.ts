@@ -43,6 +43,20 @@ export class DepartmentController {
         return Object.values(DepartmentKeyEnum);
     }
 
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.DEPARTMENTS_READ)
+    @Get('leads')
+    async getAllLeads() {
+        return this.departmentService.getAllLeads();
+    }
+
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.DEPARTMENTS_READ)
+    @Get('leads/:id')
+    async getDepartmentLeads(@Param('id', ParseUUIDPipe) id: string) {
+        return this.departmentService.getDepartmentLeads(id);
+    }
+
     @Get(':id')
     async getOne(@Param('id', ParseUUIDPipe) id: string) {
         return this.departmentService.getOne(id);
@@ -87,20 +101,6 @@ export class DepartmentController {
     @Post('remove-lead')
     async removeLead(@Body() dto: RemoveDepartmentHodDto, @CurrentUser() user: MemberAuth) {
         return this.departmentService.removeLead(dto, user.id);
-    }
-
-    @UseGuards(AdminGuard)
-    @RequiresPermission(AdminPermission.DEPARTMENTS_READ)
-    @Get('leads/:id')
-    async getDepartmentLeads(@Param('id', ParseUUIDPipe) id: string) {
-        return this.departmentService.getDepartmentLeads(id);
-    }
-
-    @UseGuards(AdminGuard)
-    @RequiresPermission(AdminPermission.DEPARTMENTS_READ)
-    @Get('leads')
-    async getAllLeads() {
-        return this.departmentService.getAllLeads();
     }
 
     @UseGuards(AdminGuard)

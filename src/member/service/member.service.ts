@@ -58,12 +58,14 @@ export class MemberService {
             password,
             phoneNumber: dto.phoneNumber,
             gender: dto.gender,
-            dateOfBirth: dto.dateOfBirth,
+            birthDay: dto.birthDay ?? null,
+            birthMonth: dto.birthMonth ?? null,
+            birthYear: dto.birthYear ?? null,
             maritalStatus: dto.maritalStatus,
             yearBornAgain: dto.yearBornAgain ? new Date(`${dto.yearBornAgain}-01-01`) : null,
             yearBaptized: dto.yearBaptized ? new Date(`${dto.yearBaptized}-01-01`) : null,
             baptizedWithHolyGhost: dto.baptizedWithHolyGhost ?? false,
-            yearJoinedChurch: dto.yearJoinedChurch ? new Date(`${dto.yearJoinedChurch}-01-01`) : null,
+            dateJoinedChurch: dto.dateJoinedChurch ? new Date(dto.dateJoinedChurch) : null,
             role: MemberRoleEnum.MEMBER,
             status: MemberStatusEnum.ACTIVE,
             changedPassword: false,
@@ -198,12 +200,14 @@ export class MemberService {
         if (dto.lastname) member.lastname = dto.lastname;
         if (dto.phoneNumber) member.phoneNumber = dto.phoneNumber;
         if (dto.gender) member.gender = dto.gender;
-        if (dto.dateOfBirth) member.dateOfBirth = new Date(dto.dateOfBirth);
+        if (dto.birthDay !== undefined) member.birthDay = dto.birthDay;
+        if (dto.birthMonth !== undefined) member.birthMonth = dto.birthMonth;
+        if (dto.birthYear !== undefined) member.birthYear = dto.birthYear ?? null;
         if (dto.maritalStatus) member.maritalStatus = dto.maritalStatus;
         if (dto.yearBornAgain) member.yearBornAgain = new Date(`${dto.yearBornAgain}-01-01`);
         if (dto.yearBaptized) member.yearBaptized = new Date(`${dto.yearBaptized}-01-01`);
         if (dto.baptizedWithHolyGhost !== undefined) member.baptizedWithHolyGhost = dto.baptizedWithHolyGhost;
-        if (dto.yearJoinedChurch) member.yearJoinedChurch = new Date(`${dto.yearJoinedChurch}-01-01`);
+        if (dto.dateJoinedChurch) member.dateJoinedChurch = new Date(dto.dateJoinedChurch);
 
         const saved = await this.memberRepository.save(member);
         this.auditLogService.log('MEMBER_UPDATED', {
@@ -453,14 +457,14 @@ export class MemberService {
         return UtilityService.createPaginationResponse(members, page, limit, total);
     }
 
-    async getMembersNotCheckedInForSlot(slotId: string): Promise<Member[]> {
+    async getMembersNotCheckedInForEvent(eventId: string): Promise<Member[]> {
         return this.memberRepository
             .createQueryBuilder('member')
             .leftJoin(
                 'attendances',
                 'attendance',
-                'attendance.member_id = member.id AND attendance.service_slot_id = :slotId',
-                {slotId},
+                `attendance.member_id = member.id AND attendance.event_id = :eventId AND attendance.status IN ('PRESENT','LATE')`,
+                {eventId},
             )
             .where('attendance.id IS NULL')
             .andWhere('member.status = :status', {status: MemberStatusEnum.ACTIVE})
@@ -468,15 +472,15 @@ export class MemberService {
             .getMany();
     }
 
-    async getWorkersNotCheckedInForSlot(slotId: string): Promise<Member[]> {
+    async getWorkersNotCheckedInForEvent(eventId: string): Promise<Member[]> {
         return this.memberRepository
             .createQueryBuilder('member')
             .innerJoin('member.workerProfile', 'profile')
             .leftJoin(
                 'attendances',
                 'attendance',
-                'attendance.member_id = member.id AND attendance.service_slot_id = :slotId',
-                {slotId},
+                `attendance.member_id = member.id AND attendance.event_id = :eventId AND attendance.status IN ('PRESENT','LATE')`,
+                {eventId},
             )
             .where('attendance.id IS NULL')
             .andWhere('member.role = :role', {role: MemberRoleEnum.WORKER})

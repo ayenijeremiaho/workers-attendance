@@ -31,7 +31,13 @@ export class MemberDto {
     gender: GenderEnum;
 
     @Expose()
-    dateOfBirth: Date;
+    birthDay: number | null;
+
+    @Expose()
+    birthMonth: number | null;
+
+    @Expose()
+    birthYear: number | null;
 
     @Expose()
     maritalStatus: MaritalStatusEnum;
@@ -46,10 +52,7 @@ export class MemberDto {
     baptizedWithHolyGhost: boolean;
 
     @Expose()
-    yearJoinedChurch: Date;
-
-    @Expose()
-    changedPassword: boolean;
+    dateJoinedChurch: Date;
 
     @Expose()
     @Type(() => WorkerProfileDto)

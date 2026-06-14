@@ -1,0 +1,31 @@
+import {Module} from '@nestjs/common';
+import {TypeOrmModule} from '@nestjs/typeorm';
+import {BullModule} from '@nestjs/bull';
+import {ConfigModule} from '@nestjs/config';
+import {FirstTimer} from './entity/first-timer.entity';
+import {FollowUpTask} from './entity/follow-up-task.entity';
+import {FollowUpNote} from './entity/follow-up-note.entity';
+import {WorkerProfile} from '../member/entity/worker-profile.entity';
+import {Event} from '../event/entity/event.entity';
+import {Attendance} from '../attendance/entity/attendance.entity';
+import {Admin} from '../admin/entity/admin.entity';
+import {AdminRole} from '../admin/entity/admin-role.entity';
+import {FollowUpService} from './service/follow-up.service';
+import {FollowUpController} from './controller/follow-up.controller';
+import {FollowUpAdminController} from './controller/follow-up-admin.controller';
+import {PostEventProcessor, FOLLOW_UP_QUEUE} from './processor/post-event.processor';
+import {FollowUpScheduler} from './scheduler/follow-up.scheduler';
+import {UtilityModule} from '../utility/utility.module';
+
+@Module({
+    imports: [
+        ConfigModule,
+        TypeOrmModule.forFeature([FirstTimer, FollowUpTask, FollowUpNote, WorkerProfile, Event, Attendance, Admin, AdminRole]),
+        BullModule.registerQueue({name: FOLLOW_UP_QUEUE}),
+        UtilityModule,
+    ],
+    controllers: [FollowUpController, FollowUpAdminController],
+    providers: [FollowUpService, PostEventProcessor, FollowUpScheduler],
+    exports: [FollowUpService],
+})
+export class FollowUpModule {}

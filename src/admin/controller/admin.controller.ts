@@ -32,6 +32,11 @@ export class AdminController {
         return this.adminService.getAll();
     }
 
+    @Get('me')
+    getMe(@CurrentAdmin() admin: Admin) {
+        return admin;
+    }
+    
     @RequiresPermission(AdminPermission.ADMIN_READ)
     @Get(':id')
     getOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -59,10 +64,5 @@ export class AdminController {
     @HttpCode(HttpStatus.NO_CONTENT)
     async revoke(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: MemberAuth) {
         await this.adminService.revoke(id, user.id);
-    }
-
-    @Get('me')
-    getMe(@CurrentAdmin() admin: Admin) {
-        return admin;
     }
 }

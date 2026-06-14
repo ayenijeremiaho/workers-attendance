@@ -1,5 +1,6 @@
 import {Module} from '@nestjs/common';
 import {TypeOrmModule} from '@nestjs/typeorm';
+import {BullModule} from '@nestjs/bull';
 import {Attendance} from './entity/attendance.entity';
 import {AttendanceService} from './service/attendance.service';
 import {AttendanceController} from './controller/attendance.controller';
@@ -9,10 +10,12 @@ import {MemberModule} from '../member/member.module';
 import {EventModule} from '../event/event.module';
 import {DepartmentModule} from '../department/department.module';
 import {UtilityModule} from '../utility/utility.module';
+import {FOLLOW_UP_QUEUE} from '../follow-up/processor/post-event.processor';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Attendance, ServiceSlot]),
+        BullModule.registerQueue({name: FOLLOW_UP_QUEUE}),
         MemberModule,
         EventModule,
         DepartmentModule,

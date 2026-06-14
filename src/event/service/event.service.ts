@@ -42,9 +42,13 @@ export class EventService {
         const eventDate = new Date(dto.eventDate);
         if (Number.isNaN(eventDate.getTime())) throw new BadRequestException('Invalid eventDate');
 
+        const endDate = dto.endDate ? new Date(dto.endDate) : new Date(eventDate);
+        if (Number.isNaN(endDate.getTime())) throw new BadRequestException('Invalid endDate');
+        if (endDate < eventDate) throw new BadRequestException('endDate must not be before eventDate');
+
         if (dto.isRecurring) {
             if (!dto.recurrence) throw new BadRequestException('Recurrence details required for recurring events');
-            const result = await this.createRecurring(dto, eventDate);
+            const result = await this.createRecurring(dto, eventDate, endDate);
             this.auditLogService.log('EVENT_CREATED', {
                 actorId,
                 metadata: {name: dto.name, isRecurring: true, count: result.length},
@@ -52,7 +56,7 @@ export class EventService {
             return result;
         }
 
-        const result = await this.createSingle(dto, eventDate);
+        const result = await this.createSingle(dto, eventDate, endDate);
         this.auditLogService.log('EVENT_CREATED', {
             actorId,
             targetId: result.id,
@@ -66,16 +70,26 @@ export class EventService {
 
         if (dto.name) event.name = dto.name;
         if (dto.description !== undefined) event.description = dto.description;
+
         if (dto.eventDate) {
             const d = new Date(dto.eventDate);
             if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid eventDate');
             event.eventDate = d;
         }
 
+        if (dto.endDate) {
+            const d = new Date(dto.endDate);
+            if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid endDate');
+            if (d < event.eventDate) throw new BadRequestException('endDate must not be before eventDate');
+            event.endDate = d;
+        }
+
         if (dto.serviceSlots?.length) {
             await this.slotRepository.delete({event: {id}});
-            event.serviceSlots = await this.buildSlots(dto.serviceSlots);
+            event.serviceSlots = await this.buildSlots(dto.serviceSlots, event.eventDate, event.endDate);
         }
+
+        if (dto.onlineAttendanceEnabled !== undefined) event.onlineAttendanceEnabled = dto.onlineAttendanceEnabled;
 
         const saved = await this.eventRepository.save(event);
         this.auditLogService.log('EVENT_UPDATED', {
@@ -102,15 +116,31 @@ export class EventService {
         orderBy: OrderBy = 'eventDate',
         order: Order = 'DESC',
         memberId?: string,
+        from?: Date,
+        to?: Date,
+        upcoming?: boolean,
     ): Promise<PaginationResponseDto<Event>> {
         if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
-        const [events, total] = await this.eventRepository.findAndCount({
-            skip: (page - 1) * limit,
-            take: limit,
-            order: {[orderBy]: order},
-            relations: SLOT_RELATIONS,
-        });
+        const qb = this.eventRepository
+            .createQueryBuilder('event')
+            .leftJoinAndSelect('event.serviceSlots', 'serviceSlots')
+            .leftJoinAndSelect('serviceSlots.config', 'config')
+            .leftJoinAndSelect('config.defaultVenue', 'defaultVenue')
+            .leftJoinAndSelect('serviceSlots.venueOverride', 'venueOverride')
+            .orderBy(`event.${orderBy}`, order)
+            .skip((page - 1) * limit)
+            .take(limit);
+
+        if (upcoming) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            qb.andWhere('event.eventDate >= :upcomingFrom', {upcomingFrom: today});
+        }
+        if (from) qb.andWhere('event.eventDate >= :from', {from});
+        if (to) qb.andWhere('event.eventDate <= :to', {to});
+
+        const [events, total] = await qb.getManyAndCount();
 
         if (memberId && events.length) await this.attachMyAttendance(events, memberId);
 
@@ -131,6 +161,7 @@ export class EventService {
         eventDay.setHours(0, 0, 0, 0);
 
         if (eventDay < today) throw new BadRequestException('Past events cannot be deleted');
+        if (event.attendanceMarked) throw new BadRequestException('Events with recorded attendance cannot be deleted');
 
         const {name} = event;
         await this.eventRepository.remove(event);
@@ -161,16 +192,17 @@ export class EventService {
         });
     }
 
-    async findSlotsNotMarkedAbsent(): Promise<ServiceSlot[]> {
-        const now = new Date();
-        return this.slotRepository
-            .createQueryBuilder('slot')
-            .leftJoinAndSelect('slot.config', 'config')
-            .leftJoinAndSelect('config.defaultVenue', 'defaultVenue')
-            .leftJoinAndSelect('slot.venueOverride', 'venueOverride')
-            .leftJoinAndSelect('slot.event', 'event')
-            .where('slot.markedAbsent = false')
-            .andWhere('slot.endTime < :now', {now})
+    async findEventsReadyForAbsenceMarking(): Promise<Event[]> {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return this.eventRepository
+            .createQueryBuilder('event')
+            .leftJoinAndSelect('event.serviceSlots', 'slot')
+            .where('event.attendanceMarked = false')
+            .andWhere('event.endDate < :today', {today})
+            .andWhere(
+                'EXISTS (SELECT 1 FROM service_slots s WHERE s.event_id = event.id)',
+            )
             .getMany();
     }
 
@@ -183,10 +215,6 @@ export class EventService {
             take: limit,
             relations: ['serviceSlots', 'serviceSlots.config', 'serviceSlots.config.defaultVenue', 'serviceSlots.venueOverride'],
         });
-    }
-
-    async markSlotAbsent(slotId: string): Promise<void> {
-        await this.slotRepository.update(slotId, {markedAbsent: true});
     }
 
     resolveSlotConfig(slot: ServiceSlot): {
@@ -213,18 +241,20 @@ export class EventService {
         };
     }
 
-    private async createSingle(dto: CreateEventDto, eventDate: Date): Promise<Event> {
+    private async createSingle(dto: CreateEventDto, eventDate: Date, endDate: Date): Promise<Event> {
+        const slots = await this.buildSlots(dto.serviceSlots, eventDate, endDate);
         const event = this.eventRepository.create({
             name: dto.name,
             description: dto.description,
             eventDate,
+            endDate,
+            onlineAttendanceEnabled: dto.onlineAttendanceEnabled ?? false,
         });
-
-        event.serviceSlots = await this.buildSlots(dto.serviceSlots);
+        event.serviceSlots = slots;
         return this.eventRepository.save(event);
     }
 
-    private async createRecurring(dto: CreateEventDto, firstDate: Date): Promise<Event[]> {
+    private async createRecurring(dto: CreateEventDto, firstDate: Date, endDate: Date): Promise<Event[]> {
         const recurrenceEndDate = new Date(dto.recurrence.recurrenceEndDate);
         if (Number.isNaN(recurrenceEndDate.getTime())) throw new BadRequestException('Invalid recurrenceEndDate');
 
@@ -234,29 +264,66 @@ export class EventService {
             throw new BadRequestException('Recurrence end date must be within one year of event start');
         }
 
+        // For recurring events, endDate is the offset from eventDate (e.g. same day or +1 day)
+        const endDateOffsetMs = endDate.getTime() - firstDate.getTime();
+
         const recurringEventId = uuidv4();
         const events: Event[] = [];
         let currentDate = firstDate;
 
         while (currentDate <= recurrenceEndDate) {
+            const dateOffsetMs = currentDate.getTime() - firstDate.getTime();
+            const occurrenceEndDate = new Date(currentDate.getTime() + endDateOffsetMs);
+            const adjustedSlotDtos = dto.serviceSlots.map((s) => ({
+                ...s,
+                startTime: new Date(new Date(s.startTime).getTime() + dateOffsetMs).toISOString(),
+                endTime: new Date(new Date(s.endTime).getTime() + dateOffsetMs).toISOString(),
+            }));
+            const slots = await this.buildSlots(adjustedSlotDtos, currentDate, occurrenceEndDate);
             const event = this.eventRepository.create({
                 name: dto.name,
                 description: dto.description,
                 eventDate: new Date(currentDate),
+                endDate: occurrenceEndDate,
                 recurringEventId,
+                onlineAttendanceEnabled: dto.onlineAttendanceEnabled ?? false,
             });
-
-            event.serviceSlots = await this.buildSlots(dto.serviceSlots);
+            event.serviceSlots = slots;
             events.push(event);
-
             currentDate = this.advanceDate(currentDate, dto.recurrence.recurrencePattern, dto.recurrence.recurrenceInterval);
         }
 
         return this.eventRepository.save(events);
     }
 
-    private async buildSlots(slotDtos: CreateServiceSlotDto[]): Promise<ServiceSlot[]> {
-        return Promise.all(slotDtos.map((dto) => this.buildSlotFromDto(dto)));
+    private async buildSlots(slotDtos: CreateServiceSlotDto[], eventDate: Date, endDate: Date): Promise<ServiceSlot[]> {
+        const slots = await Promise.all(slotDtos.map((dto) => this.buildSlotFromDto(dto)));
+        this.validateSlotSequence(slots, eventDate, endDate);
+        return slots;
+    }
+
+    private validateSlotSequence(slots: ServiceSlot[], eventDate: Date, endDate: Date): void {
+        // Sort by startTime ascending so validation is order-independent in the DTO
+        slots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+        const dayStart = new Date(eventDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(endDate);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        for (let i = 0; i < slots.length; i++) {
+            const slot = slots[i];
+            if (slot.startTime < dayStart || slot.endTime > dayEnd) {
+                throw new BadRequestException(
+                    `Slot "${slot.name}" times must fall within the event date range (${eventDate.toISOString().slice(0, 10)} – ${endDate.toISOString().slice(0, 10)})`,
+                );
+            }
+            if (i > 0 && slot.startTime < slots[i - 1].endTime) {
+                throw new BadRequestException(
+                    `Slot "${slot.name}" overlaps with "${slots[i - 1].name}". Each slot must start after the previous one ends.`,
+                );
+            }
+        }
     }
 
     private async buildSlotFromDto(dto: CreateServiceSlotDto): Promise<ServiceSlot> {
@@ -295,32 +362,32 @@ export class EventService {
     }
 
     private async attachMyAttendance(events: Event[], memberId: string): Promise<void> {
-        const allSlots = events.flatMap((e) => e.serviceSlots ?? []);
-        if (!allSlots.length) return;
+        const eventIds = events.map((e) => e.id);
+        if (!eventIds.length) return;
 
-        const slotIds = allSlots.map((s) => s.id);
         const rows = await this.dataSource
             .createQueryBuilder()
-            .select('a.service_slot_id', 'slotId')
+            .select('a.event_id', 'eventId')
+            .addSelect('a.service_slot_id', 'slotId')
             .addSelect('a.status', 'status')
             .addSelect('a.checkin_time', 'checkinTime')
             .from('attendances', 'a')
             .where('a.member_id = :memberId', {memberId})
-            .andWhere('a.service_slot_id IN (:...slotIds)', {slotIds})
-            .getRawMany<{ slotId: string; status: string; checkinTime: Date | null }>();
+            .andWhere('a.event_id IN (:...eventIds)', {eventIds})
+            .andWhere(`a.status IN ('PRESENT', 'LATE')`)
+            .getRawMany<{eventId: string; slotId: string | null; status: string; checkinTime: Date | null}>();
 
-        const bySlotId = new Map(rows.map((r) => [r.slotId, r]));
+        const byEventId = new Map(rows.map((r) => [r.eventId, r]));
 
         for (const event of events) {
-            const slots = event.serviceSlots ?? [];
-            const rec = slots.map((s) => bySlotId.get(s.id)).find(Boolean);
+            const rec = byEventId.get(event.id);
             event.checkedIn = !!rec;
             event.myCheckin = rec
                 ? {
-                    slotId: rec.slotId,
-                    slotName: slots.find((s) => s.id === rec.slotId)?.name ?? null,
+                    slotId: rec.slotId ?? '',
+                    slotName: event.serviceSlots?.find((s) => s.id === rec.slotId)?.name ?? null,
                     status: rec.status,
-                    checkinTime: rec.checkinTime
+                    checkinTime: rec.checkinTime,
                 }
                 : null;
         }

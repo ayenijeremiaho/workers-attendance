@@ -1,6 +1,7 @@
 import {PostgresConnectionOptions} from 'typeorm/driver/postgres/PostgresConnectionOptions';
 import * as process from 'node:process';
 import * as path from 'node:path';
+import {SnakeNamingStrategy} from '../utility/snake-naming.strategy';
 
 const dbConfig = (): PostgresConnectionOptions => ({
     type: 'postgres',
@@ -13,8 +14,9 @@ const dbConfig = (): PostgresConnectionOptions => ({
         process.env.DATABASE_SSL === 'true' ? {rejectUnauthorized: false} : false,
     entities: [path.resolve(__dirname, '..') + '/**/*.entity{.ts,.js}'],
     synchronize: false,
+    namingStrategy: new SnakeNamingStrategy(),
     logging: process.env.DATABASE_LOGGING === 'true',
-    migrations: [path.resolve(__dirname, '..') + '/migrations/**{.ts,.js}'],
+    migrations: [path.resolve(__dirname, '..') + '/migrations/*{.ts,.js}'],
     migrationsTableName: 'migrations',
     migrationsRun: true,
     // Connection pooling configuration optimized for 200+ concurrent workers

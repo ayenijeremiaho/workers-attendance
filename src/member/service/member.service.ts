@@ -314,7 +314,7 @@ export class MemberService {
     }
 
     async resetPassword(memberId: string, actorId: string): Promise<string> {
-        const member = await this.getById(memberId);
+        const member = await this.getByIdWithCredentials(memberId);
         const newPassword = UtilityService.generateRandomPassword();
         member.password = await UtilityService.hashValue(newPassword);
         member.changedPassword = false;
@@ -340,7 +340,7 @@ export class MemberService {
     }
 
     async changePassword(memberId: string, dto: ChangePasswordDto): Promise<string> {
-        const member = await this.getById(memberId);
+        const member = await this.getByIdWithCredentials(memberId);
 
         const isValid = await UtilityService.verifyHashedValue(dto.oldPassword, member.password);
         if (!isValid) throw new BadRequestException('The current password you entered is incorrect.');
@@ -370,7 +370,7 @@ export class MemberService {
     }
 
     async setPassword(memberId: string, newPassword: string, changedPassword: boolean): Promise<void> {
-        const member = await this.getById(memberId);
+        const member = await this.getByIdWithCredentials(memberId);
         member.password = await UtilityService.hashValue(newPassword);
         member.changedPassword = changedPassword;
         await this.memberRepository.save(member);
@@ -396,11 +396,26 @@ export class MemberService {
         return member;
     }
 
+    async getByIdWithCredentials(id: string): Promise<Member> {
+        const member = await this.memberRepository
+            .createQueryBuilder('member')
+            .addSelect('member.password')
+            .addSelect('member.deviceId')
+            .where('member.id = :id', {id})
+            .getOne();
+        if (!member) throw new NotFoundException('Member not found');
+        return member;
+    }
+
     async findByEmail(email: string): Promise<Member | null> {
-        return this.memberRepository.findOne({
-            where: {email},
-            relations: ['workerProfile'],
-        });
+        return this.memberRepository
+            .createQueryBuilder('member')
+            .addSelect('member.password')
+            .addSelect('member.deviceId')
+            .leftJoinAndSelect('member.workerProfile', 'workerProfile')
+            .leftJoinAndSelect('workerProfile.department', 'department')
+            .where('member.email = :email', {email})
+            .getOne();
     }
 
     async getAll(

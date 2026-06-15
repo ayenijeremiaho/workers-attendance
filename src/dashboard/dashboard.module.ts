@@ -7,6 +7,7 @@ import {EventModule} from '../event/event.module';
 import {DepartmentModule} from '../department/department.module';
 import {RequestLeaveModule} from '../request-leave/request-leave.module';
 import {ClassesModule} from '../classes/classes.module';
+import {UtilityModule} from '../utility/utility.module';
 
 @Module({
     imports: [
@@ -16,6 +17,7 @@ import {ClassesModule} from '../classes/classes.module';
         DepartmentModule,
         RequestLeaveModule,
         ClassesModule,
+        UtilityModule,
     ],
     providers: [DashboardService],
     controllers: [DashboardController],

@@ -29,6 +29,7 @@ const mockCacheService = {
     get: jest.fn().mockResolvedValue(0),
     set: jest.fn().mockResolvedValue(undefined),
     del: jest.fn().mockResolvedValue(1),
+    incr: jest.fn().mockResolvedValue(1),
 };
 
 const mockOtpRepository = {

@@ -3,6 +3,7 @@ import {SkipThrottle} from '@nestjs/throttler';
 import {AppService} from './app.service';
 import {DataSource} from 'typeorm';
 import {CacheService} from './utility/service/cache.service';
+import {Public} from './auth/decorator/public.decorator';
 
 @Controller()
 export class AppController {
@@ -17,6 +18,7 @@ export class AppController {
         return this.appService.getHello();
     }
 
+    @Public()
     @SkipThrottle()
     @Get('health')
     async health(): Promise<{ status: string; uptime: number }> {

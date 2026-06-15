@@ -8,9 +8,12 @@ import {RequestLeaveService} from '../../request-leave/service/request-leave.ser
 import {ClassesService} from '../../classes/service/classes.service';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
 import {AdminService} from '../../admin/service/admin.service';
+import {CacheService} from '../../utility/service/cache.service';
 import {AdminDashboardDataDto} from '../dto/admin-dashboard-data.dto';
 import {WorkerDashboardDataDto} from '../dto/worker-dashboard-data.dto';
 import {MemberDashboardDataDto} from '../dto/member-dashboard-data.dto';
+
+const ADMIN_DASHBOARD_TTL = 300;
 
 @Injectable()
 export class DashboardService {
@@ -24,6 +27,7 @@ export class DashboardService {
         private readonly requestLeaveService: RequestLeaveService,
         private readonly classesService: ClassesService,
         private readonly adminService: AdminService,
+        private readonly cacheService: CacheService,
     ) {
     }
 
@@ -117,7 +121,14 @@ export class DashboardService {
 
     async getAdminDashboard(daysAgo = 30): Promise<AdminDashboardDataDto> {
         this.logger.log('Fetching admin dashboard');
+        return this.cacheService.getOrSet(
+            `dashboard:admin:${daysAgo}`,
+            () => this.fetchAdminDashboard(daysAgo),
+            ADMIN_DASHBOARD_TTL,
+        );
+    }
 
+    private async fetchAdminDashboard(daysAgo: number): Promise<AdminDashboardDataDto> {
         const [
             totalMembers,
             totalWorkers,

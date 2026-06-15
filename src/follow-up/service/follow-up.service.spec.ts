@@ -12,6 +12,15 @@ import {FollowUpOutcomeEnum, FollowUpTaskStatusEnum, FollowUpTaskTypeEnum} from 
 import {DepartmentKeyEnum} from '../../department/enums/department-key.enum';
 import {WorkerStatusEnum} from '../../member/enums/worker-status.enum';
 import {EmailQueueService} from '../../utility/service/email-queue.service';
+import {CacheService} from '../../utility/service/cache.service';
+
+const mockCacheService = {
+    get: jest.fn().mockResolvedValue(undefined),
+    set: jest.fn().mockResolvedValue(undefined),
+    del: jest.fn().mockResolvedValue(1),
+    getOrSet: jest.fn().mockImplementation((_key: string, fn: () => Promise<unknown>) => fn()),
+    flushNamespace: jest.fn().mockResolvedValue(undefined),
+};
 
 const mockFirstTimerRepo = {
     findOne: jest.fn(),
@@ -100,6 +109,7 @@ describe('FollowUpService', () => {
                 FollowUpService,
                 {provide: DataSource, useValue: mockDataSource},
                 {provide: ConfigService, useValue: mockConfigService},
+                {provide: CacheService, useValue: mockCacheService},
                 {provide: EmailQueueService, useValue: mockEmailQueueService},
                 {provide: getRepositoryToken(FirstTimer), useValue: mockFirstTimerRepo},
                 {provide: getRepositoryToken(FollowUpTask), useValue: mockTaskRepo},

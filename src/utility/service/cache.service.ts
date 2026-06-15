@@ -84,13 +84,21 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         if (cached !== undefined) return cached;
 
         const value = await fetchFn();
-        await this.set(key, value, ttl);
+        this.set(key, value, ttl);
         return value;
     }
 
     async set<T>(key: string, value: T, ttl: number = 300): Promise<void> {
         await this.redis.set(key, JSON.stringify(value), 'EX', ttl);
         this.logger.debug(`Cache SET: ${key} (TTL: ${ttl}s)`);
+    }
+
+    async incr(key: string, ttlSeconds: number): Promise<number> {
+        const count = await this.redis.incr(key);
+        if (count === 1) {
+            await this.redis.expire(key, ttlSeconds);
+        }
+        return count;
     }
 
     async del(key: string): Promise<number> {

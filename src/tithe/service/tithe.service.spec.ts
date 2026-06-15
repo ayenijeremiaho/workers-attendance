@@ -16,6 +16,7 @@ import {UtilityService} from '../../utility/service/utility.service';
 import {AuditLogService} from '../../utility/service/audit-log.service';
 import {CloudinaryService} from '../../utility/service/cloudinary.service';
 import {CacheService} from '../../utility/service/cache.service';
+import {PdfService} from '../../utility/service/pdf.service';
 import {SessionSurface} from '../../auth/enum/session-surface.enum';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
 
@@ -84,6 +85,10 @@ const mockCacheService = {
     releaseLock: jest.fn(),
 };
 
+const mockPdfService = {
+    generateTitheStatement: jest.fn().mockResolvedValue(Buffer.from('pdf')),
+};
+
 const mockAdmin = {
     id: 'admin-1',
     member: {id: 'member-admin-1', email: 'admin@test.com', firstname: 'Admin'},
@@ -125,6 +130,7 @@ describe('TitheService', () => {
                 {provide: AuditLogService, useValue: mockAuditLogService},
                 {provide: CloudinaryService, useValue: mockCloudinaryService},
                 {provide: CacheService, useValue: mockCacheService},
+                {provide: PdfService, useValue: mockPdfService},
             ],
         }).compile();
 

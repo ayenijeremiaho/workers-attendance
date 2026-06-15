@@ -7,9 +7,14 @@ import {DepartmentService} from '../../department/service/department.service';
 import {RequestLeaveService} from '../../request-leave/service/request-leave.service';
 import {ClassesService} from '../../classes/service/classes.service';
 import {AdminService} from '../../admin/service/admin.service';
+import {CacheService} from '../../utility/service/cache.service';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
 import {MemberStatusEnum} from '../../member/enums/member-status.enum';
 import {SessionSurface} from '../../auth/enum/session-surface.enum';
+
+const mockCacheService = {
+    getOrSet: jest.fn().mockImplementation((_key: string, fn: () => Promise<unknown>) => fn()),
+};
 
 const mockMemberService = {
     getById: jest.fn(),
@@ -97,6 +102,7 @@ describe('DashboardService', () => {
                 {provide: RequestLeaveService, useValue: mockRequestLeaveService},
                 {provide: ClassesService, useValue: mockClassesService},
                 {provide: AdminService, useValue: mockAdminService},
+                {provide: CacheService, useValue: mockCacheService},
             ],
         }).compile();
 

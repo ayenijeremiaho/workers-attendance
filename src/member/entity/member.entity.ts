@@ -1,3 +1,4 @@
+import {Exclude} from 'class-transformer';
 import {Column, Entity, Index, OneToMany, OneToOne, PrimaryGeneratedColumn,} from 'typeorm';
 import {MemberRoleEnum} from '../enums/member-role.enum';
 import {MemberStatusEnum} from '../enums/member-status.enum';
@@ -25,13 +26,15 @@ export class Member extends BaseEntity {
     @Column({nullable: true})
     phoneNumber: string;
 
-    @Column()
+    @Exclude()
+    @Column({select: false})
     password: string;
 
     @Column({default: false})
     changedPassword: boolean;
 
-    @Column({nullable: true, type: 'varchar'})
+    @Exclude()
+    @Column({nullable: true, type: 'varchar', select: false})
     deviceId: string | null;
 
     @Index()

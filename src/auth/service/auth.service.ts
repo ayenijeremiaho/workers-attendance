@@ -367,20 +367,20 @@ export class AuthService {
     }
 
     private async incrementDeviceResetAttempts(email: string): Promise<void> {
-        const key = this.cacheService.key('device_reset', email);
-        const count = (await this.cacheService.get<number>(key)) ?? 0;
-        await this.cacheService.set(key, count + 1, this.deviceResetWindowSeconds);
+        await this.cacheService.incr(
+            this.cacheService.key('device_reset', email),
+            this.deviceResetWindowSeconds,
+        );
     }
 
-    private async clearDeviceResetRateLimit(email: string): Promise<void> {
-        await this.cacheService.del(this.cacheService.key('device_reset', email));
+    private clearDeviceResetRateLimit(email: string): void {
+        this.cacheService.del(this.cacheService.key('device_reset', email));
     }
 
     private async checkOtpRateLimit(email: string): Promise<void> {
         const key = this.cacheService.key('otp_rate', email);
-        const count = (await this.cacheService.get<number>(key)) ?? 0;
-
-        if (count >= this.otpMaxAttempts) {
+        const count = await this.cacheService.incr(key, this.otpWindowSeconds);
+        if (count > this.otpMaxAttempts) {
             const windowMinutes = Math.ceil(this.otpWindowSeconds / 60);
             throw new HttpException(
                 {
@@ -391,8 +391,6 @@ export class AuthService {
                 HttpStatus.TOO_MANY_REQUESTS,
             );
         }
-
-        await this.cacheService.set(key, count + 1, this.otpWindowSeconds);
     }
 
     private async checkLoginRateLimit(email: string): Promise<void> {
@@ -414,14 +412,12 @@ export class AuthService {
 
     private async recordFailedLogin(email: string): Promise<boolean> {
         const key = this.cacheService.key('login_fail', email);
-        const count = (await this.cacheService.get<number>(key)) ?? 0;
-        const newCount = count + 1;
-        await this.cacheService.set(key, newCount, this.loginWindowSeconds);
-        return newCount === this.loginMaxAttempts;
+        const newCount = await this.cacheService.incr(key, this.loginWindowSeconds);
+        return newCount >= this.loginMaxAttempts;
     }
 
-    private async clearLoginRateLimit(email: string): Promise<void> {
-        await this.cacheService.del(this.cacheService.key('login_fail', email));
+    private clearLoginRateLimit(email: string): void {
+        this.cacheService.del(this.cacheService.key('login_fail', email));
     }
 
     private generateOtp(): string {

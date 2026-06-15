@@ -5,13 +5,11 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
-import {LessThanOrEqual, Repository} from 'typeorm';
+import {Between, LessThanOrEqual, MoreThanOrEqual, Repository} from 'typeorm';
 import {InjectQueue} from '@nestjs/bull';
 import {Queue} from 'bull';
 import {Cron} from '@nestjs/schedule';
 import * as ExcelJS from 'exceljs';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const PDFDocument = require('pdfkit') as typeof import('pdfkit');
 import {TitheUploadBatch} from '../entity/tithe-upload-batch.entity';
 import {TitheRecord} from '../entity/tithe-record.entity';
 import {TitheUnmatchedRecord} from '../entity/tithe-unmatched-record.entity';
@@ -26,6 +24,7 @@ import {UtilityService} from '../../utility/service/utility.service';
 import {AuditLogService} from '../../utility/service/audit-log.service';
 import {CloudinaryService} from '../../utility/service/cloudinary.service';
 import {CacheService} from '../../utility/service/cache.service';
+import {PdfService} from '../../utility/service/pdf.service';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
 import {MemberAuth} from '../../auth/interface/auth.interface';
@@ -62,6 +61,7 @@ export class TitheService {
         private readonly auditLogService: AuditLogService,
         private readonly cloudinaryService: CloudinaryService,
         private readonly cacheService: CacheService,
+        private readonly pdfService: PdfService,
     ) {}
 
     async getTemplate(): Promise<Buffer> {
@@ -208,7 +208,7 @@ export class TitheService {
     }
 
     async matchUnmatched(id: string, memberId: string, actorAdmin: Admin): Promise<void> {
-        const record = await this.unmatchedRepo.findOne({where: {id, status: TitheUnmatchedStatus.PENDING}});
+        const record = await this.unmatchedRepo.findOne({where: {id, status: TitheUnmatchedStatus.PENDING}, relations: ['batch']});
         if (!record) throw new NotFoundException('Unmatched record not found or already resolved');
 
         const member = await this.memberRepo.findOne({where: {id: memberId}});
@@ -294,16 +294,25 @@ export class TitheService {
         return UtilityService.createPaginationResponse(data, page, limit, total);
     }
 
-    async emailTitheStatement(user: MemberAuth): Promise<void> {
+    async emailTitheStatement(user: MemberAuth, fromMonth?: string, toMonth?: string): Promise<void> {
         const member = await this.memberRepo.findOne({where: {id: user.id}});
         if (!member) throw new NotFoundException('Member not found');
 
+        const fromDate = fromMonth ? `${fromMonth}-01` : undefined;
+        const toDate = toMonth ? this.lastDayOfMonth(toMonth) : undefined;
+
         const records = await this.recordRepo.find({
-            where: {member: {id: user.id}},
+            where: {
+                member: {id: user.id},
+                ...(fromDate && toDate ? {paymentDate: Between(fromDate, toDate)} : {}),
+                ...(fromDate && !toDate ? {paymentDate: MoreThanOrEqual(fromDate)} : {}),
+                ...(!fromDate && toDate ? {paymentDate: LessThanOrEqual(toDate)} : {}),
+            },
             order: {paymentDate: 'DESC'},
         });
 
-        const pdfBuffer = await this.generateTithePdf(member, records);
+        const period = fromMonth ?? toMonth ? {from: fromMonth, to: toMonth} : undefined;
+        const pdfBuffer = await this.pdfService.generateTitheStatement(member, records, period);
 
         this.utilityService.sendEmailWithAttachment(
             member.email,
@@ -314,46 +323,6 @@ export class TitheService {
         );
 
         this.logger.log(`Tithe statement emailed to ${member.email} — ${records.length} records`);
-    }
-
-    private async generateTithePdf(member: Member, records: TitheRecord[]): Promise<Buffer> {
-        return new Promise((resolve, reject) => {
-            const doc = new PDFDocument({margin: 50});
-            const chunks: Buffer[] = [];
-            doc.on('data', (chunk) => chunks.push(chunk));
-            doc.on('end', () => resolve(Buffer.concat(chunks)));
-            doc.on('error', reject);
-
-            doc.fontSize(18).text('Discovery Centre — Tithe Statement', {align: 'center'});
-            doc.moveDown();
-            doc.fontSize(12).text(`Name: ${member.firstname} ${member.lastname}`);
-            doc.text(`Email: ${member.email}`);
-            if (member.phoneNumber) doc.text(`Phone: ${member.phoneNumber}`);
-            doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`);
-            doc.moveDown();
-
-            doc.fontSize(11).text('Date', 50, doc.y, {continued: true, width: 100});
-            doc.text('Amount (₦)', 155, doc.y, {continued: true, width: 120});
-            doc.text('Bank', 280, doc.y, {continued: true, width: 120});
-            doc.text('Reference', 405, doc.y);
-            doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-            doc.moveDown(0.3);
-
-            let total = 0;
-            for (const r of records) {
-                doc.fontSize(10)
-                    .text(r.paymentDate, 50, doc.y, {continued: true, width: 100})
-                    .text(Number(r.amount).toLocaleString('en-NG'), 155, doc.y, {continued: true, width: 120})
-                    .text(r.bankName ?? '—', 280, doc.y, {continued: true, width: 120})
-                    .text(r.reference ?? '—', 405, doc.y);
-                total += Number(r.amount);
-            }
-
-            doc.moveDown();
-            doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-            doc.fontSize(11).text(`Total: ₦${total.toLocaleString('en-NG')}`, {align: 'right'});
-            doc.end();
-        });
     }
 
     // ── Tithe Payment Proofs ──────────────────────────────────────────────────
@@ -468,6 +437,11 @@ export class TitheService {
         } finally {
             this.cacheService.releaseLock(TitheService.PROOF_CLEANUP_LOCK);
         }
+    }
+
+    private lastDayOfMonth(ym: string): string {
+        const [year, month] = ym.split('-').map(Number);
+        return new Date(year, month, 0).toISOString().slice(0, 10);
     }
 
     private async notifyFinanceTeam(proof: TithePaymentProof): Promise<void> {

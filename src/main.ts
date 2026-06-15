@@ -1,4 +1,5 @@
 import {NestFactory} from '@nestjs/core';
+import {IoAdapter} from '@nestjs/platform-socket.io';
 import {AppModule} from './app.module';
 import {Logger} from 'nestjs-pino';
 import {INestApplication, VersioningType} from '@nestjs/common';
@@ -10,6 +11,7 @@ import helmet from 'helmet';
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
     app.use(helmet());
+    app.useWebSocketAdapter(new IoAdapter(app));
     app.enableCors(corsOptions());
     app.enableVersioning({type: VersioningType.URI, defaultVersion: '1'});
     registerNestLogger(app);

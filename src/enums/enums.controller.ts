@@ -25,6 +25,13 @@ import {
     SundaySchoolAttendanceStatus,
     SundaySchoolAttendanceStatusLabels
 } from '../sunday-school/enums/sunday-school-attendance-status.enum';
+import {AdminPermissionGroups} from '../admin/enum/admin-permission.enum';
+import {ServiceProgrammeStatusEnum, ServiceProgrammeStatusLabels} from '../service-programme/enum/service-programme-status.enum';
+import {ServiceSlotTypeEnum, ServiceSlotTypeLabels} from '../service-programme/enum/service-slot-type.enum';
+import {ServiceSessionStatusEnum, ServiceSessionStatusLabels} from '../service-programme/enum/service-session-status.enum';
+import {ServiceSessionSlotStatusEnum, ServiceSessionSlotStatusLabels} from '../service-programme/enum/service-session-slot-status.enum';
+import {ServicePauseReasonEnum, ServicePauseReasonLabels} from '../service-programme/enum/service-pause-reason.enum';
+import {ServiceActionRoleEnum, ServiceActionRoleLabels} from '../service-programme/enum/service-action-role.enum';
 
 @UseGuards(JwtAuthGuard)
 @Controller('enums')
@@ -50,6 +57,13 @@ export class EnumsController {
             noteTypes: toEnumOptions(NoteTypeEnum, NoteTypeLabels),
             leaveStatuses: toEnumOptions(LeaveStatusEnum, LeaveStatusLabels),
             ssAttendanceStatuses: toEnumOptions(SundaySchoolAttendanceStatus, SundaySchoolAttendanceStatusLabels),
+            serviceProgrammeStatuses: toEnumOptions(ServiceProgrammeStatusEnum, ServiceProgrammeStatusLabels),
+            serviceSlotTypes: toEnumOptions(ServiceSlotTypeEnum, ServiceSlotTypeLabels),
+            serviceSessionStatuses: toEnumOptions(ServiceSessionStatusEnum, ServiceSessionStatusLabels),
+            serviceSessionSlotStatuses: toEnumOptions(ServiceSessionSlotStatusEnum, ServiceSessionSlotStatusLabels),
+            servicePauseReasons: toEnumOptions(ServicePauseReasonEnum, ServicePauseReasonLabels),
+            serviceActionRoles: toEnumOptions(ServiceActionRoleEnum, ServiceActionRoleLabels),
+            adminPermissionGroups: AdminPermissionGroups,
         };
     }
 }

@@ -1,4 +1,5 @@
 import {CallHandler, ExecutionContext, HttpStatus, Injectable, NestInterceptor,} from '@nestjs/common';
+import {instanceToPlain} from 'class-transformer';
 import {Observable} from 'rxjs';
 import {map} from 'rxjs/operators';
 import {Response} from '../interfaces/utility.interface';
@@ -27,7 +28,7 @@ export class TransformInterceptor<T>
                 }
 
                 return {
-                    data: responseData,
+                    data: instanceToPlain(responseData) as T,
                     status: finalStatus,
                     message: finalMessage,
                 };

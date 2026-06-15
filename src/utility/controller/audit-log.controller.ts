@@ -2,9 +2,10 @@ import {Controller, Get, Query, UseGuards} from '@nestjs/common';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
-import {AuditAction, AuditLogService} from '../service/audit-log.service';
+import {AuditLogService} from '../service/audit-log.service';
 import {PaginationResponseDto} from '../dto/pagination-response.dto';
 import {AuditLog} from '../entity/audit-log.entity';
+import {AuditLogQueryDto} from '../dto/audit-log-query.dto';
 
 @UseGuards(AdminGuard)
 @RequiresPermission(AdminPermission.AUDIT_READ)
@@ -14,16 +15,9 @@ export class AuditLogController {
     }
 
     @Get()
-    async getAll(
-        @Query('page') page = 1,
-        @Query('limit') limit = 20,
-        @Query('action') action?: AuditAction,
-        @Query('actorId') actorId?: string,
-        @Query('targetId') targetId?: string,
-        @Query('dateFrom') dateFrom?: string,
-        @Query('dateTo') dateTo?: string,
-    ): Promise<PaginationResponseDto<AuditLog>> {
-        return this.auditLogService.findAll(+page, +limit, {
+    async getAll(@Query() query: AuditLogQueryDto): Promise<PaginationResponseDto<AuditLog>> {
+        const {page = 1, limit = 20, action, actorId, targetId, dateFrom, dateTo} = query;
+        return this.auditLogService.findAll(page, limit, {
             action,
             actorId,
             targetId,

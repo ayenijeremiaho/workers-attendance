@@ -51,6 +51,12 @@ const mockSessionService = {updateLogout: jest.fn()};
 
 const mockConfigService = {get: jest.fn()};
 
+function mockCredentialsQb(member: object) {
+    const qb = {addSelect: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(), getOne: jest.fn().mockResolvedValue(member)};
+    mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+    return qb;
+}
+
 describe('MemberService', () => {
     let service: MemberService;
 
@@ -275,7 +281,7 @@ describe('MemberService', () => {
     describe('changePassword', () => {
         it('should throw BadRequestException if old password is wrong', async () => {
             const member = {id: 'member-1', password: 'hashed_current'};
-            mockMemberRepo.findOne.mockResolvedValue(member);
+            mockCredentialsQb(member);
             jest.spyOn(UtilityService, 'verifyHashedValue').mockResolvedValue(false);
 
             await expect(
@@ -289,7 +295,7 @@ describe('MemberService', () => {
 
         it('should throw BadRequestException if confirm password does not match new password', async () => {
             const member = {id: 'member-1', password: 'hashed_current'};
-            mockMemberRepo.findOne.mockResolvedValue(member);
+            mockCredentialsQb(member);
             jest.spyOn(UtilityService, 'verifyHashedValue').mockResolvedValue(true);
 
             await expect(
@@ -303,7 +309,7 @@ describe('MemberService', () => {
 
         it('should update password on success', async () => {
             const member = {id: 'member-1', password: 'hashed_current', changedPassword: false};
-            mockMemberRepo.findOne.mockResolvedValue(member);
+            mockCredentialsQb(member);
             jest.spyOn(UtilityService, 'verifyHashedValue').mockResolvedValue(true);
             jest.spyOn(UtilityService, 'hashValue').mockResolvedValue('hashed_new_pass');
             mockMemberRepo.save.mockResolvedValue({...member, password: 'hashed_new_pass', changedPassword: true});

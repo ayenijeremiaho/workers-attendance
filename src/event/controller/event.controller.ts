@@ -60,10 +60,12 @@ export class EventController {
             +(query.limit ?? 10),
             query.orderBy,
             query.order,
-            user.id,
-            query.from ? new Date(query.from) : undefined,
-            query.to ? new Date(query.to) : undefined,
-            query.upcoming === 'true',
+            {
+                memberId: user.id,
+                from: query.from ? new Date(query.from) : undefined,
+                to: query.to ? new Date(query.to) : undefined,
+                upcoming: query.upcoming === 'true',
+            },
         );
     }
 

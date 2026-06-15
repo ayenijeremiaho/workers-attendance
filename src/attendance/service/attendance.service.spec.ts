@@ -88,6 +88,7 @@ const mockConfigService = {
 const mockDataSource = {
     transaction: jest.fn(),
     createQueryBuilder: jest.fn(),
+    query: jest.fn(),
 };
 
 const mockDepartmentService = {
@@ -463,6 +464,38 @@ describe('AttendanceService', () => {
             const streak = await service.getAttendanceStreak('member-1', MemberRoleEnum.MEMBER);
 
             expect(streak).toBe(0);
+        });
+    });
+
+    describe('getMemberRank', () => {
+        it('returns 1 when no other member scored higher', async () => {
+            const qb = makeQb();
+            qb.getRawOne.mockResolvedValue({score: '5'});
+            mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+            mockDataSource.query.mockResolvedValue([{count: '0'}]);
+
+            const rank = await service.getMemberRank('member-1', 30, MemberRoleEnum.MEMBER);
+            expect(rank).toBe(1);
+        });
+
+        it('returns correct rank when others scored higher', async () => {
+            const qb = makeQb();
+            qb.getRawOne.mockResolvedValue({score: '3'});
+            mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+            mockDataSource.query.mockResolvedValue([{count: '4'}]);
+
+            const rank = await service.getMemberRank('member-1', 30, MemberRoleEnum.MEMBER);
+            expect(rank).toBe(5);
+        });
+
+        it('returns rank 1 when member has no attendance (score 0)', async () => {
+            const qb = makeQb();
+            qb.getRawOne.mockResolvedValue({score: '0'});
+            mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+            mockDataSource.query.mockResolvedValue([{count: '0'}]);
+
+            const rank = await service.getMemberRank('member-1', 30, MemberRoleEnum.WORKER);
+            expect(rank).toBe(1);
         });
     });
 

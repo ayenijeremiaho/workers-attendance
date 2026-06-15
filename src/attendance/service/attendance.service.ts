@@ -413,7 +413,7 @@ export class AttendanceService {
             .andWhere('attendance.roleAtCheckin = :role', {role: MemberRoleEnum.WORKER})
             .andWhere('profile.status = :wStatus', {wStatus: WorkerStatusEnum.ACTIVE})
             .groupBy('member.id, member.firstname, member.lastname, dept.name')
-            .orderBy('presentCount', 'DESC')
+            .orderBy('"presentCount"', 'DESC')
             .limit(limit)
             .getRawMany();
 
@@ -610,18 +610,33 @@ export class AttendanceService {
 
     async getMemberRank(memberId: string, daysAgo: number, role: MemberRoleEnum): Promise<number> {
         const since = this.dateService.daysAgo(daysAgo);
-        const rows = await this.attendanceRepository
-            .createQueryBuilder('attendance')
-            .select('attendance.member_id', 'memberId')
-            .addSelect(`SUM(CASE WHEN attendance.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)`, 'score')
-            .where('attendance.roleAtCheckin = :role', {role})
-            .andWhere('attendance.createdAt >= :since', {since})
-            .groupBy('attendance.member_id')
-            .orderBy('score', 'DESC')
-            .getRawMany<{ memberId: string; score: string }>();
 
-        const index = rows.findIndex((r) => r.memberId === memberId);
-        return index === -1 ? rows.length + 1 : index + 1;
+        const ownRow = await this.attendanceRepository
+            .createQueryBuilder('a')
+            .select(`COALESCE(SUM(CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END), 0)`, 'score')
+            .where('a.member_id = :memberId', {memberId})
+            .andWhere('a.roleAtCheckin = :role', {role})
+            .andWhere('a.createdAt >= :since', {since})
+            .getRawOne<{score: string}>();
+
+        const ownScore = Number.parseInt(ownRow?.score ?? '0', 10);
+
+        // Count members who outscored this one — wraps a GROUP BY/HAVING in a subquery COUNT
+        const [{count}] = await this.dataSource.query<{count: string}[]>(
+            `SELECT COUNT(*) AS count
+             FROM (
+                 SELECT member_id
+                 FROM attendances
+                 WHERE role_at_checkin = $1
+                   AND created_at >= $2
+                   AND member_id != $3
+                 GROUP BY member_id
+                 HAVING SUM(CASE WHEN status IN ('PRESENT','LATE') THEN 1 ELSE 0 END) > $4
+             ) ranked`,
+            [role, since, memberId, ownScore],
+        );
+
+        return Number.parseInt(count ?? '0', 10) + 1;
     }
 
     async getWeeklyAttendanceTrend(daysAgo = 90): Promise<{ week: string; present: number; absent: number }[]> {
@@ -695,7 +710,7 @@ export class AttendanceService {
             .where('attendance.createdAt >= :since', {since})
             .groupBy('member.id, member.firstname, member.lastname, dept.name')
             .having(`SUM(CASE WHEN attendance.status = 'ABSENT' THEN 1 ELSE 0 END) > 0`)
-            .orderBy('absentCount', 'DESC')
+            .orderBy('"absentCount"', 'DESC')
             .limit(limit);
 
         if (role) qb.andWhere('attendance.roleAtCheckin = :role', {role});

@@ -14,6 +14,7 @@ import {UtilityController} from './controller/utility.controller';
 import {AuditLogController} from './controller/audit-log.controller';
 import {EmailProcessor} from './processor/email.processor';
 import {CloudinaryService} from './service/cloudinary.service';
+import {PdfService} from './service/pdf.service';
 
 @Module({
     imports: [
@@ -21,9 +22,9 @@ import {CloudinaryService} from './service/cloudinary.service';
         TypeOrmModule.forFeature([AuditLog, EmailLog]),
         BullModule.registerQueue({name: 'email'}),
     ],
-    providers: [UtilityService, DateService, CacheService, SanitizationService, EmailQueueService, AuditLogService, EmailProcessor, CloudinaryService],
+    providers: [UtilityService, DateService, CacheService, SanitizationService, EmailQueueService, AuditLogService, EmailProcessor, CloudinaryService, PdfService],
     controllers: [UtilityController, AuditLogController],
-    exports: [UtilityService, DateService, CacheService, SanitizationService, EmailQueueService, AuditLogService, CloudinaryService],
+    exports: [UtilityService, DateService, CacheService, SanitizationService, EmailQueueService, AuditLogService, CloudinaryService, PdfService],
 })
 export class UtilityModule {
 }

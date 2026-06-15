@@ -115,10 +115,7 @@ export class EventService {
         limit = 10,
         orderBy: OrderBy = 'eventDate',
         order: Order = 'DESC',
-        memberId?: string,
-        from?: Date,
-        to?: Date,
-        upcoming?: boolean,
+        filter: {memberId?: string; from?: Date; to?: Date; upcoming?: boolean} = {},
     ): Promise<PaginationResponseDto<Event>> {
         if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
@@ -132,17 +129,17 @@ export class EventService {
             .skip((page - 1) * limit)
             .take(limit);
 
-        if (upcoming) {
+        if (filter.upcoming) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             qb.andWhere('event.eventDate >= :upcomingFrom', {upcomingFrom: today});
         }
-        if (from) qb.andWhere('event.eventDate >= :from', {from});
-        if (to) qb.andWhere('event.eventDate <= :to', {to});
+        if (filter.from) qb.andWhere('event.eventDate >= :from', {from: filter.from});
+        if (filter.to) qb.andWhere('event.eventDate <= :to', {to: filter.to});
 
         const [events, total] = await qb.getManyAndCount();
 
-        if (memberId && events.length) await this.attachMyAttendance(events, memberId);
+        if (filter.memberId && events.length) await this.attachMyAttendance(events, filter.memberId);
 
         return UtilityService.createPaginationResponse(events, page, limit, total);
     }

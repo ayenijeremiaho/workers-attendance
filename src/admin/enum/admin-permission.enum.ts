@@ -29,6 +29,10 @@ export enum AdminPermission {
     FINANCE_WRITE = 'finance:write',
     FOLLOW_UP_READ = 'follow_up:read',
     FOLLOW_UP_WRITE = 'follow_up:write',
+    SERVICE_PROGRAMME_READ = 'service_programme:read',
+    SERVICE_PROGRAMME_WRITE = 'service_programme:write',
+    HEADCOUNT_READ = 'headcount:read',
+    HEADCOUNT_WRITE = 'headcount:write',
 }
 
 export const AdminPermissionLabels: Record<AdminPermission, string> = {
@@ -62,4 +66,99 @@ export const AdminPermissionLabels: Record<AdminPermission, string> = {
     [AdminPermission.FINANCE_WRITE]: 'Manage Finance Records',
     [AdminPermission.FOLLOW_UP_READ]: 'View Follow-Up',
     [AdminPermission.FOLLOW_UP_WRITE]: 'Manage Follow-Up',
+    [AdminPermission.SERVICE_PROGRAMME_READ]: 'View Service Programme',
+    [AdminPermission.SERVICE_PROGRAMME_WRITE]: 'Manage Service Programme',
+    [AdminPermission.HEADCOUNT_READ]: 'View Service Headcount',
+    [AdminPermission.HEADCOUNT_WRITE]: 'Record Service Headcount',
 };
+
+export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
+    [AdminPermission.MEMBERS_READ]: 'View member profiles, contact details, and membership status',
+    [AdminPermission.MEMBERS_WRITE]: 'Create, update, and deactivate member accounts',
+    [AdminPermission.EVENTS_READ]: 'View events, service slots, and event configuration',
+    [AdminPermission.EVENTS_WRITE]: 'Create and manage events, service slots, and schedules',
+    [AdminPermission.VENUES_READ]: 'View venue details and capacity information',
+    [AdminPermission.VENUES_WRITE]: 'Add and update venue records',
+    [AdminPermission.DEPARTMENTS_READ]: 'View departments, their leads, and assigned workers',
+    [AdminPermission.DEPARTMENTS_WRITE]: 'Create and manage departments and department leads',
+    [AdminPermission.ATTENDANCE_READ]: 'View attendance records and check-in history across all services',
+    [AdminPermission.ATTENDANCE_WRITE]: 'Mark attendance manually and manage check-in overrides',
+    [AdminPermission.LEAVE_READ]: 'View worker leave requests and their current statuses',
+    [AdminPermission.LEAVE_WRITE]: 'Approve or reject worker leave requests',
+    [AdminPermission.CLASSES_READ]: 'View church classes, topics, and enrollment records',
+    [AdminPermission.CLASSES_WRITE]: 'Create and manage church classes and member enrollments',
+    [AdminPermission.ANNOUNCEMENTS_READ]: 'View all announcements sent to members or workers',
+    [AdminPermission.ANNOUNCEMENTS_WRITE]: 'Create and publish announcements to members or workers',
+    [AdminPermission.NOTES_READ]: 'View pastoral notes and member interaction records',
+    [AdminPermission.NOTES_WRITE]: 'Create and assign pastoral notes to members',
+    [AdminPermission.DASHBOARD_READ]: 'Access the admin overview dashboard and summary statistics',
+    [AdminPermission.SUNDAY_SCHOOL_READ]: 'View Sunday School classes, sessions, and attendance records',
+    [AdminPermission.SUNDAY_SCHOOL_WRITE]: 'Manage Sunday School sessions and mark member attendance',
+    [AdminPermission.CHILDREN_CHURCH_READ]: "View children's church records, check-in history, and guardian info",
+    [AdminPermission.CHILDREN_CHURCH_WRITE]: "Manage children's church check-ins and guardian records",
+    [AdminPermission.ADMIN_READ]: 'View admin accounts, roles, and their assigned permission sets',
+    [AdminPermission.ADMIN_WRITE]: 'Create admin accounts, define roles, and assign permissions to roles',
+    [AdminPermission.AUDIT_READ]: 'View audit logs and system-wide activity history',
+    [AdminPermission.FINANCE_READ]: 'View tithe records, finance requests, and payment history',
+    [AdminPermission.FINANCE_WRITE]: 'Approve, reject, and manage finance requests',
+    [AdminPermission.FOLLOW_UP_READ]: 'View follow-up tasks and their progress',
+    [AdminPermission.FOLLOW_UP_WRITE]: 'Create and assign follow-up tasks to workers',
+    [AdminPermission.SERVICE_PROGRAMME_READ]: 'View service programmes, session history, reports, and analytics',
+    [AdminPermission.SERVICE_PROGRAMME_WRITE]: 'Create and manage service programmes, slots, and reusable templates',
+    [AdminPermission.HEADCOUNT_READ]: 'View service attendance headcounts and trends across all services',
+    [AdminPermission.HEADCOUNT_WRITE]: 'Record and correct physical attendance headcounts after each service',
+};
+
+export interface AdminPermissionGroupItem {
+    value: AdminPermission;
+    label: string;
+    description: string;
+}
+
+export interface AdminPermissionGroup {
+    group: string;
+    permissions: AdminPermissionGroupItem[];
+}
+
+function buildGroup(group: string, keys: AdminPermission[]): AdminPermissionGroup {
+    return {
+        group,
+        permissions: keys.map((value) => ({
+            value,
+            label: AdminPermissionLabels[value],
+            description: AdminPermissionDescriptions[value],
+        })),
+    };
+}
+
+export const AdminPermissionGroups: AdminPermissionGroup[] = [
+    buildGroup('Members', [AdminPermission.MEMBERS_READ, AdminPermission.MEMBERS_WRITE]),
+    buildGroup('Events & Venues', [
+        AdminPermission.EVENTS_READ,
+        AdminPermission.EVENTS_WRITE,
+        AdminPermission.VENUES_READ,
+        AdminPermission.VENUES_WRITE,
+    ]),
+    buildGroup('Departments', [AdminPermission.DEPARTMENTS_READ, AdminPermission.DEPARTMENTS_WRITE]),
+    buildGroup('Attendance', [AdminPermission.ATTENDANCE_READ, AdminPermission.ATTENDANCE_WRITE]),
+    buildGroup('Service Programme', [AdminPermission.SERVICE_PROGRAMME_READ, AdminPermission.SERVICE_PROGRAMME_WRITE]),
+    buildGroup('Service Headcount', [AdminPermission.HEADCOUNT_READ, AdminPermission.HEADCOUNT_WRITE]),
+    buildGroup('Sunday School', [AdminPermission.SUNDAY_SCHOOL_READ, AdminPermission.SUNDAY_SCHOOL_WRITE]),
+    buildGroup("Children's Church", [AdminPermission.CHILDREN_CHURCH_READ, AdminPermission.CHILDREN_CHURCH_WRITE]),
+    buildGroup('Church Classes', [AdminPermission.CLASSES_READ, AdminPermission.CLASSES_WRITE]),
+    buildGroup('Leave Requests', [AdminPermission.LEAVE_READ, AdminPermission.LEAVE_WRITE]),
+    buildGroup('Finance', [AdminPermission.FINANCE_READ, AdminPermission.FINANCE_WRITE]),
+    buildGroup('Announcements', [AdminPermission.ANNOUNCEMENTS_READ, AdminPermission.ANNOUNCEMENTS_WRITE]),
+    buildGroup('Notes & Follow-Up', [
+        AdminPermission.NOTES_READ,
+        AdminPermission.NOTES_WRITE,
+        AdminPermission.FOLLOW_UP_READ,
+        AdminPermission.FOLLOW_UP_WRITE,
+    ]),
+    buildGroup('Administration', [
+        AdminPermission.DASHBOARD_READ,
+        AdminPermission.ADMIN_READ,
+        AdminPermission.ADMIN_WRITE,
+        AdminPermission.AUDIT_READ,
+    ]),
+];

@@ -52,6 +52,10 @@ export class CreateEventDto {
     @Type(() => CreateServiceSlotDto)
     serviceSlots: CreateServiceSlotDto[];
 
+    @IsOptional()
+    @IsBoolean()
+    onlineAttendanceEnabled?: boolean;
+
     @IsBoolean()
     isRecurring: boolean;
 
@@ -59,8 +63,4 @@ export class CreateEventDto {
     @ValidateNested()
     @Type(() => RecurrenceDto)
     recurrence?: RecurrenceDto;
-
-    @IsOptional() 
-    @IsBoolean() 
-    onlineAttendanceEnabled?: boolean
 }

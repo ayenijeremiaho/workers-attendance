@@ -63,7 +63,9 @@ src/
 ├── tithe/            Batch tithe upload (Excel), queue-based processing, dispute resolution, member PDF statements
 ├── finance-request/  Department expense requests lifecycle (submit → approve/reject → proof)
 ├── follow-up/        First-timer registration, follow-up task management, post-event email jobs, online attendance
-└── utility/          Email queue, cache, hashing, pagination, email delivery log, Cloudinary file uploads
+├── service-programme/ Service programme authoring, live session control, analytics, PDF reports
+├── service-headcount/ Physical attendance headcounts per service slot, trends by period
+└── utility/          Email queue, cache, hashing, pagination, email delivery log, Cloudinary file uploads, PDF generation
 ```
 
 **Stack:** NestJS · TypeORM · PostgreSQL · Redis · Bull · ioredis · Argon2 · Passport (JWT + Local) · class-validator · nestjs-schedule ·
@@ -572,7 +574,7 @@ Rows from a batch where no member matched the email address.
 | paymentDate   | date                    |                                              |
 | reference     | string \| null          |                                              |
 | bankName      | string \| null          |                                              |
-| status        | TitheUnmatchedStatus    | PENDING \| RESOLVED \| IGNORED               |
+| status        | TitheUnmatchedStatus    | PENDING \| MATCHED \| DISMISSED              |
 | matchedMember | Member \| null          | Set when manually resolved                   |
 | resolvedBy    | Admin \| null           | Set when manually resolved                   |
 | resolvedAt    | timestamptz \| null     |                                              |
@@ -703,6 +705,133 @@ A note added by the assigned worker during follow-up interactions.
 | task     | FollowUpTask    | ManyToOne, CASCADE on delete       |
 | addedBy  | WorkerProfile \| null | ManyToOne, SET NULL on delete |
 | content  | text            |                                    |
+
+---
+
+### ServiceProgramme
+
+One programme per service slot (unique constraint on `service_slot_id`). Status flows: `DRAFT → LIVE → COMPLETED`.
+
+| Field          | Type              | Notes                                   |
+|----------------|-------------------|-----------------------------------------|
+| id             | UUID              | PK                                      |
+| serviceSlot    | ServiceSlot       | OneToOne, CASCADE on delete             |
+| status         | varchar           | DRAFT \| LIVE \| COMPLETED              |
+| saveAsTemplate | boolean           | If true, upserts template on completion |
+| createdByAdmin | Admin \| null     | ManyToOne, SET NULL on delete           |
+
+### ServiceProgrammeSlot
+
+Ordered items within a programme. Frozen when session starts; runtime changes go to `ServiceSessionSlot`.
+
+| Field            | Type          | Notes                             |
+|------------------|---------------|-----------------------------------|
+| id               | UUID          | PK                                |
+| programme        | ServiceProgramme | ManyToOne, CASCADE on delete   |
+| position         | int           | Zero-based order index            |
+| type             | varchar       | SPEAKER \| BREAK                  |
+| topic            | varchar \| null |                                 |
+| member           | Member \| null | Assigned speaker; SET NULL on delete |
+| guestName        | varchar \| null | Free-text name for non-members  |
+| backupMember     | Member \| null | Backup speaker; SET NULL on delete |
+| backupGuestName  | varchar \| null |                                 |
+| allocatedMinutes | int           | Planned slot duration             |
+
+### ServiceSession
+
+One session per programme (unique constraint on `programme_id`). Created when a session starts.
+
+| Field       | Type            | Notes                           |
+|-------------|-----------------|---------------------------------|
+| id          | UUID            | PK                              |
+| programme   | ServiceProgramme | OneToOne, CASCADE on delete    |
+| sessionCode | varchar         | Unique, e.g. `SVC-ABC123`       |
+| status      | varchar         | LIVE \| COMPLETED               |
+| startedAt   | timestamptz     |                                 |
+| endedAt     | timestamptz \| null |                             |
+
+**Redis anchor** (`session:{sessionCode}:anchor`, TTL 48 h after completion):
+```json
+{ "currentSlotPosition": 0, "slotStartedAt": 1718000000000, "slotBaseSeconds": 0,
+  "status": "LIVE", "isPaused": false, "pausedAt": null }
+```
+Clients compute `elapsed = slotBaseSeconds + (Date.now() - slotStartedAt) / 1000`. No server-side ticker.
+
+### ServiceSessionSlot
+
+Snapshot of each programme slot at session start. Runtime overrides stored here; planned data stays on `ServiceProgrammeSlot`.
+
+| Field                    | Type          | Notes                                  |
+|--------------------------|---------------|----------------------------------------|
+| id                       | UUID          | PK                                     |
+| session                  | ServiceSession | ManyToOne, CASCADE                    |
+| programmeSlot            | ServiceProgrammeSlot | ManyToOne, CASCADE              |
+| position                 | int           |                                        |
+| status                   | varchar       | PENDING \| IN_PROGRESS \| COMPLETED \| SKIPPED |
+| adjustedAllocatedMinutes | int \| null   | Runtime time override                  |
+| overriddenTopic          | varchar \| null |                                      |
+| overriddenSpeakerName    | varchar \| null | Display-only; analytics still uses member FK |
+| overriddenMember         | Member \| null | If actual speaker changed mid-session  |
+| actualSeconds            | int \| null   | Measured speaking time                 |
+| startedAt                | timestamptz \| null |                                  |
+| completedAt              | timestamptz \| null |                                  |
+
+### ServicePauseEntry
+
+One row per pause event during a session.
+
+| Field       | Type          | Notes                  |
+|-------------|---------------|------------------------|
+| id          | UUID          | PK                     |
+| session     | ServiceSession | ManyToOne, CASCADE    |
+| slotPosition| int           | Slot active at pause time |
+| reason      | varchar       | ServicePauseReasonEnum |
+| pausedAt    | timestamptz   |                        |
+| resumedAt   | timestamptz \| null | Null until resumed |
+
+### ServiceActionEntry
+
+Audit log of all control actions taken during a session.
+
+| Field             | Type          | Notes                      |
+|-------------------|---------------|----------------------------|
+| id                | UUID          | PK                         |
+| session           | ServiceSession | ManyToOne, CASCADE        |
+| actorRole         | varchar       | ADMIN \| WORKER            |
+| action            | varchar       | e.g. ADVANCE_SLOT, PAUSE   |
+| detail            | varchar \| null |                          |
+| performedByMember | Member \| null | SET NULL on delete        |
+
+### ServiceProgrammeTemplate
+
+Auto-upserted when a session with `saveAsTemplate = true` completes. Minister assignments are always blank — only structure is saved.
+
+| Field           | Type            | Notes                                    |
+|-----------------|-----------------|------------------------------------------|
+| id              | UUID            | PK                                       |
+| name            | varchar         | e.g. "First Service"                     |
+| serviceSlotName | varchar         | Match key for auto-suggestion            |
+| slots           | jsonb           | `[{ position, type, topic, allocatedMinutes }]` |
+| createdFrom     | ServiceProgramme \| null | SET NULL on delete               |
+
+### ServiceHeadcount
+
+Physical attendance count record for one service slot, broken down by demographic group.
+
+| Field        | Type                    | Notes                                                          |
+|--------------|-------------------------|----------------------------------------------------------------|
+| id           | UUID                    | PK                                                             |
+| serviceSlot  | ServiceSlot             | ManyToOne, CASCADE on delete                                   |
+| maleAdults   | int                     | Default 0                                                      |
+| femaleAdults | int                     | Default 0                                                      |
+| teenagers    | int                     | Default 0                                                      |
+| children     | int                     | Default 0                                                      |
+| mobileChurch | int                     | Default 0 — count from the mobile outreach venue (fixed group) |
+| customGroups | jsonb                   | `Record<string, number>` — extensible free-form groups         |
+| recordedBy   | Admin \| null           | ManyToOne, SET NULL on delete — admin who submitted the record |
+| notes        | text \| null            | Optional context note for the record                           |
+
+**Computed field:** `total` is not stored. It is computed on every read as the sum of all five fixed columns plus all values in `customGroups`. The value is appended to each response object.
 
 ---
 
@@ -1097,7 +1226,7 @@ re-uploading the file.
 `GET /admin/tithes/template`.
 
 **Member visibility:** Members view their own tithes at `GET /tithes/me` and request a PDF statement emailed to them
-at `POST /tithes/me/download`.
+at `POST /tithes/me/download`. Optional query params `fromMonth` and `toMonth` (format `YYYY-MM`) filter the records included in the statement and display a period range in the PDF (e.g. `?fromMonth=2026-01&toMonth=2026-06`). If only one bound is supplied the other is open-ended.
 
 **Tithe payment proof:** Members and workers can submit proof of an offline tithe payment (bank transfer receipt, etc.) via `POST /tithes/proof` (multipart, field: `file`, max 2 MB). The file is uploaded to Cloudinary and a `TithePaymentProof` record is created with status `PENDING` and `expiresAt` set to `TITHE_PROOF_EXPIRY_DAYS` days from submission (default 90). Finance team admins review proofs at `GET /admin/tithes/proofs` and can `CONFIRM` or `DECLINE` each one. Confirming or declining triggers an email to the member. A daily cron at `03:00 UTC` (with distributed Redis lock `lock:tithe-proof-cleanup`) finds all expired proofs (`expiresAt ≤ now`), deletes each file from Cloudinary using the stored `publicId` + `resourceType`, and removes the DB rows.
 
@@ -1156,6 +1285,18 @@ Members receive an email after an online-attendance-enabled event. They confirm 
 **Routes (worker mobile):** `/follow-up/first-timers`, `/follow-up/tasks/mine`, `/follow-up/tasks/:id`  
 **Routes (admin portal):** `/admin/follow-up/first-timers`, `/admin/follow-up/tasks`, `/admin/follow-up/tasks/:id/reassign`, `/admin/follow-up/tasks/bulk`, `/admin/follow-up/report`
 
+### ServiceHeadcount Module
+
+Records and retrieves physical attendance counts for services, broken down by demographic group. All routes are admin-portal only (`AdminGuard`). Headcount data can be filtered by service slot, date range, or slot name; trends are bucketed by week, month, or quarter.
+
+**Entity:** `ServiceHeadcount` — one record per slot per submission. Admins with `HEADCOUNT_WRITE` can submit corrections by patching an existing record.
+
+**Computed total:** Every response includes a `total` field (sum of fixed groups + all `customGroups` values). Not stored in DB.
+
+**Trends:** `GET /service-headcount/trends` returns bucketed data. Each bucket is keyed by `periodLabel + serviceSlotName` so multiple slots on the same Sunday appear as separate series.
+
+**Routes prefix:** `/service-headcount`
+
 ### Children Church Module
 
 Provides a security-grade check-in/check-out system for children. Key features:
@@ -1169,6 +1310,34 @@ Provides a security-grade check-in/check-out system for children. Key features:
 - Multiple guardians can be registered per child; `isAuthorizedPickup` controls who may collect.
 
 **Routes prefix:** `/children-church`
+
+---
+
+### ServiceProgramme Module
+
+Backend replacement for the Firebase-based Service Timer POC. Manages service programme creation, live session control, real-time state broadcast, and post-session analytics.
+
+**Architecture:**
+- `ServiceProgramme` and its slots are authored during the week (DRAFT status).
+- When a session starts, the programme transitions to LIVE and a `ServiceSession` is created along with `ServiceSessionSlot` snapshot rows (one per programme slot).
+- Live state (current slot, timer anchor, pause state) is held in Redis. Clients compute the display timer locally using: `elapsed = slotBaseSeconds + (Date.now() - slotStartedAt) / 1000`.
+- Every state change (advance, rewind, pause, resume, override) updates Redis and writes durable records to the DB.
+- A Socket.IO gateway at namespace `/service-session` broadcasts `session:state` events to all room subscribers after every mutation. Clients join with `{ sessionCode }` — no authentication required to subscribe.
+- When the session ends, remaining PENDING slots are marked SKIPPED, the programme status moves to COMPLETED, and if `saveAsTemplate = true` the programme is auto-saved as a `ServiceProgrammeTemplate`. A session-report email is fire-and-forget dispatched to all active Admin department workers via Bull queue (template: `service-session-report`).
+
+**Access control:**
+- Programme CRUD and reporting: `AdminGuard` + `SERVICE_PROGRAMME_READ` (reads) or `SERVICE_PROGRAMME_WRITE` (mutations). Assign these permissions to admin roles via the role management API.
+- Session control (start, advance, rewind, pause, resume, override, end): `RolesGuard (WORKER)` + Admin department key check (`DepartmentKeyEnum.ADMIN`) — mobile app flow, no admin token required.
+- Session state read (`GET /service-session/:code/state`) and speaker slot view (`GET /service-session/:code/slots/:position`): unauthenticated — session code is the access credential.
+- `ADMIN_WRITE` permission controls who can assign `SERVICE_PROGRAMME_READ` / `SERVICE_PROGRAMME_WRITE` to admin roles.
+
+**WebSocket:**
+- Namespace: `/service-session`
+- Client event `joinSession({ sessionCode })` → joins room `session:{sessionCode}`
+- Client event `leaveSession({ sessionCode })` → leaves room
+- Server event `session:state` → `{ anchor: SessionAnchor, session: Partial<ServiceSession> }`
+
+**Routes prefix:** `/service-programme`, `/service-session`
 
 ---
 
@@ -1351,7 +1520,7 @@ Provides a security-grade check-in/check-out system for children. Key features:
 | PATCH  | /admin/tithes/disputes/:id/approve                         | AdminGuard (FINANCE_WRITE)                                    | Approve a tithe dispute (creates TitheRecord)                                                                 |
 | PATCH  | /admin/tithes/disputes/:id/reject                          | AdminGuard (FINANCE_WRITE)                                    | Reject a tithe dispute                                                                                        |
 | GET    | /tithes/me                                                 | Any (JwtAuthGuard)                                            | Member's own tithe records (paginated)                                                                        |
-| POST   | /tithes/me/download                                        | Any (JwtAuthGuard)                                            | Email a PDF tithe statement to the caller's registered email                                                  |
+| POST   | /tithes/me/download                                        | Any (JwtAuthGuard)                                            | Email a PDF tithe statement to the caller's registered email. Optional query: `fromMonth` (YYYY-MM), `toMonth` (YYYY-MM) — filters records to the date range and prints the period on the PDF |
 | POST   | /tithes/proof                                              | Any (JwtAuthGuard)                                            | Submit tithe payment proof (multipart, field: file, max 2 MB); body: amount, paymentDate, bankName?, reference? |
 | GET    | /tithes/proof                                              | Any (JwtAuthGuard)                                            | List caller's own tithe payment proofs (paginated)                                                            |
 | GET    | /admin/tithes/proofs?status=&page=&limit=                  | AdminGuard (FINANCE_READ)                                     | List all tithe payment proofs; optional `status` filter (PENDING/CONFIRMED/DECLINED)                          |
@@ -1369,6 +1538,38 @@ Provides a security-grade check-in/check-out system for children. Key features:
 | POST   | /finance/requests                                          | WORKER — HOD only                                             | Raise a finance request for own department (multipart optional: attachment)                                   |
 | GET    | /finance/requests                                          | WORKER — HOD only                                             | List own department's finance requests (paginated)                                                            |
 | GET    | /finance/requests/:id                                      | WORKER — HOD only                                             | Get a single request from own department (includes proofUrl once attached)                                    |
+| POST   | /service-programme                                         | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Create a programme linked to a service slot (one per slot)                                                    |
+| GET    | /service-programme                                         | AdminGuard + SERVICE_PROGRAMME_READ                           | List all programmes paginated (query: page, limit)                                                            |
+| GET    | /service-programme/templates                               | AdminGuard + SERVICE_PROGRAMME_READ                           | List all reusable programme templates ordered by name                                                         |
+| DELETE | /service-programme/templates/:templateId                   | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Delete a template                                                                                             |
+| GET    | /service-programme/:id                                     | AdminGuard + SERVICE_PROGRAMME_READ                           | Get a single programme with all slots and member relations                                                    |
+| PATCH  | /service-programme/:id                                     | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Update programme metadata (saveAsTemplate flag)                                                               |
+| DELETE | /service-programme/:id                                     | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Delete a DRAFT programme — 400 if LIVE or COMPLETED                                                          |
+| POST   | /service-programme/:id/slots                               | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Append a slot (appended at next position)                                                                     |
+| PUT    | /service-programme/:id/slots/reorder                       | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Reorder all slots (body: `{ slots: [{ id }] }` in desired order)                                             |
+| PATCH  | /service-programme/:id/slots/:slotId                       | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Update a single slot — 400 if programme is not DRAFT                                                         |
+| DELETE | /service-programme/:id/slots/:slotId                       | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Remove a slot — 400 if programme is not DRAFT                                                                |
+| POST   | /service-programme/:id/apply-template/:templateId          | AdminGuard + SERVICE_PROGRAMME_WRITE                          | Apply a template to a DRAFT programme (clears existing slots, copies template structure)                      |
+| GET    | /service-programme/:id/sessions                            | AdminGuard + SERVICE_PROGRAMME_READ                           | Paginated list of historical sessions for a programme (query: page, limit)                                    |
+| POST   | /service-session/programme/:programmeId/start              | WORKER (Admin dept)                                           | Start a session for a DRAFT programme; returns session with sessionCode                                       |
+| POST   | /service-session/:sessionCode/advance                      | WORKER (Admin dept)                                           | Advance to next slot; returns updated Redis anchor                                                            |
+| POST   | /service-session/:sessionCode/rewind                       | WORKER (Admin dept)                                           | Go back to previous slot — 400 if already at first slot                                                      |
+| POST   | /service-session/:sessionCode/pause                        | WORKER (Admin dept)                                           | Pause session (body: reason); creates ServicePauseEntry                                                       |
+| POST   | /service-session/:sessionCode/resume                       | WORKER (Admin dept)                                           | Resume paused session; adjusts slotBaseSeconds to exclude pause duration                                      |
+| POST   | /service-session/:sessionCode/slots/:position/override     | WORKER (Admin dept)                                           | Runtime override for a slot (speakerName, topic, allocatedMinutes, memberId)                                  |
+| POST   | /service-session/:sessionCode/end                          | WORKER (Admin dept)                                           | End session; marks remaining slots SKIPPED; auto-saves template if saveAsTemplate                             |
+| GET    | /service-session/analytics                                 | AdminGuard + SERVICE_PROGRAMME_READ                           | Aggregate analytics across COMPLETED sessions (query: from, to, serviceSlotName); overrun stats, avg times, top speakers |
+| GET    | /service-session/:sessionCode/state                        | Public (no auth)                                              | Get live session state — anchor from Redis + programme data; used by presentation and speaker views           |
+| GET    | /service-session/:sessionCode/slots/:position              | Public (no auth)                                              | Single slot state for speaker view — programmeSlot data, overrides, and current anchor                        |
+| GET    | /service-session/:sessionCode/report                       | AdminGuard + SERVICE_PROGRAMME_READ                           | Formatted session report: duration, completion rate, per-slot overrun, pause log                              |
+| GET    | /service-session/:sessionCode/report/pdf                   | AdminGuard + SERVICE_PROGRAMME_READ                           | Download session report as a PDF file — same data as JSON report, formatted for printing and sharing          |
+| GET    | /service-session/event/:eventId/report/pdf                 | AdminGuard + SERVICE_PROGRAMME_READ                           | Download a full-event PDF covering all service slots in one document. Requires all sessions to be COMPLETED; returns 400 if any are still live and 404 if none exist. Includes variance summary table, per-slot allocated vs actual, slot variance (sum of individual slot overruns), and an ACCENT time-summary band per section. |
+
+| POST   | /service-headcount                                         | AdminGuard + HEADCOUNT_WRITE                                  | Record physical attendance headcount for a service slot (body: serviceSlotId, maleAdults, femaleAdults, teenagers, children, mobileChurch, customGroups?, notes?) |
+| PATCH  | /service-headcount/:id                                     | AdminGuard + HEADCOUNT_WRITE                                  | Correct an existing headcount record (any field except serviceSlotId)                                         |
+| GET    | /service-headcount                                         | AdminGuard + HEADCOUNT_READ                                   | List headcount records (query: page, limit, serviceSlotId, from, to); each record includes computed `total`   |
+| GET    | /service-headcount/trends                                  | AdminGuard + HEADCOUNT_READ                                   | Aggregated attendance trends bucketed by period (query: period=weekly\|monthly\|quarterly, from, to, serviceSlotName); returns grouped data per slot per bucket |
+| GET    | /service-headcount/:id                                     | AdminGuard + HEADCOUNT_READ                                   | Get a single headcount record by ID (includes computed `total`)                                               |
 
 ---
 
@@ -1500,6 +1701,8 @@ A church worker can also have admin access. They pass `@Roles(WORKER)` routes vi
 | View finance categories and requests          | `FINANCE_READ`          |
 | View first-timers and follow-up tasks         | `FOLLOW_UP_READ`        |
 | Register first-timers, reassign / bulk-update tasks | `FOLLOW_UP_WRITE` |
+| View service attendance headcounts and trends       | `HEADCOUNT_READ`  |
+| Record and correct physical attendance headcounts   | `HEADCOUNT_WRITE` |
 
 ---
 
@@ -1675,7 +1878,10 @@ Granular permissions assigned to `AdminRole` records:
 `departments:read` · `departments:write` · `attendance:read` · `attendance:write` · `leave:read` · `leave:write` · `classes:read` ·
 `classes:write` · `announcements:read` · `announcements:write` · `notes:read` · `notes:write` · `dashboard:read` ·
 `sunday_school:read` · `sunday_school:write` · `children_church:read` · `children_church:write` · `admin:read` ·
-`admin:write` · `audit:read` · `finance:read` · `finance:write` · `follow_up:read` · `follow_up:write`
+`admin:write` · `audit:read` · `finance:read` · `finance:write` · `follow_up:read` · `follow_up:write` ·
+`service_programme:read` · `service_programme:write` · `headcount:read` · `headcount:write`
+
+`GET /enums` returns these as both a flat `adminPermissions` list (value + label) and a grouped `adminPermissionGroups` list (group name + permissions with value, label, and description) — use the grouped form to render the permission assignment UI.
 
 ### MemberStatusEnum / WorkerStatusEnum
 
@@ -1775,3 +1981,31 @@ if the department is not linked to any gated module). Multiple departments can s
 ### FollowUpOutcomeEnum
 
 `JOINED` · `DECLINED` · `NO_ANSWER` · `PRAYED_WITH`
+
+### ServiceProgrammeStatusEnum
+
+`DRAFT` · `LIVE` · `COMPLETED`
+
+### ServiceSlotTypeEnum
+
+`SPEAKER` · `WORSHIP` · `PRAYER` · `OFFERING` · `ANNOUNCEMENT` · `BREAK`
+
+### ServiceSessionStatusEnum
+
+`LIVE` · `COMPLETED`
+
+### ServiceSessionSlotStatusEnum
+
+`PENDING` · `IN_PROGRESS` · `COMPLETED` · `SKIPPED`
+
+### ServicePauseReasonEnum
+
+`TECHNICAL_ISSUE` · `ANNOUNCEMENT` · `BREAK_INTERVAL` · `UNPLANNED_DELAY` · `OTHER`
+
+### ServiceActionRoleEnum
+
+`ADMIN` · `WORKER`
+
+### DepartmentKeyEnum (updated)
+
+`SUNDAY_SCHOOL` · `CHILDREN_CHURCH` · `WORSHIP` · `USHERING` · `MEDIA` · `PROTOCOL` · `WELFARE` · `PRAYER` · `EVANGELISM` · `YOUTH` · `YOUNG_ADULTS` · `FOLLOW_UP` · `ADMIN`

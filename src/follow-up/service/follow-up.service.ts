@@ -20,7 +20,10 @@ import {DepartmentKeyEnum} from '../../department/enums/department-key.enum';
 import {WorkerStatusEnum} from '../../member/enums/worker-status.enum';
 import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
 import {UtilityService} from '../../utility/service/utility.service';
+import {CacheService} from '../../utility/service/cache.service';
 import {EmailQueueService} from '../../utility/service/email-queue.service';
+
+const REPORT_CACHE_TTL = 300;
 
 const OPEN_STATUSES = [FollowUpTaskStatusEnum.PENDING, FollowUpTaskStatusEnum.IN_PROGRESS];
 
@@ -32,6 +35,7 @@ export class FollowUpService {
     constructor(
         private readonly dataSource: DataSource,
         private readonly configService: ConfigService,
+        private readonly cacheService: CacheService,
         private readonly emailQueueService: EmailQueueService,
         @InjectRepository(FirstTimer)
         private readonly firstTimerRepo: Repository<FirstTimer>,
@@ -162,10 +166,11 @@ export class FollowUpService {
             );
         }
 
+        this.cacheService.flushNamespace('follow-up:report');
         return saved;
     }
 
-    async reassignTask(taskId: string, dto: ReassignTaskDto, actorAdminId: string): Promise<FollowUpTask> {
+    async reassignTask(taskId: string, dto: ReassignTaskDto, _actorAdminId: string): Promise<FollowUpTask> {
         const [task, targetProfile] = await Promise.all([
             this.taskRepo.findOne({where: {id: taskId}, relations: ['assignedTo']}),
             this.workerProfileRepo.findOne({
@@ -184,6 +189,7 @@ export class FollowUpService {
 
         task.assignedTo = targetProfile;
         const saved = await this.taskRepo.save(task);
+        this.cacheService.flushNamespace('follow-up:report');
 
         if (targetProfile.member?.email) {
             this.emailQueueService.queueEmailWithTemplate(
@@ -215,6 +221,7 @@ export class FollowUpService {
         }
 
         await this.taskRepo.save(tasks);
+        this.cacheService.flushNamespace('follow-up:report');
         return {updated: tasks.length};
     }
 
@@ -251,10 +258,16 @@ export class FollowUpService {
             );
         }
 
+        this.cacheService.flushNamespace('follow-up:report');
         return task;
     }
 
     async getReport(from?: Date, to?: Date) {
+        const key = `follow-up:report:${from?.toISOString() ?? 'all'}:${to?.toISOString() ?? 'all'}`;
+        return this.cacheService.getOrSet(key, () => this.fetchReport(from, to), REPORT_CACHE_TTL);
+    }
+
+    private async fetchReport(from?: Date, to?: Date) {
         const hasRange = from !== undefined && to !== undefined;
 
         const [
@@ -413,9 +426,10 @@ export class FollowUpService {
                 'openCount',
             )
             .from('worker_profiles', 'wp')
-            .innerJoin('departments', 'd', 'd.id = wp.department_id')
+            .leftJoin('departments', 'd_primary', 'd_primary.id = wp.department_id')
+            .leftJoin('departments', 'd_secondary', 'd_secondary.id = wp.secondary_department_id')
             .leftJoin('follow_up_tasks', 'ft', 'ft.assigned_to_id = wp.id')
-            .where('d.key = :key', {key: DepartmentKeyEnum.FOLLOW_UP})
+            .where('(d_primary.key = :key OR d_secondary.key = :key)', {key: DepartmentKeyEnum.FOLLOW_UP})
             .andWhere('wp.status = :status', {status: WorkerStatusEnum.ACTIVE})
             .groupBy('wp.id')
             .orderBy('"openCount"', 'ASC')
@@ -475,10 +489,11 @@ export class FollowUpService {
             const rows: {id: string}[] = await manager.query(
                 `SELECT wp.id
                  FROM worker_profiles wp
-                 INNER JOIN departments d ON d.id = wp.department_id
+                 LEFT JOIN departments d_primary ON d_primary.id = wp.department_id
+                 LEFT JOIN departments d_secondary ON d_secondary.id = wp.secondary_department_id
                  LEFT JOIN follow_up_tasks ft
                      ON ft.assigned_to_id = wp.id AND ft.status IN ('PENDING', 'IN_PROGRESS')
-                 WHERE d.key = $1 AND wp.status = $2
+                 WHERE (d_primary.key = $1 OR d_secondary.key = $1) AND wp.status = $2
                  GROUP BY wp.id
                  ORDER BY COUNT(ft.id) ASC
                  LIMIT 1`,
@@ -542,6 +557,7 @@ export class FollowUpService {
             );
         }
 
-        return savedFirstTimer!;
+        this.cacheService.flushNamespace('follow-up:report');
+        return savedFirstTimer;
     }
 }

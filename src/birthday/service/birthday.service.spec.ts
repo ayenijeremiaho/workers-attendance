@@ -56,6 +56,7 @@ const mockCacheService = {
     key: jest.fn((ns: string, id: string) => `${ns}:${id}`),
     get: jest.fn().mockResolvedValue(0),
     set: jest.fn().mockResolvedValue(undefined),
+    incr: jest.fn().mockResolvedValue(1),
     acquireLock: jest.fn().mockResolvedValue(true),
     releaseLock: jest.fn(),
 };
@@ -215,9 +216,8 @@ describe('BirthdayService', () => {
             const result = await service.sendWish('recipient-id', 'sender-id', 'HB!');
 
             expect(result).toEqual(saved);
-            expect(mockCacheService.set).toHaveBeenCalledWith(
+            expect(mockCacheService.incr).toHaveBeenCalledWith(
                 expect.stringContaining('sender-id'),
-                4,
                 expect.any(Number),
             );
         });

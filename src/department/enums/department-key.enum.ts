@@ -11,6 +11,7 @@ export enum DepartmentKeyEnum {
     YOUTH = 'YOUTH',
     YOUNG_ADULTS = 'YOUNG_ADULTS',
     FOLLOW_UP = 'FOLLOW_UP',
+    ADMIN = 'ADMIN',
 }
 
 export const DepartmentKeyLabels: Record<DepartmentKeyEnum, string> = {
@@ -26,4 +27,5 @@ export const DepartmentKeyLabels: Record<DepartmentKeyEnum, string> = {
     [DepartmentKeyEnum.YOUTH]: 'Youth',
     [DepartmentKeyEnum.YOUNG_ADULTS]: 'Young Adults',
     [DepartmentKeyEnum.FOLLOW_UP]: 'Follow-Up',
+    [DepartmentKeyEnum.ADMIN]: 'Admin',
 };

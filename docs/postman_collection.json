@@ -1727,7 +1727,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Sunday Service\",\n  \"description\": \"Regular Sunday morning service\",\n  \"eventDate\": \"2026-06-15\",\n  \"isRecurring\": false,\n  \"serviceSlots\": [\n    {\n      \"name\": \"First Service\",\n      \"startTime\": \"2026-06-15T07:00:00.000Z\",\n      \"endTime\": \"2026-06-15T09:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    },\n    {\n      \"name\": \"Second Service\",\n      \"startTime\": \"2026-06-15T10:00:00.000Z\",\n      \"endTime\": \"2026-06-15T12:00:00.000Z\",\n      \"configId\": \"{{configId}}\",\n      \"venueOverrideId\": \"{{venueId}}\"\n    }\n  ],\n  \"endDate\": \"2026-06-15\"\n}",
+              "raw": "{\n  \"name\": \"Sunday Service\",\n  \"description\": \"Regular Sunday morning service\",\n  \"eventDate\": \"2026-06-15\",\n  \"onlineAttendanceEnabled\": true,\n  \"isRecurring\": false,\n  \"serviceSlots\": [\n    {\n      \"name\": \"First Service\",\n      \"startTime\": \"2026-06-15T07:00:00.000Z\",\n      \"endTime\": \"2026-06-15T09:00:00.000Z\",\n      \"configId\": \"{{configId}}\"\n    },\n    {\n      \"name\": \"Second Service\",\n      \"startTime\": \"2026-06-15T10:00:00.000Z\",\n      \"endTime\": \"2026-06-15T12:00:00.000Z\",\n      \"configId\": \"{{configId}}\",\n      \"venueOverrideId\": \"{{venueId}}\"\n    }\n  ],\n  \"endDate\": \"2026-06-15\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4086,7 +4086,7 @@
                 }
               ]
             },
-            "description": "WORKER (SS-dept or class teacher). Opens the self-mark window for the given number of minutes (5–480). Sets selfMarkClosesAt to now + closesInMinutes. Enrolled members can self-mark until that timestamp."
+            "description": "WORKER (SS-dept or class teacher). Opens the self-mark window for the given number of minutes (5\u2013480). Sets selfMarkClosesAt to now + closesInMinutes. Enrolled members can self-mark until that timestamp."
           },
           "response": [
             {
@@ -4174,8 +4174,14 @@
                 "me"
               ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             },
             "description": "Any authenticated member. Returns the caller's paginated Sunday School attendance history across all enrolled classes."
@@ -6212,7 +6218,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/tithes/me/download",
+              "raw": "{{baseUrl}}/tithes/me/download?fromMonth=2026-01&toMonth=2026-06",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -6220,6 +6226,20 @@
                 "tithes",
                 "me",
                 "download"
+              ],
+              "query": [
+                {
+                  "key": "fromMonth",
+                  "value": "2026-01",
+                  "description": "Start month (YYYY-MM, optional). Records from this month onwards.",
+                  "disabled": true
+                },
+                {
+                  "key": "toMonth",
+                  "value": "2026-06",
+                  "description": "End month (YYYY-MM, optional). Records up to and including this month.",
+                  "disabled": true
+                }
               ]
             },
             "description": "JwtAuthGuard. Generates a PDF tithe statement and emails it to the caller's registered email address."
@@ -7172,6 +7192,1163 @@
               "body": "{\n  \"period\": {\n    \"from\": \"2026-01-01T00:00:00.000Z\",\n    \"to\": \"2026-06-30T00:00:00.000Z\"\n  },\n  \"firstTimers\": {\n    \"total\": 47,\n    \"bySource\": {\n      \"WALK_IN\": 38,\n      \"ONLINE\": 6,\n      \"REFERRAL\": 3\n    },\n    \"wantsToJoinChurch\": 29,\n    \"wantsToJoinWorkforce\": 14\n  },\n  \"tasks\": {\n    \"total\": 47,\n    \"byStatus\": {\n      \"PENDING\": 5,\n      \"IN_PROGRESS\": 8,\n      \"COMPLETED\": 30,\n      \"UNREACHABLE\": 4\n    },\n    \"byOutcome\": {\n      \"JOINED\": 18,\n      \"DECLINED\": 7,\n      \"NO_ANSWER\": 4,\n      \"PRAYED_WITH\": 1\n    },\n    \"overdue\": 3,\n    \"conversionRate\": \"38.3%\"\n  },\n  \"byWorker\": [\n    {\n      \"workerName\": \"Ada Obi\",\n      \"assigned\": 12,\n      \"completed\": 10,\n      \"joined\": 5\n    }\n  ],\n  \"byEvent\": [\n    {\n      \"eventName\": \"Sunday 1st June\",\n      \"firstTimers\": 8\n    }\n  ]\n}"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Service Programme",
+      "item": [
+        {
+          "name": "Programme Management (Admin)",
+          "item": [
+            {
+              "name": "Create Programme",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"serviceSlotId\": \"{{serviceSlotId}}\",\n  \"saveAsTemplate\": false\n}"
+                },
+                "description": "Create a service programme linked to a service slot. One programme per slot \u2014 409 if one already exists. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "List Programmes",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme?page=1&limit=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Paginated list of all programmes with service slot and event relations. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Programme",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programmeId}}"
+                    }
+                  ]
+                },
+                "description": "Get a single programme with all slots and member relations. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Programme",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programmeId}}"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"saveAsTemplate\": true\n}"
+                },
+                "description": "Update saveAsTemplate flag on a programme. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Programme",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programmeId}}"
+                    }
+                  ]
+                },
+                "description": "Delete a DRAFT programme. 400 if LIVE or COMPLETED. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Add Slot",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/:id/slots",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id",
+                    "slots"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programmeId}}"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"SPEAKER\",\n  \"topic\": \"Opening Prayer\",\n  \"memberId\": \"{{memberId}}\",\n  \"allocatedMinutes\": 10\n}"
+                },
+                "description": "Append a slot at the next position. type: SPEAKER | BREAK. 400 if programme is not DRAFT. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Reorder Slots",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/:id/slots/reorder",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id",
+                    "slots",
+                    "reorder"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programmeId}}"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"slots\": [\n    {\"id\": \"slot-uuid-b\"},\n    {\"id\": \"slot-uuid-a\"}\n  ]\n}"
+                },
+                "description": "Replace slot order. Body must contain exactly all existing slot IDs in the desired order. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Slot",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/:id/slots/:slotId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id",
+                    "slots",
+                    ":slotId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programmeId}}"
+                    },
+                    {
+                      "key": "slotId",
+                      "value": "{{slotId}}"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"topic\": \"Updated Topic\",\n  \"allocatedMinutes\": 15\n}"
+                },
+                "description": "Update a single slot (all fields optional). 400 if programme is not DRAFT. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Slot",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/:id/slots/:slotId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id",
+                    "slots",
+                    ":slotId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programmeId}}"
+                    },
+                    {
+                      "key": "slotId",
+                      "value": "{{slotId}}"
+                    }
+                  ]
+                },
+                "description": "Remove a slot from a DRAFT programme. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Apply Template",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/:id/apply-template/:templateId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id",
+                    "apply-template",
+                    ":templateId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programmeId}}"
+                    },
+                    {
+                      "key": "templateId",
+                      "value": "{{templateId}}"
+                    }
+                  ]
+                },
+                "description": "Apply a template to a DRAFT programme. Clears existing slots, copies template structure. Minister assignments are blank. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "List Templates",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/templates",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    "templates"
+                  ]
+                },
+                "description": "List all reusable programme templates ordered alphabetically. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Template",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-programme/templates/:templateId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    "templates",
+                    ":templateId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "templateId",
+                      "value": "{{templateId}}"
+                    }
+                  ]
+                },
+                "description": "Delete a programme template. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "List Programme Sessions",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-programme/:id/sessions?page=1&limit=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id",
+                    "sessions"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programme_id}}"
+                    }
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Paginated list of historical sessions for a programme, newest first."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Session Control (Admin Dept Worker)",
+          "item": [
+            {
+              "name": "Start Session",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{workerToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/programme/:programmeId/start",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    "programme",
+                    ":programmeId",
+                    "start"
+                  ],
+                  "variable": [
+                    {
+                      "key": "programmeId",
+                      "value": "{{programmeId}}"
+                    }
+                  ]
+                },
+                "description": "Start a live session for a DRAFT programme. Returns session with sessionCode (e.g. SVC-ABC123). Caller must be a WORKER in the Admin department (DepartmentKeyEnum.ADMIN)."
+              },
+              "response": [
+                {
+                  "name": "201 Created",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{\n  \"id\": \"sess-uuid\",\n  \"sessionCode\": \"SVC-ABC123\",\n  \"status\": \"LIVE\",\n  \"startedAt\": \"2026-06-15T08:00:00.000Z\",\n  \"endedAt\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Advance (Next Slot)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{workerToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/:sessionCode/advance",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "advance"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "{{sessionCode}}"
+                    }
+                  ]
+                },
+                "description": "Close current slot and open next. Returns updated anchor. 400 if on last slot \u2014 call /end instead."
+              },
+              "response": []
+            },
+            {
+              "name": "Rewind (Previous Slot)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{workerToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/:sessionCode/rewind",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "rewind"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "{{sessionCode}}"
+                    }
+                  ]
+                },
+                "description": "Go back to previous slot. 400 if already at position 0."
+              },
+              "response": []
+            },
+            {
+              "name": "Pause Session",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{workerToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/:sessionCode/pause",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "pause"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "{{sessionCode}}"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"TECHNICAL_ISSUE\"\n}"
+                },
+                "description": "Pause session. reason: TECHNICAL_ISSUE | ANNOUNCEMENT | BREAK_INTERVAL | UNPLANNED_DELAY | OTHER. 400 if already paused."
+              },
+              "response": []
+            },
+            {
+              "name": "Resume Session",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{workerToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/:sessionCode/resume",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "resume"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "{{sessionCode}}"
+                    }
+                  ]
+                },
+                "description": "Resume paused session. Adjusts slotBaseSeconds to exclude pause duration. 400 if not paused."
+              },
+              "response": []
+            },
+            {
+              "name": "Override Slot",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{workerToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/:sessionCode/slots/:position/override",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "slots",
+                    ":position",
+                    "override"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "{{sessionCode}}"
+                    },
+                    {
+                      "key": "position",
+                      "value": "0"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"overriddenSpeakerName\": \"Pst John\",\n  \"overriddenTopic\": \"Updated Topic\",\n  \"adjustedAllocatedMinutes\": 20\n}"
+                },
+                "description": "Runtime override for slot at :position (zero-based). All fields optional. Name change is display-only; analytics uses original member FK."
+              },
+              "response": []
+            },
+            {
+              "name": "End Session",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{workerToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/:sessionCode/end",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "end"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "{{sessionCode}}"
+                    }
+                  ]
+                },
+                "description": "End session. Current slot \u2192 COMPLETED, remaining PENDING \u2192 SKIPPED, programme \u2192 COMPLETED. If saveAsTemplate=true, auto-upserts ServiceProgrammeTemplate."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Public & Reporting",
+          "item": [
+            {
+              "name": "Get Session State (Public)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/:sessionCode/state",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "state"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "{{sessionCode}}"
+                    }
+                  ]
+                },
+                "description": "No authentication required. The sessionCode is the access credential. Used by presentation view (media team PC/projector), speaker personal view, and stage manager. Returns Redis anchor + full session data."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"anchor\": {\n    \"currentSlotPosition\": 2,\n    \"slotStartedAt\": 1718000000000,\n    \"slotBaseSeconds\": 0,\n    \"status\": \"LIVE\",\n    \"isPaused\": false,\n    \"pausedAt\": null\n  },\n  \"session\": {\n    \"sessionCode\": \"SVC-ABC123\",\n    \"status\": \"LIVE\",\n    \"programme\": {\n      \"slots\": [\n        {\"position\": 0, \"type\": \"SPEAKER\", \"topic\": \"Opening\", \"allocatedMinutes\": 10},\n        {\"position\": 1, \"type\": \"BREAK\", \"allocatedMinutes\": 5},\n        {\"position\": 2, \"type\": \"SPEAKER\", \"topic\": \"Main Message\", \"allocatedMinutes\": 45}\n      ]\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Speaker Slot (Public)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-session/:sessionCode/slots/:position",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "slots",
+                    ":position"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "SVC-ABC123"
+                    },
+                    {
+                      "key": "position",
+                      "value": "0"
+                    }
+                  ]
+                },
+                "description": "Returns single slot data + current anchor. No auth \u2014 session code is the credential. Used by the speaker view."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Session Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/service-session/:sessionCode/report",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "report"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "{{sessionCode}}"
+                    }
+                  ]
+                },
+                "description": "Full session report. Includes all slots (planned vs actual vs adjusted times), pause log, action log, and member attribution. AdminGuard."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Analytics",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-session/analytics?from=2026-01-01&to=2026-12-31",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    "analytics"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-01-01",
+                      "description": "ISO date filter (inclusive)"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-12-31",
+                      "description": "ISO date filter (inclusive)"
+                    },
+                    {
+                      "key": "serviceSlotName",
+                      "value": "",
+                      "disabled": true,
+                      "description": "Partial match on service slot name"
+                    }
+                  ]
+                },
+                "description": "Admin only. Returns overrun stats, avg slot times per type, per-session breakdown, and top speakers across COMPLETED sessions."
+              },
+              "response": []
+            },
+            {
+              "name": "Download Session Report PDF",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-session/:sessionCode/report/pdf",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    ":sessionCode",
+                    "report",
+                    "pdf"
+                  ],
+                  "variable": [
+                    {
+                      "key": "sessionCode",
+                      "value": "SVC-ABC123"
+                    }
+                  ]
+                },
+                "description": "Returns a PDF file attachment of the session report. Same data as the JSON report endpoint, formatted for printing and sharing at leaders meetings."
+              },
+              "response": []
+            },
+            {
+              "name": "Download Full Event Report PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-session/event/:eventId/report/pdf",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    "event",
+                    ":eventId",
+                    "report",
+                    "pdf"
+                  ],
+                  "variable": [
+                    {
+                      "key": "eventId",
+                      "value": "",
+                      "description": "UUID of the Event"
+                    }
+                  ]
+                },
+                "description": "Download a PDF report covering all service slots for a Sunday event in one document. All sessions must be COMPLETED; returns 400 if any are still live, 404 if none exist. Requires SERVICE_PROGRAMME_READ permission."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Service Headcount",
+      "item": [
+        {
+          "name": "Record Headcount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/service-headcount",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "service-headcount"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceSlotId\": \"{{service_slot_id}}\",\n  \"maleAdults\": 120,\n  \"femaleAdults\": 150,\n  \"teenagers\": 45,\n  \"children\": 30,\n  \"mobileChurch\": 20,\n  \"customGroups\": {},\n  \"notes\": \"First service count\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Correct Headcount",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/service-headcount/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "service-headcount",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{headcount_id}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"maleAdults\": 125,\n  \"notes\": \"Corrected after recount\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Headcounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/service-headcount?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "service-headcount"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "serviceSlotId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Headcount Trends",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/service-headcount/trends?period=weekly",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "service-headcount",
+                "trends"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "weekly"
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "serviceSlotName",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Headcount by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/service-headcount/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "service-headcount",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{headcount_id}}"
+                }
+              ]
+            }
+          }
         }
       ]
     }

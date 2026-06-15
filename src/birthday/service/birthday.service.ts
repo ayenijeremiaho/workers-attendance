@@ -119,7 +119,7 @@ export class BirthdayService {
         const midnight = new Date(now);
         midnight.setHours(24, 0, 0, 0);
         const ttl = Math.ceil((midnight.getTime() - now.getTime()) / 1000);
-        await this.cacheService.set(rateKey, sentToday + 1, ttl);
+        this.cacheService.incr(rateKey, ttl);
 
         return saved;
     }

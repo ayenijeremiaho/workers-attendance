@@ -20,10 +20,10 @@ import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
 import {RolesGuard} from '../../auth/guard/roles.guard';
 import {Roles} from '../../auth/decorator/roles.decorator';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
-import {AttendanceStatusEnum} from '../enums/check-in.enum';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
+import {AdminAttendanceHistoryQueryDto, AttendanceHistoryQueryDto} from '../dto/attendance-history-query.dto';
 
 @Controller('attendances')
 export class AttendanceController {
@@ -46,30 +46,17 @@ export class AttendanceController {
 
     @UseGuards(JwtAuthGuard)
     @Get('my-history')
-    async getMyHistory(
-        @Request() req: any,
-        @Query('page') page = 1,
-        @Query('limit') limit = 10,
-        @Query('status') status?: AttendanceStatusEnum,
-        @Query('dateFrom') dateFrom?: string,
-        @Query('dateTo') dateTo?: string,
-    ) {
-        return this.attendanceService.getMyHistory(req.user, +page, +limit, status, dateFrom, dateTo);
+    async getMyHistory(@Request() req: any, @Query() query: AttendanceHistoryQueryDto) {
+        const {page = 1, limit = 10, status, dateFrom, dateTo} = query;
+        return this.attendanceService.getMyHistory(req.user, page, limit, status, dateFrom, dateTo);
     }
 
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.ATTENDANCE_READ)
     @Get('history')
-    async getAllHistory(
-        @Query('page') page = 1,
-        @Query('limit') limit = 10,
-        @Query('memberId') memberId?: string,
-        @Query('slotId') slotId?: string,
-        @Query('status') status?: AttendanceStatusEnum,
-        @Query('dateFrom') dateFrom?: string,
-        @Query('dateTo') dateTo?: string,
-    ) {
-        return this.attendanceService.getAllHistory(+page, +limit, memberId, slotId, status, dateFrom, dateTo);
+    async getAllHistory(@Query() query: AdminAttendanceHistoryQueryDto) {
+        const {page = 1, limit = 10, memberId, slotId, status, dateFrom, dateTo} = query;
+        return this.attendanceService.getAllHistory(page, limit, memberId, slotId, status, dateFrom, dateTo);
     }
 
     @UseGuards(RolesGuard)

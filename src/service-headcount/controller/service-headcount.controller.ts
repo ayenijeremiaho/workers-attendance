@@ -1,0 +1,56 @@
+import {Body, Controller, Get, Param, Patch, Post, Query, UseGuards} from '@nestjs/common';
+import {AdminGuard} from '../../admin/guard/admin.guard';
+import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
+import {AdminPermission} from '../../admin/enum/admin-permission.enum';
+import {CurrentAdmin} from '../../admin/decorator/current-admin.decorator';
+import {Admin} from '../../admin/entity/admin.entity';
+import {HeadcountPeriod, ServiceHeadcountService} from '../service/service-headcount.service';
+import {CreateServiceHeadcountDto} from '../dto/create-service-headcount.dto';
+import {UpdateServiceHeadcountDto} from '../dto/update-service-headcount.dto';
+
+@Controller('service-headcount')
+@UseGuards(AdminGuard)
+export class ServiceHeadcountController {
+    constructor(private readonly headcountSvc: ServiceHeadcountService) {}
+
+    @Post()
+    @RequiresPermission(AdminPermission.HEADCOUNT_WRITE)
+    create(@Body() dto: CreateServiceHeadcountDto, @CurrentAdmin() admin: Admin) {
+        return this.headcountSvc.create(dto, admin);
+    }
+
+    @Patch(':id')
+    @RequiresPermission(AdminPermission.HEADCOUNT_WRITE)
+    update(@Param('id') id: string, @Body() dto: UpdateServiceHeadcountDto) {
+        return this.headcountSvc.update(id, dto);
+    }
+
+    @Get()
+    @RequiresPermission(AdminPermission.HEADCOUNT_READ)
+    findAll(
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+        @Query('serviceSlotId') serviceSlotId?: string,
+        @Query('from') from?: string,
+        @Query('to') to?: string,
+    ) {
+        return this.headcountSvc.findAll(page ? +page : 1, limit ? +limit : 20, serviceSlotId, from, to);
+    }
+
+    @Get('trends')
+    @RequiresPermission(AdminPermission.HEADCOUNT_READ)
+    getTrends(
+        @Query('period') period?: HeadcountPeriod,
+        @Query('from') from?: string,
+        @Query('to') to?: string,
+        @Query('serviceSlotName') serviceSlotName?: string,
+    ) {
+        return this.headcountSvc.getTrends(period ?? 'weekly', from, to, serviceSlotName);
+    }
+
+    @Get(':id')
+    @RequiresPermission(AdminPermission.HEADCOUNT_READ)
+    findOne(@Param('id') id: string) {
+        return this.headcountSvc.findOne(id);
+    }
+}

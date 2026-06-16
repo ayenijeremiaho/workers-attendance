@@ -44,7 +44,7 @@ export const envValidationSchema = Joi.object({
     CLOUDINARY_API_KEY: Joi.string().required(),
     CLOUDINARY_API_SECRET: Joi.string().required(),
 
-    POSTMAN_URL: Joi.string().uri().default('https://www.postman.com/workers-team/workspace/workers-api-v2/collection/14371233-ef6dd771-a303-4aa9-b861-72fb483fa238?action=share&source=copy-link&creator=14371233'),
+    POSTMAN_URL: Joi.string().uri().default('https://www.postman.com/workers-team/workspace/discovery-hub-api'),
     LOGO_URL: Joi.string().uri().default('https://res.cloudinary.com/dap7jwvms/image/upload/v1781539923/DC_LOGO_aswzgi.png'),
 
     PRODUCT_NAME: Joi.string().default('Discovery Hub'),

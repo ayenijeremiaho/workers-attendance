@@ -69,6 +69,9 @@ import {ServiceHeadcountModule} from './service-headcount/service-headcount.modu
                             ],
                             censor: '[REDACTED]',
                         },
+                        autoLogging: {
+                            ignore: (req: {url?: string}) => req.url === '/v1/health' || req.url === '/health',
+                        },
                         customLogLevel: (_req: unknown, res: {statusCode: number}, err: unknown) => {
                             if (err || res.statusCode >= 500) return 'error';
                             if (res.statusCode >= 400) return 'warn';

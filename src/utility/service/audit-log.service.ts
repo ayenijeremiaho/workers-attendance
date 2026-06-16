@@ -58,6 +58,9 @@ export type AuditAction =
     | 'ADMIN_USER_CREATED'
     | 'ADMIN_USER_UPDATED'
     | 'ADMIN_USER_DEACTIVATED'
+    // Tithe accounts
+    | 'TITHE_ACCOUNT_CREATED'
+    | 'TITHE_ACCOUNT_UPDATED'
     // Tithe
     | 'TITHE_BATCH_QUEUED'
     | 'TITHE_UNMATCHED_RESOLVED'

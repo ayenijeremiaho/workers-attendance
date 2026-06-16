@@ -40,8 +40,8 @@ export class PostEventProcessor {
         @InjectRepository(Attendance)
         private readonly attendanceRepo: Repository<Attendance>,
     ) {
-        this.onlineWindowHours = this.configService.get<number>('ONLINE_CHECKIN_WINDOW_HOURS', 3);
-        this.churchName = this.configService.get<string>('CHURCH_NAME', 'RCCG Discovery Centre');
+        this.onlineWindowHours = this.configService.get<number>('ONLINE_CHECKIN_WINDOW_HOURS');
+        this.churchName = this.configService.get<string>('CHURCH_NAME');
     }
 
     @Process(POST_EVENT_JOB)

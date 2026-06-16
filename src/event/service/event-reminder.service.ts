@@ -1,4 +1,5 @@
 import {BadRequestException, Injectable, Logger, NotFoundException} from '@nestjs/common';
+import {ConfigService} from '@nestjs/config';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {Cron} from '@nestjs/schedule';
@@ -19,6 +20,7 @@ import {WorkerStatusEnum} from '../../member/enums/worker-status.enum';
 @Injectable()
 export class EventReminderService {
     private readonly logger = new Logger(EventReminderService.name);
+    private readonly currencyLocale: string;
 
     constructor(
         @InjectRepository(EventReminder)
@@ -31,7 +33,9 @@ export class EventReminderService {
         private readonly announcementRepo: Repository<Announcement>,
         private readonly utilityService: UtilityService,
         private readonly cacheService: CacheService,
+        private readonly config: ConfigService,
     ) {
+        this.currencyLocale = this.config.get<string>('CURRENCY_LOCALE');
     }
 
     private static readonly LOCK_KEY = 'lock:dispatch-reminders';
@@ -158,7 +162,7 @@ export class EventReminderService {
                 {
                     slot_name: slot.name,
                     time_label: label,
-                    start_time: slot.startTime.toLocaleTimeString('en-NG', {hour: '2-digit', minute: '2-digit'}),
+                    start_time: slot.startTime.toLocaleTimeString(this.currencyLocale, {hour: '2-digit', minute: '2-digit'}),
                 },
             );
         }

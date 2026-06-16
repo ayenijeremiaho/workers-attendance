@@ -1,6 +1,7 @@
-import {Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn} from 'typeorm';
+import {Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn} from 'typeorm';
 import {BaseEntity} from '../../utility/entity/base.entity';
 import {Admin} from '../../admin/entity/admin.entity';
+import {TitheAccount} from './tithe-account.entity';
 import {TitheBatchStatus} from '../enum/tithe.enum';
 import {TitheRow} from '../processor/tithe.processor';
 
@@ -12,6 +13,11 @@ export class TitheUploadBatch extends BaseEntity {
     @ManyToOne(() => Admin, {nullable: false, onDelete: 'RESTRICT'})
     @JoinColumn({name: 'uploaded_by'})
     uploadedBy: Admin;
+
+    @Index()
+    @ManyToOne(() => TitheAccount, {nullable: false, onDelete: 'RESTRICT'})
+    @JoinColumn({name: 'tithe_account_id'})
+    titheAccount: TitheAccount;
 
     @Column({type: 'character varying'})
     fileName: string;

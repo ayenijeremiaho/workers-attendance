@@ -58,7 +58,7 @@ export class DepartmentService {
         private readonly configService: ConfigService,
         private readonly auditLogService: AuditLogService,
     ) {
-        this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS', 300);
+        this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS');
     }
 
     private readonly logger = new Logger(DepartmentService.name);

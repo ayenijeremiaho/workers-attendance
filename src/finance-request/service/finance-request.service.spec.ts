@@ -10,6 +10,7 @@ import {UtilityService} from '../../utility/service/utility.service';
 import {AuditLogService} from '../../utility/service/audit-log.service';
 import {CloudinaryService} from '../../utility/service/cloudinary.service';
 import {ExcelService} from '../../utility/service/excel.service';
+import {ConfigService} from '@nestjs/config';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 import {SessionSurface} from '../../auth/enum/session-surface.enum';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
@@ -47,6 +48,8 @@ const mockAdminRepo = {
 };
 
 const mockAuditLogService = {log: jest.fn()};
+
+const mockConfigService = {get: jest.fn().mockImplementation((_key: string, defaultValue?: string) => defaultValue)};
 
 const mockCloudinaryService = {
     uploadBuffer: jest.fn(),
@@ -106,6 +109,7 @@ describe('FinanceRequestService', () => {
                 {provide: AuditLogService, useValue: mockAuditLogService},
                 {provide: CloudinaryService, useValue: mockCloudinaryService},
                 {provide: ExcelService, useValue: mockExcelService},
+                {provide: ConfigService, useValue: mockConfigService},
             ],
         }).compile();
 

@@ -6,6 +6,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
+import {ConfigService} from '@nestjs/config';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {FinanceCategory} from '../entity/finance-category.entity';
@@ -24,6 +25,8 @@ import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
 @Injectable()
 export class FinanceRequestService {
     private readonly logger = new Logger(FinanceRequestService.name);
+    private readonly currencyCode: string;
+    private readonly currencyLocale: string;
 
     constructor(
         @InjectRepository(FinanceCategory)
@@ -36,7 +39,11 @@ export class FinanceRequestService {
         private readonly auditLogService: AuditLogService,
         private readonly cloudinaryService: CloudinaryService,
         private readonly excelService: ExcelService,
-    ) {}
+        private readonly config: ConfigService,
+    ) {
+        this.currencyCode = this.config.get<string>('CURRENCY_CODE');
+        this.currencyLocale = this.config.get<string>('CURRENCY_LOCALE');
+    }
 
     // ── Categories ────────────────────────────────────────────────────────────
 
@@ -146,7 +153,7 @@ export class FinanceRequestService {
             {header: 'Email', key: 'email', width: 30},
             {header: 'Department', key: 'department', width: 22},
             {header: 'Category', key: 'category', width: 20},
-            {header: 'Amount (NGN)', key: 'amount', width: 18},
+            {header: `Amount (${this.currencyCode})`, key: 'amount', width: 18},
             {header: 'Status', key: 'status', width: 14},
             {header: 'Reason', key: 'reason', width: 40},
             {header: 'Reviewed By', key: 'reviewedBy', width: 24},
@@ -284,7 +291,7 @@ export class FinanceRequestService {
                 'New Finance Request Pending Review',
                 'finance-request-submitted',
                 {
-                    amount: Number(request.amount).toLocaleString('en-NG'),
+                    amount: Number(request.amount).toLocaleString(this.currencyLocale),
                     reason: request.reason,
                     requestId: request.id,
                 },
@@ -314,7 +321,7 @@ export class FinanceRequestService {
             templates[event],
             {
                 name: UtilityService.capitalizeFirstLetter(hod.requestedBy.firstname),
-                amount: Number(request.amount).toLocaleString('en-NG'),
+                amount: Number(request.amount).toLocaleString(this.currencyLocale),
                 reason: request.reason,
                 rejectionReason: request.rejectionReason ?? '',
                 proofUrl: request.proofUrl ?? '',

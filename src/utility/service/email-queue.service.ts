@@ -4,15 +4,25 @@ import {Queue} from 'bull';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as Handlebars from 'handlebars';
+import {ConfigService} from '@nestjs/config';
 import {EmailAttachment, EmailJobData} from '../processor/email.processor';
 
 @Injectable()
 export class EmailQueueService {
     private readonly logger = new Logger(EmailQueueService.name);
+    private readonly brandingData: Record<string, string>;
 
     constructor(
         @InjectQueue('email') private readonly emailQueue: Queue<EmailJobData>,
-    ) {}
+        private readonly config: ConfigService,
+    ) {
+        this.brandingData = {
+            church_name: this.config.get<string>('CHURCH_NAME'),
+            church_address: this.config.get<string>('CHURCH_ADDRESS'),
+            logo_url: this.config.get<string>('LOGO_URL'),
+            product_name: this.config.get<string>('PRODUCT_NAME'),
+        };
+    }
 
     async queueEmail(
         to: string | string[],
@@ -87,6 +97,6 @@ export class EmailQueueService {
     }
 
     private compileTemplate(template: string, data: Record<string, any>): string {
-        return Handlebars.compile(template)(data);
+        return Handlebars.compile(template)({...this.brandingData, ...data});
     }
 }

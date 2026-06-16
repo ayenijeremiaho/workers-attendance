@@ -84,7 +84,7 @@ export class BirthdayService {
             throw new BadRequestException('You cannot send a wish to yourself');
         }
 
-        const dailyLimit = this.configService.get<number>('WISH_DAILY_LIMIT', 20);
+        const dailyLimit = this.configService.get<number>('WISH_DAILY_LIMIT');
         const rateKey = this.cacheService.key('wish_rate', senderId);
         const sentToday = (await this.cacheService.get<number>(rateKey)) ?? 0;
         if (sentToday >= dailyLimit) {

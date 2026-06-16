@@ -82,6 +82,7 @@ describe('AuthService', () => {
 
     beforeEach(async () => {
         jest.clearAllMocks();
+        mockConfigService.get.mockImplementation((_key: string, defaultValue?: string) => defaultValue);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [

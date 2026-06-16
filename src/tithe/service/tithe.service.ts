@@ -1,15 +1,18 @@
 import {
     BadRequestException,
+    ConflictException,
     Injectable,
     Logger,
     NotFoundException,
 } from '@nestjs/common';
+import {ConfigService} from '@nestjs/config';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Between, LessThanOrEqual, MoreThanOrEqual, Repository} from 'typeorm';
 import {InjectQueue} from '@nestjs/bull';
 import {Queue} from 'bull';
 import {Cron} from '@nestjs/schedule';
 import * as ExcelJS from 'exceljs';
+import {TitheAccount} from '../entity/tithe-account.entity';
 import {TitheUploadBatch} from '../entity/tithe-upload-batch.entity';
 import {TitheRecord} from '../entity/tithe-record.entity';
 import {TitheUnmatchedRecord} from '../entity/tithe-unmatched-record.entity';
@@ -17,7 +20,7 @@ import {TitheDisputeRecord} from '../entity/tithe-dispute-record.entity';
 import {TithePaymentProof} from '../entity/tithe-payment-proof.entity';
 import {TitheBatchStatus, TitheDisputeStatus, TitheProofStatus, TitheUnmatchedStatus} from '../enum/tithe.enum';
 import {TITHE_PROCESS_JOB, TITHE_QUEUE, TitheRow} from '../processor/tithe.processor';
-import {SubmitTitheProofDto, DeclineTitheProofDto} from '../dto/tithe.dto';
+import {CreateTitheAccountDto, DeclineTitheProofDto, SubmitTitheProofDto, UpdateTitheAccountDto} from '../dto/tithe.dto';
 import {Admin} from '../../admin/entity/admin.entity';
 import {Member} from '../../member/entity/member.entity';
 import {UtilityService} from '../../utility/service/utility.service';
@@ -32,16 +35,36 @@ import {MemberAuth} from '../../auth/interface/auth.interface';
 
 const TITHE_PROOF_MAX_BYTES = 2 * 1024 * 1024;
 
-function proofExpiryDays(): number {
-    const val = Number.parseInt(process.env.TITHE_PROOF_EXPIRY_DAYS ?? '', 10);
-    return Number.isNaN(val) || val < 1 ? 90 : val;
+
+export interface TitheRecordFilters {
+    memberId?: string;
+    departmentId?: string;
+    fromMonth?: string;
+    toMonth?: string;
+    search?: string;
+    accountId?: string;
+}
+
+export interface TitheAccountSummary {
+    account: TitheAccount;
+    fromMonth?: string;
+    toMonth?: string;
+    bulkTotal: number;
+    bulkCount: number;
+    proofTotal: number;
+    proofCount: number;
+    grandTotal: number;
 }
 
 @Injectable()
 export class TitheService {
     private readonly logger = new Logger(TitheService.name);
+    private readonly currencyLocale: string;
+    private readonly proofExpiryDays: number;
 
     constructor(
+        @InjectRepository(TitheAccount)
+        private readonly accountRepo: Repository<TitheAccount>,
         @InjectRepository(TitheUploadBatch)
         private readonly batchRepo: Repository<TitheUploadBatch>,
         @InjectRepository(TitheRecord)
@@ -64,7 +87,94 @@ export class TitheService {
         private readonly cacheService: CacheService,
         private readonly pdfService: PdfService,
         private readonly excelService: ExcelService,
-    ) {}
+        private readonly config: ConfigService,
+    ) {
+        this.currencyLocale = this.config.get<string>('CURRENCY_LOCALE');
+        this.proofExpiryDays = this.config.get<number>('TITHE_PROOF_EXPIRY_DAYS');
+    }
+
+    // ── Tithe Accounts ────────────────────────────────────────────────────────
+
+    async createAccount(dto: CreateTitheAccountDto, admin: Admin): Promise<TitheAccount> {
+        const existing = await this.accountRepo.findOne({where: {accountNumber: dto.accountNumber, bankName: dto.bankName}});
+        if (existing) throw new ConflictException(`An account with number "${dto.accountNumber}" at "${dto.bankName}" already exists`);
+
+        const account = await this.accountRepo.save(this.accountRepo.create({...dto, isActive: true}));
+        this.auditLogService.log('TITHE_ACCOUNT_CREATED', {actorId: admin.member?.id, metadata: {accountId: account.id, bankName: dto.bankName}});
+        return account;
+    }
+
+    async getAccounts(activeOnly = false): Promise<TitheAccount[]> {
+        return this.accountRepo.find({
+            where: activeOnly ? {isActive: true} : undefined,
+            order: {currency: 'ASC', bankName: 'ASC'},
+        });
+    }
+
+    async updateAccount(id: string, dto: UpdateTitheAccountDto, admin: Admin): Promise<TitheAccount> {
+        const account = await this.accountRepo.findOne({where: {id}});
+        if (!account) throw new NotFoundException('Tithe account not found');
+
+        if (dto.accountNumber && dto.bankName && (dto.accountNumber !== account.accountNumber || dto.bankName !== account.bankName)) {
+            const conflict = await this.accountRepo.findOne({where: {accountNumber: dto.accountNumber, bankName: dto.bankName}});
+            if (conflict && conflict.id !== id) throw new ConflictException(`An account with number "${dto.accountNumber}" at "${dto.bankName}" already exists`);
+        }
+
+        Object.assign(account, dto);
+        const updated = await this.accountRepo.save(account);
+        this.auditLogService.log('TITHE_ACCOUNT_UPDATED', {actorId: admin.member?.id, metadata: {accountId: id}});
+        return updated;
+    }
+
+    async getAccountSummary(accountId: string, fromMonth?: string, toMonth?: string): Promise<TitheAccountSummary> {
+        const account = await this.accountRepo.findOne({where: {id: accountId}});
+        if (!account) throw new NotFoundException('Tithe account not found');
+
+        const fromDate = fromMonth ? `${fromMonth}-01` : undefined;
+        const toDate = toMonth ? this.lastDayOfMonth(toMonth) : undefined;
+
+        const bulkQb = this.recordRepo
+            .createQueryBuilder('r')
+            .innerJoin('r.batch', 'b')
+            .where('b.tithe_account_id = :accountId', {accountId})
+            .select('COALESCE(SUM(r.amount), 0)', 'total')
+            .addSelect('COUNT(r.id)', 'count');
+
+        if (fromDate) bulkQb.andWhere('r.paymentDate >= :fromDate', {fromDate});
+        if (toDate) bulkQb.andWhere('r.paymentDate <= :toDate', {toDate});
+
+        const bulkResult = await bulkQb.getRawOne<{total: string; count: string}>();
+
+        const proofQb = this.proofRepo
+            .createQueryBuilder('p')
+            .where('p.tithe_account_id = :accountId', {accountId})
+            .andWhere('p.status = :status', {status: TitheProofStatus.CONFIRMED})
+            .select('COALESCE(SUM(p.amount), 0)', 'total')
+            .addSelect('COUNT(p.id)', 'count');
+
+        if (fromDate) proofQb.andWhere('p.paymentDate >= :fromDate', {fromDate});
+        if (toDate) proofQb.andWhere('p.paymentDate <= :toDate', {toDate});
+
+        const proofResult = await proofQb.getRawOne<{total: string; count: string}>();
+
+        const bulkTotal = Number(bulkResult?.total ?? 0);
+        const bulkCount = Number(bulkResult?.count ?? 0);
+        const proofTotal = Number(proofResult?.total ?? 0);
+        const proofCount = Number(proofResult?.count ?? 0);
+
+        return {
+            account,
+            fromMonth,
+            toMonth,
+            bulkTotal,
+            bulkCount,
+            proofTotal,
+            proofCount,
+            grandTotal: bulkTotal + proofTotal,
+        };
+    }
+
+    // ── Template & Upload ─────────────────────────────────────────────────────
 
     async getTemplate(): Promise<Buffer> {
         const workbook = new ExcelJS.Workbook();
@@ -86,7 +196,7 @@ export class TitheService {
             ['amount', 'Required. Numeric value only, e.g. 5000 or 1500.50'],
             ['paymentDate', 'Required. Format: YYYY-MM-DD, e.g. 2026-05-01'],
             ['reference', 'Optional. Bank narration or transaction reference.'],
-            ['bankName', 'Optional. Name of the bank the tithe was paid from.'],
+            ['bankName', 'Optional. Name of the bank the tithe was paid from (sender bank).'],
         ];
         instructions.forEach(([col, desc], i) => {
             guide.getCell(`A${i + 2}`).value = col;
@@ -104,7 +214,14 @@ export class TitheService {
         return Buffer.from(buffer);
     }
 
-    async uploadBatch(file: {buffer: Buffer; originalname: string}, admin: Admin): Promise<{batchId: string; totalRows: number}> {
+    async uploadBatch(
+        file: {buffer: Buffer; originalname: string},
+        admin: Admin,
+        titheAccountId: string,
+    ): Promise<{batchId: string; totalRows: number}> {
+        const titheAccount = await this.accountRepo.findOne({where: {id: titheAccountId, isActive: true}});
+        if (!titheAccount) throw new NotFoundException('Tithe account not found or inactive');
+
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(file.buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
         const sheet = workbook.worksheets[0];
@@ -145,6 +262,7 @@ export class TitheService {
         const batch = await this.batchRepo.save(
             this.batchRepo.create({
                 uploadedBy: admin,
+                titheAccount,
                 fileName: file.originalname,
                 status: TitheBatchStatus.PENDING,
                 totalRows: rows.length,
@@ -153,15 +271,15 @@ export class TitheService {
         );
 
         await this.titheQueue.add(TITHE_PROCESS_JOB, {batchId: batch.id, rows}, {attempts: 3, backoff: {type: 'exponential', delay: 5000}, removeOnFail: false});
-        this.auditLogService.log('TITHE_BATCH_QUEUED', {actorId: admin.member?.id, metadata: {batchId: batch.id, rows: rows.length}});
-        this.logger.log(`Tithe batch ${batch.id} queued with ${rows.length} rows`);
+        this.auditLogService.log('TITHE_BATCH_QUEUED', {actorId: admin.member?.id, metadata: {batchId: batch.id, rows: rows.length, accountId: titheAccountId}});
+        this.logger.log(`Tithe batch ${batch.id} queued with ${rows.length} rows for account ${titheAccountId}`);
 
         return {batchId: batch.id, totalRows: rows.length};
     }
 
     async getBatches(page = 1, limit = 20): Promise<PaginationResponseDto<TitheUploadBatch>> {
         const [data, total] = await this.batchRepo.findAndCount({
-            relations: ['uploadedBy', 'uploadedBy.member'],
+            relations: ['uploadedBy', 'uploadedBy.member', 'titheAccount'],
             order: {createdAt: 'DESC'},
             skip: (page - 1) * limit,
             take: limit,
@@ -170,7 +288,7 @@ export class TitheService {
     }
 
     async getBatch(id: string): Promise<TitheUploadBatch> {
-        const batch = await this.batchRepo.findOne({where: {id}, relations: ['uploadedBy', 'uploadedBy.member']});
+        const batch = await this.batchRepo.findOne({where: {id}, relations: ['uploadedBy', 'uploadedBy.member', 'titheAccount']});
         if (!batch) throw new NotFoundException('Upload batch not found');
         return batch;
     }
@@ -189,7 +307,7 @@ export class TitheService {
         const where = status ? {status} : {status: TitheUnmatchedStatus.PENDING};
         const [data, total] = await this.unmatchedRepo.findAndCount({
             where,
-            relations: ['batch', 'matchedMember'],
+            relations: ['batch', 'batch.titheAccount', 'matchedMember'],
             order: {createdAt: 'DESC'},
             skip: (page - 1) * limit,
             take: limit,
@@ -240,7 +358,7 @@ export class TitheService {
         const where = status ? {status} : {status: TitheDisputeStatus.PENDING};
         const [data, total] = await this.disputeRepo.findAndCount({
             where,
-            relations: ['member', 'existingRecord', 'batch'],
+            relations: ['member', 'existingRecord', 'batch', 'batch.titheAccount'],
             order: {createdAt: 'DESC'},
             skip: (page - 1) * limit,
             take: limit,
@@ -289,6 +407,7 @@ export class TitheService {
     async getMyTithes(user: MemberAuth, page = 1, limit = 20): Promise<PaginationResponseDto<TitheRecord>> {
         const [data, total] = await this.recordRepo.findAndCount({
             where: {member: {id: user.id}},
+            relations: ['batch', 'batch.titheAccount'],
             order: {paymentDate: 'DESC'},
             skip: (page - 1) * limit,
             take: limit,
@@ -329,22 +448,29 @@ export class TitheService {
 
     // ── Tithe Payment Proofs ──────────────────────────────────────────────────
 
-    async submitProof(user: MemberAuth, dto: SubmitTitheProofDto, file: {buffer: Buffer; originalname: string; size: number}): Promise<TithePaymentProof> {
+    async submitProof(
+        user: MemberAuth,
+        dto: SubmitTitheProofDto,
+        file: {buffer: Buffer; originalname: string; size: number},
+    ): Promise<TithePaymentProof> {
         if (file.size > TITHE_PROOF_MAX_BYTES) {
             throw new BadRequestException(`Proof file must not exceed ${TITHE_PROOF_MAX_BYTES / (1024 * 1024)}MB`);
         }
 
+        const titheAccount = await this.accountRepo.findOne({where: {id: dto.titheAccountId, isActive: true}});
+        if (!titheAccount) throw new NotFoundException('Tithe account not found or inactive');
+
         const uploaded = await this.cloudinaryService.uploadBuffer(file.buffer, 'tithe-proofs', `${user.id}-${Date.now()}`);
 
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + proofExpiryDays());
+        expiresAt.setDate(expiresAt.getDate() + this.proofExpiryDays);
 
         const proof = await this.proofRepo.save(
             this.proofRepo.create({
                 member: {id: user.id},
+                titheAccount,
                 amount: dto.amount,
                 paymentDate: dto.paymentDate,
-                bankName: dto.bankName ?? null,
                 reference: dto.reference ?? null,
                 proofUrl: uploaded.secureUrl,
                 publicId: uploaded.publicId,
@@ -354,8 +480,8 @@ export class TitheService {
             }),
         );
 
-        this.auditLogService.log('TITHE_PROOF_SUBMITTED', {actorId: user.id, metadata: {proofId: proof.id, amount: dto.amount}});
-        this.notifyFinanceTeam(proof).catch((err) => this.logger.error(`Finance team proof notification failed: ${err.message}`));
+        this.auditLogService.log('TITHE_PROOF_SUBMITTED', {actorId: user.id, metadata: {proofId: proof.id, amount: dto.amount, accountId: titheAccount.id}});
+        this.notifyFinanceTeam(proof, titheAccount).catch((err) => this.logger.error(`Finance team proof notification failed: ${err.message}`));
 
         return proof;
     }
@@ -363,6 +489,7 @@ export class TitheService {
     async getMyProofs(user: MemberAuth, page = 1, limit = 20): Promise<PaginationResponseDto<TithePaymentProof>> {
         const [data, total] = await this.proofRepo.findAndCount({
             where: {member: {id: user.id}},
+            relations: ['titheAccount'],
             order: {createdAt: 'DESC'},
             skip: (page - 1) * limit,
             take: limit,
@@ -373,7 +500,7 @@ export class TitheService {
     async getAllProofs(page = 1, limit = 20, status?: TitheProofStatus): Promise<PaginationResponseDto<TithePaymentProof>> {
         const [data, total] = await this.proofRepo.findAndCount({
             where: status ? {status} : undefined,
-            relations: ['member', 'reviewedBy', 'reviewedBy.member'],
+            relations: ['member', 'titheAccount', 'reviewedBy', 'reviewedBy.member'],
             order: {createdAt: 'DESC'},
             skip: (page - 1) * limit,
             take: limit,
@@ -382,7 +509,7 @@ export class TitheService {
     }
 
     async confirmProof(id: string, actorAdmin: Admin): Promise<void> {
-        const proof = await this.proofRepo.findOne({where: {id, status: TitheProofStatus.PENDING}, relations: ['member']});
+        const proof = await this.proofRepo.findOne({where: {id, status: TitheProofStatus.PENDING}, relations: ['member', 'titheAccount']});
         if (!proof) throw new NotFoundException('Pending proof not found');
 
         proof.status = TitheProofStatus.CONFIRMED;
@@ -391,16 +518,17 @@ export class TitheService {
         await this.proofRepo.save(proof);
 
         this.auditLogService.log('TITHE_PROOF_CONFIRMED', {actorId: actorAdmin.member?.id, metadata: {proofId: id}});
+        const formattedAmount = `${proof.titheAccount.currency} ${Number(proof.amount).toLocaleString(this.currencyLocale)}`;
         this.utilityService.sendEmailWithTemplate(
             proof.member.email,
             'Your Tithe Payment Has Been Confirmed',
             'tithe-proof-confirmed',
-            {name: UtilityService.capitalizeFirstLetter(proof.member.firstname), amount: Number(proof.amount).toLocaleString('en-NG'), paymentDate: proof.paymentDate},
+            {name: UtilityService.capitalizeFirstLetter(proof.member.firstname), amount: formattedAmount, paymentDate: proof.paymentDate},
         );
     }
 
     async declineProof(id: string, dto: DeclineTitheProofDto, actorAdmin: Admin): Promise<void> {
-        const proof = await this.proofRepo.findOne({where: {id, status: TitheProofStatus.PENDING}, relations: ['member']});
+        const proof = await this.proofRepo.findOne({where: {id, status: TitheProofStatus.PENDING}, relations: ['member', 'titheAccount']});
         if (!proof) throw new NotFoundException('Pending proof not found');
 
         proof.status = TitheProofStatus.DECLINED;
@@ -410,11 +538,12 @@ export class TitheService {
         await this.proofRepo.save(proof);
 
         this.auditLogService.log('TITHE_PROOF_DECLINED', {actorId: actorAdmin.member?.id, metadata: {proofId: id, note: dto.financeNote}});
+        const formattedAmount = `${proof.titheAccount.currency} ${Number(proof.amount).toLocaleString(this.currencyLocale)}`;
         this.utilityService.sendEmailWithTemplate(
             proof.member.email,
             'Update on Your Tithe Payment Submission',
             'tithe-proof-declined',
-            {name: UtilityService.capitalizeFirstLetter(proof.member.firstname), amount: Number(proof.amount).toLocaleString('en-NG'), paymentDate: proof.paymentDate, financeNote: dto.financeNote},
+            {name: UtilityService.capitalizeFirstLetter(proof.member.firstname), amount: formattedAmount, paymentDate: proof.paymentDate, financeNote: dto.financeNote},
         );
     }
 
@@ -441,63 +570,50 @@ export class TitheService {
         }
     }
 
-    async getAdminRecords(
-        page = 1,
-        limit = 20,
-        memberId?: string,
-        departmentId?: string,
-        fromMonth?: string,
-        toMonth?: string,
-        search?: string,
-    ): Promise<PaginationResponseDto<TitheRecord>> {
-        const qb = this.buildRecordsQb(memberId, departmentId, fromMonth, toMonth, search);
+    async getAdminRecords(page = 1, limit = 20, filters: TitheRecordFilters = {}): Promise<PaginationResponseDto<TitheRecord>> {
+        const qb = this.buildRecordsQb(filters);
         const [data, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
         return UtilityService.createPaginationResponse(data, page, limit, total);
     }
 
-    async getAdminRecordsExcel(
-        memberId?: string,
-        departmentId?: string,
-        fromMonth?: string,
-        toMonth?: string,
-        search?: string,
-    ): Promise<Buffer> {
-        const records = await this.buildRecordsQb(memberId, departmentId, fromMonth, toMonth, search).getMany();
+    async getAdminRecordsExcel(filters: TitheRecordFilters = {}): Promise<Buffer> {
+        const records = await this.buildRecordsQb(filters).getMany();
         return this.excelService.buildWorkbook('Tithe Records', [
             {header: 'Member Name', key: 'memberName', width: 28},
             {header: 'Email', key: 'email', width: 32},
-            {header: 'Amount (NGN)', key: 'amount', width: 18},
+            {header: 'Account', key: 'account', width: 24},
+            {header: 'Currency', key: 'currency', width: 12},
+            {header: 'Amount', key: 'amount', width: 18},
             {header: 'Payment Date', key: 'paymentDate', width: 16},
-            {header: 'Bank', key: 'bank', width: 22},
+            {header: 'Sender Bank', key: 'senderBank', width: 22},
             {header: 'Reference', key: 'reference', width: 30},
         ], records.map((r) => ({
             memberName: `${r.member.firstname} ${r.member.lastname}`,
             email: r.member.email,
+            account: r.batch?.titheAccount?.bankName ?? '',
+            currency: r.batch?.titheAccount?.currency ?? '',
             amount: Number(r.amount),
             paymentDate: r.paymentDate,
-            bank: r.bankName ?? '',
+            senderBank: r.bankName ?? '',
             reference: r.reference ?? '',
         })));
     }
 
-    private buildRecordsQb(
-        memberId?: string,
-        departmentId?: string,
-        fromMonth?: string,
-        toMonth?: string,
-        search?: string,
-    ) {
+    private buildRecordsQb({memberId, departmentId, fromMonth, toMonth, search, accountId}: TitheRecordFilters) {
         const qb = this.recordRepo
             .createQueryBuilder('r')
             .leftJoinAndSelect('r.member', 'member')
             .leftJoinAndSelect('member.workerProfile', 'wp')
             .leftJoinAndSelect('wp.department', 'dept')
+            .leftJoinAndSelect('r.batch', 'batch')
+            .leftJoinAndSelect('batch.titheAccount', 'titheAccount')
             .orderBy('r.paymentDate', 'DESC');
 
         if (memberId) qb.andWhere('member.id = :memberId', {memberId});
         if (departmentId) qb.andWhere('dept.id = :departmentId', {departmentId});
         if (fromMonth) qb.andWhere('r.paymentDate >= :fromDate', {fromDate: `${fromMonth}-01`});
         if (toMonth) qb.andWhere('r.paymentDate <= :toDate', {toDate: this.lastDayOfMonth(toMonth)});
+        if (accountId) qb.andWhere('titheAccount.id = :accountId', {accountId});
         if (search) {
             qb.andWhere(
                 '(LOWER(member.firstname) LIKE :s OR LOWER(member.lastname) LIKE :s OR LOWER(member.email) LIKE :s)',
@@ -513,7 +629,7 @@ export class TitheService {
         return new Date(year, month, 0).toISOString().slice(0, 10);
     }
 
-    private async notifyFinanceTeam(proof: TithePaymentProof): Promise<void> {
+    private async notifyFinanceTeam(proof: TithePaymentProof, account: TitheAccount): Promise<void> {
         const admins = await this.adminRepo
             .createQueryBuilder('a')
             .leftJoinAndSelect('a.member', 'm')
@@ -526,12 +642,14 @@ export class TitheService {
             .map((a) => a.member?.email)
             .filter((e): e is string => !!e);
 
+        const formattedAmount = `${account.currency} ${Number(proof.amount).toLocaleString(this.currencyLocale)}`;
+
         for (const email of recipients) {
             this.utilityService.sendEmailWithTemplate(
                 email,
                 'New Tithe Payment Proof Submitted',
                 'tithe-proof-submitted',
-                {amount: Number(proof.amount).toLocaleString('en-NG'), paymentDate: proof.paymentDate, proofId: proof.id},
+                {amount: formattedAmount, paymentDate: proof.paymentDate, proofId: proof.id, accountName: account.accountName, bankName: account.bankName},
             );
         }
     }

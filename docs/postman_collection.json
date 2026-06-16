@@ -5680,6 +5680,78 @@
       "name": "Tithes (Admin)",
       "item": [
         {
+          "name": "Create Tithe Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankName\": \"GTBank\",\n  \"accountNumber\": \"0123456789\",\n  \"accountName\": \"Discovery Centre Tithes\",\n  \"currency\": \"NGN\",\n  \"description\": \"Primary NGN tithe account\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tithes", "accounts"]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Creates a new tithe bank account. 409 if (accountNumber, bankName) pair already exists. currency must be a 3-character ISO 4217 code."
+          }
+        },
+        {
+          "name": "List Tithe Accounts (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tithes", "accounts"]
+            },
+            "description": "AdminGuard (FINANCE_READ). Returns all tithe accounts (active and inactive), ordered by currency ASC, bankName ASC."
+          }
+        },
+        {
+          "name": "Update Tithe Account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/accounts/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tithes", "accounts", ":id"],
+              "variable": [{"key": "id", "value": ""}]
+            },
+            "description": "AdminGuard (FINANCE_WRITE). Updates a tithe account. All fields optional. 409 if the new (accountNumber, bankName) pair conflicts with an existing account."
+          }
+        },
+        {
+          "name": "Get Tithe Account Summary",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/accounts/:id/summary?fromMonth=2026-01&toMonth=2026-06",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tithes", "accounts", ":id", "summary"],
+              "variable": [{"key": "id", "value": ""}],
+              "query": [
+                {"key": "fromMonth", "value": "2026-01", "description": "Start month (YYYY-MM, optional).", "disabled": true},
+                {"key": "toMonth", "value": "2026-06", "description": "End month (YYYY-MM, optional).", "disabled": true}
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Returns aggregate totals for a single tithe account: bulkTotal + bulkCount (from bulk upload records), proofTotal + proofCount (from confirmed proofs), and grandTotal."
+          }
+        },
+        {
           "name": "List Tithe Records (Admin)",
           "request": {
             "method": "GET",
@@ -5695,10 +5767,11 @@
                 {"key": "departmentId", "value": "", "disabled": true},
                 {"key": "fromMonth", "value": "2026-01", "disabled": true},
                 {"key": "toMonth", "value": "2026-06", "disabled": true},
-                {"key": "search", "value": "", "disabled": true}
+                {"key": "search", "value": "", "disabled": true},
+                {"key": "accountId", "value": "", "disabled": true, "description": "Filter to a specific TitheAccount UUID"}
               ]
             },
-            "description": "AdminGuard (FINANCE_READ). Returns paginated confirmed tithe records. Filters: memberId, departmentId, fromMonth (YYYY-MM), toMonth (YYYY-MM), search (wildcard on name/email)."
+            "description": "AdminGuard (FINANCE_READ). Returns paginated confirmed tithe records. Filters: memberId, departmentId, fromMonth (YYYY-MM), toMonth (YYYY-MM), search (wildcard on name/email), accountId (UUID)."
           }
         },
         {
@@ -5715,10 +5788,11 @@
                 {"key": "departmentId", "value": "", "disabled": true},
                 {"key": "fromMonth", "value": "2026-01", "disabled": true},
                 {"key": "toMonth", "value": "2026-06", "disabled": true},
-                {"key": "search", "value": "", "disabled": true}
+                {"key": "search", "value": "", "disabled": true},
+                {"key": "accountId", "value": "", "disabled": true, "description": "Filter to a specific TitheAccount UUID"}
               ]
             },
-            "description": "AdminGuard (FINANCE_READ). Downloads all matching tithe records as tithe-records.xlsx. Supports same filters as the list endpoint; no pagination — all matching rows are included."
+            "description": "AdminGuard (FINANCE_READ). Downloads all matching tithe records as tithe-records.xlsx. Columns: Member Name, Email, Account, Currency, Amount, Payment Date, Sender Bank, Reference. Supports same filters as the list endpoint (including accountId); no pagination."
           }
         },
         {
@@ -5762,7 +5836,13 @@
                   "key": "file",
                   "type": "file",
                   "src": "",
-                  "description": "Excel .xlsx file with columns: Email, Amount, Payment Date (YYYY-MM-DD), Reference (optional), Bank Name (optional)"
+                  "description": "Excel .xlsx file with columns: Email, Amount, Payment Date (YYYY-MM-DD), Reference (optional), Bank Name (optional — sender's bank, not destination)"
+                },
+                {
+                  "key": "titheAccountId",
+                  "value": "",
+                  "type": "text",
+                  "description": "UUID of the TitheAccount all records in this batch will be credited to. Required."
                 }
               ]
             },
@@ -5777,7 +5857,7 @@
                 "upload"
               ]
             },
-            "description": "AdminGuard (FINANCE_WRITE). Validates headers synchronously; dispatches processing to Bull queue. Returns the created TitheUploadBatch."
+            "description": "AdminGuard (FINANCE_WRITE). Requires titheAccountId (UUID of an active TitheAccount). Validates Excel headers synchronously; dispatches processing to Bull queue. Returns the created TitheUploadBatch."
           }
         },
         {
@@ -6217,6 +6297,19 @@
       "name": "Tithes (Member)",
       "item": [
         {
+          "name": "List Active Tithe Accounts",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/tithes/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["tithes", "accounts"]
+            },
+            "description": "JwtAuthGuard. Returns all active tithe bank accounts ordered by currency ASC, bankName ASC. Members select an account when submitting tithe proof."
+          }
+        },
+        {
           "name": "My Tithe Records",
           "request": {
             "method": "GET",
@@ -6307,6 +6400,12 @@
                   "description": "Receipt image or PDF. Max 2 MB."
                 },
                 {
+                  "key": "titheAccountId",
+                  "value": "",
+                  "type": "text",
+                  "description": "UUID of the TitheAccount the payment was sent to. Fetch active accounts from GET /tithes/accounts."
+                },
+                {
                   "key": "amount",
                   "value": "10000",
                   "type": "text"
@@ -6314,11 +6413,6 @@
                 {
                   "key": "paymentDate",
                   "value": "2026-06-10",
-                  "type": "text"
-                },
-                {
-                  "key": "bankName",
-                  "value": "GTB",
                   "type": "text"
                 },
                 {
@@ -6338,7 +6432,7 @@
                 "proof"
               ]
             },
-            "description": "JwtAuthGuard. Upload a tithe payment proof (multipart, field: file, max 2 MB). Creates a TithePaymentProof with status PENDING. Finance team is notified by email."
+            "description": "JwtAuthGuard. Upload a tithe payment proof (multipart, field: file, max 2 MB). Required body fields: titheAccountId (UUID of the account paid into), amount, paymentDate (YYYY-MM-DD). Optional: reference. Creates a TithePaymentProof with status PENDING. Finance team is notified by email."
           }
         },
         {

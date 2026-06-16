@@ -47,8 +47,8 @@ export class FollowUpService {
         @InjectRepository(WorkerProfile)
         private readonly workerProfileRepo: Repository<WorkerProfile>,
     ) {
-        this.followUpDueDays = this.configService.get<number>('FOLLOW_UP_DUE_DAYS', 3);
-        this.churchName = this.configService.get<string>('CHURCH_NAME', 'RCCG Discovery Centre');
+        this.followUpDueDays = this.configService.get<number>('FOLLOW_UP_DUE_DAYS');
+        this.churchName = this.configService.get<string>('CHURCH_NAME');
     }
 
     private readonly logger = new Logger(FollowUpService.name);

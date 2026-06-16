@@ -154,7 +154,7 @@ export class AdminService {
 
     private sendAdminWelcomeEmail(email: string, firstname: string): void {
         const name = UtilityService.capitalizeFirstLetter(firstname ?? 'Admin');
-        const loginUrl = this.configService.get<string>('ADMIN_LOGIN_URL', '');
+        const loginUrl = this.configService.get<string>('ADMIN_LOGIN_URL');
         this.utilityService.sendEmailWithTemplate(
             email,
             'Your Admin Account Has Been Created',

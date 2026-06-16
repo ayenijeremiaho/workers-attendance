@@ -43,6 +43,7 @@ export class AuthService {
     private readonly loginWindowSeconds: number;
     private readonly deviceResetMaxAttempts: number;
     private readonly deviceResetWindowSeconds: number;
+    private readonly timezone: string;
 
     constructor(
         private readonly jwtService: JwtService,
@@ -60,13 +61,14 @@ export class AuthService {
         @InjectRepository(DeviceResetOtp)
         private readonly deviceResetOtpRepository: Repository<DeviceResetOtp>,
     ) {
-        this.otpTtlSeconds = this.configService.get<number>('OTP_TTL_SECONDS', 900);
-        this.otpMaxAttempts = this.configService.get<number>('FORGOT_PASSWORD_MAX_ATTEMPTS', 3);
-        this.otpWindowSeconds = this.configService.get<number>('FORGOT_PASSWORD_WINDOW_SECONDS', 3600);
-        this.loginMaxAttempts = this.configService.get<number>('LOGIN_MAX_ATTEMPTS', 5);
-        this.loginWindowSeconds = this.configService.get<number>('LOGIN_WINDOW_SECONDS', 900);
-        this.deviceResetMaxAttempts = this.configService.get<number>('DEVICE_RESET_MAX_ATTEMPTS', 3);
-        this.deviceResetWindowSeconds = this.configService.get<number>('DEVICE_RESET_WINDOW_SECONDS', 86400);
+        this.otpTtlSeconds = this.configService.get<number>('OTP_TTL_SECONDS');
+        this.otpMaxAttempts = this.configService.get<number>('FORGOT_PASSWORD_MAX_ATTEMPTS');
+        this.otpWindowSeconds = this.configService.get<number>('FORGOT_PASSWORD_WINDOW_SECONDS');
+        this.loginMaxAttempts = this.configService.get<number>('LOGIN_MAX_ATTEMPTS');
+        this.loginWindowSeconds = this.configService.get<number>('LOGIN_WINDOW_SECONDS');
+        this.deviceResetMaxAttempts = this.configService.get<number>('DEVICE_RESET_MAX_ATTEMPTS');
+        this.deviceResetWindowSeconds = this.configService.get<number>('DEVICE_RESET_WINDOW_SECONDS');
+        this.timezone = this.configService.get<string>('TIMEZONE');
     }
 
     async validateMember(email: string, password: string): Promise<MemberAuth> {
@@ -138,7 +140,7 @@ export class AuthService {
         this.auditLogService.log('MEMBER_LOGIN', {targetId: user.id});
 
         const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
-        const loginTime = new Date().toLocaleString('en-GB', {timeZone: 'Africa/Lagos'});
+        const loginTime = new Date().toLocaleString('en-GB', {timeZone: this.timezone});
         this.utilityService.sendEmailWithTemplate(
             member.email,
             `${firstName}, New Discovery Hub Login Detected`,

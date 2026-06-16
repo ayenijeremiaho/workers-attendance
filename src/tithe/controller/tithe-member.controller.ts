@@ -11,6 +11,11 @@ const TITHE_PROOF_MAX_BYTES = 2 * 1024 * 1024;
 export class TitheMemberController {
     constructor(private readonly titheService: TitheService) {}
 
+    @Get('accounts')
+    getAccounts() {
+        return this.titheService.getAccounts(true);
+    }
+
     @Get('me')
     getMyTithes(
         @Request() req: any,

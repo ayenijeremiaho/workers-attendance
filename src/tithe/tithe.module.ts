@@ -1,6 +1,7 @@
 import {Module} from '@nestjs/common';
 import {TypeOrmModule} from '@nestjs/typeorm';
 import {BullModule} from '@nestjs/bull';
+import {TitheAccount} from './entity/tithe-account.entity';
 import {TitheUploadBatch} from './entity/tithe-upload-batch.entity';
 import {TitheRecord} from './entity/tithe-record.entity';
 import {TitheUnmatchedRecord} from './entity/tithe-unmatched-record.entity';
@@ -17,7 +18,7 @@ import {Member} from '../member/entity/member.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([TitheUploadBatch, TitheRecord, TitheUnmatchedRecord, TitheDisputeRecord, TithePaymentProof, Member, Admin]),
+        TypeOrmModule.forFeature([TitheAccount, TitheUploadBatch, TitheRecord, TitheUnmatchedRecord, TitheDisputeRecord, TithePaymentProof, Member, Admin]),
         BullModule.registerQueue({name: TITHE_QUEUE}),
         UtilityModule,
         AdminModule,

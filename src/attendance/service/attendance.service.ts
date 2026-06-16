@@ -67,11 +67,11 @@ export class AttendanceService {
         @InjectRepository(ServiceSlot)
         private readonly slotRepository: Repository<ServiceSlot>,
     ) {
-        this.leaderboardTtl = this.configService.get<number>('CACHE_TTL_LEADERBOARD_SECONDS', 90);
-        this.productName = this.configService.get<string>('PRODUCT_NAME', 'Discovery Hub');
-        this.churchName = this.configService.get<string>('CHURCH_NAME', 'RCCG Discovery Centre');
-        this.churchAddress = this.configService.get<string>('CHURCH_ADDRESS', '62 Igi Olugbin Street, Bariga. Lagos, Nigeria');
-        this.enforceDistanceCheck = this.configService.get<string>('ENFORCE_DISTANCE_CHECK') === 'true';
+        this.leaderboardTtl = this.configService.get<number>('CACHE_TTL_LEADERBOARD_SECONDS');
+        this.productName = this.configService.get<string>('PRODUCT_NAME');
+        this.churchName = this.configService.get<string>('CHURCH_NAME');
+        this.churchAddress = this.configService.get<string>('CHURCH_ADDRESS');
+        this.enforceDistanceCheck = this.configService.get<boolean>('ENFORCE_DISTANCE_CHECK');
     }
 
     async checkin(user: MemberAuth, dto: CheckInDto): Promise<{ message: string }> {
@@ -343,7 +343,7 @@ export class AttendanceService {
             throw new BadRequestException('Online attendance is not enabled for this event');
         }
 
-        const windowHours = this.configService.get<number>('ONLINE_CHECKIN_WINDOW_HOURS', 3);
+        const windowHours = this.configService.get<number>('ONLINE_CHECKIN_WINDOW_HOURS');
         if (!event.onlineNotificationSentAt) {
             throw new BadRequestException('Online attendance window has not opened yet');
         }

@@ -527,14 +527,31 @@ One check-in/check-out record per child per session.
 | checkedInBy      | Member \| null         | ManyToOne, nullable — staff member who performed the check-in |
 | flagReason       | string \| null         | Reason if status = FLAGGED                                    |
 
+### TitheAccount
+
+Finance-team-managed list of bank accounts members can pay tithes into. Each account carries its own currency so the church can accept payments in multiple currencies (e.g. NGN, USD).
+
+| Field         | Type    | Notes                                                        |
+|---------------|---------|--------------------------------------------------------------|
+| id            | UUID    | PK                                                           |
+| bankName      | string  |                                                              |
+| accountNumber | string  | Indexed                                                      |
+| accountName   | string  |                                                              |
+| currency      | string  | ISO 4217 code (3 chars). Indexed.                            |
+| description   | string \| null | Optional note shown to members                        |
+| isActive      | boolean | Default `true`. Inactive accounts are hidden from members. Indexed. |
+
+**Indexes:** `idx_tithe_accounts_account_number`, `idx_tithe_accounts_currency`, `idx_tithe_accounts_is_active`.
+
 ### TitheUploadBatch
 
-A batch record created when the finance team uploads an Excel file of tithe payments.
+A batch record created when the finance team uploads an Excel file of tithe payments. Each batch is tied to a specific `TitheAccount`, so all records in the batch are credited to that account.
 
 | Field         | Type               | Notes                                            |
 |---------------|--------------------|--------------------------------------------------|
 | id            | UUID               | PK                                               |
 | uploadedBy    | Admin              | ManyToOne                                        |
+| titheAccount  | TitheAccount       | ManyToOne (non-nullable, RESTRICT)               |
 | fileName      | string             |                                                  |
 | status        | TitheBatchStatus   | PENDING \| PROCESSING \| COMPLETED \| FAILED     |
 | totalRows     | int                | Total rows in the spreadsheet                    |
@@ -557,9 +574,9 @@ A confirmed tithe payment matched to a member.
 | amount      | decimal (12,2)  |                               |
 | paymentDate | date    |                                        |
 | reference   | string \| null | Optional bank reference        |
-| bankName    | string \| null | Optional bank name             |
+| bankName    | string \| null | Sender's bank from the CSV column — not the destination account |
 
-**Duplicate detection:** `(memberId, paymentDate, amount)` — if all three match an existing record, the row is flagged as a dispute instead.
+**Duplicate detection:** `(memberId, paymentDate, amount)` — if all three match an existing record, the row is flagged as a dispute instead. The destination bank account is inherited from the batch's `titheAccount`.
 
 ### TitheUnmatchedRecord
 
@@ -604,10 +621,10 @@ A member-submitted proof of tithe payment awaiting finance-team review. Files ar
 | Field        | Type             | Notes                                                 |
 |--------------|------------------|-------------------------------------------------------|
 | id           | UUID             | PK                                                    |
-| member       | Member           | ManyToOne                                             |
+| member       | Member           | ManyToOne. Indexed.                                   |
+| titheAccount | TitheAccount     | ManyToOne (non-nullable, RESTRICT). Indexed.          |
 | amount       | decimal (12,2)   |                                                       |
-| paymentDate  | date             |                                                       |
-| bankName     | string \| null   |                                                       |
+| paymentDate  | date             | Indexed.                                              |
 | reference    | string \| null   |                                                       |
 | proofUrl     | string           | Cloudinary secure URL                                 |
 | publicId     | string           | Cloudinary public ID (used for deletion)              |
@@ -1204,26 +1221,41 @@ a staff member has opened the window on the session.
 
 ### Tithe Module
 
-Enables the finance team to upload Excel tithe payment sheets and lets members view and download their own tithe
-records.
+Enables the finance team to manage bank accounts, upload Excel tithe payment sheets, and review member proof submissions. Members can view their own records, request PDF statements, and submit proof of offline payments.
+
+**Account management:** The finance team maintains a list of tithe bank accounts (`TitheAccount`) — one per physical bank account. Each account has its own currency (ISO 4217), enabling the church to accept NGN, USD, and any other currency simultaneously. Members and workers can browse active accounts at `GET /tithes/accounts`. Admins manage accounts via:
+
+| Method | Route | Permission | Notes |
+|--------|-------|------------|-------|
+| `POST` | `/admin/tithes/accounts` | `FINANCE_WRITE` | Create account. 409 if `(accountNumber, bankName)` already exists. |
+| `GET` | `/admin/tithes/accounts` | `FINANCE_READ` | Lists all accounts (active and inactive), ordered by `currency ASC, bankName ASC`. |
+| `PATCH` | `/admin/tithes/accounts/:id` | `FINANCE_WRITE` | Update account details. |
+| `GET` | `/admin/tithes/accounts/:id/summary` | `FINANCE_READ` | Aggregate totals for one account. See below. |
+
+**Account summary (`GET /admin/tithes/accounts/:id/summary`):** Accepts optional `fromMonth` / `toMonth` (`YYYY-MM`) query params and returns:
+```json
+{
+  "account": { "...": "TitheAccount fields" },
+  "fromMonth": "2026-01",
+  "toMonth": "2026-06",
+  "bulkTotal": 500000,
+  "bulkCount": 45,
+  "proofTotal": 75000,
+  "proofCount": 8,
+  "grandTotal": 575000
+}
+```
+`bulkTotal`/`bulkCount` aggregate confirmed `TitheRecord` rows whose batch is linked to this account. `proofTotal`/`proofCount` aggregate `CONFIRMED` `TithePaymentProof` rows linked directly to this account.
 
 **Upload flow:**
-1. Finance admin uploads `.xlsx` via `POST /admin/tithes/upload` (multipart, field name `file`).
-2. Service validates required columns (`Email`, `Amount`, `Payment Date`) and returns 400 immediately for invalid files.
-3. A `TitheUploadBatch` record is created (with the parsed rows stored as JSONB for safe requeue) and a Bull job
-   (`tithe` queue, `process-batch` job) is dispatched with `attempts: 3, removeOnFail: false`.
-4. The processor runs asynchronously inside a **database transaction**: matches each row to a member by email
-   (case-insensitive), creates `TitheRecord` for matches, `TitheUnmatchedRecord` for no-match rows, and
-   `TitheDisputeRecord` for rows that duplicate an existing record by `(memberId, paymentDate, amount)`.
-   The transaction ensures idempotent retries — a mid-batch failure rolls back all inserts so the next attempt
-   starts from a clean slate.
+1. Finance admin selects a `TitheAccount` and uploads `.xlsx` via `POST /admin/tithes/upload` (multipart, field name `file`; body field `titheAccountId`).
+2. Service validates that the account exists and is active, validates required columns (`Email`, `Amount`, `Payment Date`), and returns 400 immediately for invalid input.
+3. A `TitheUploadBatch` record is created (linked to the account, with parsed rows stored as JSONB for safe requeue) and a Bull job (`tithe` queue, `process-batch` job) is dispatched with `attempts: 3, removeOnFail: false`.
+4. The processor runs asynchronously inside a **database transaction**: matches each row to a member by email (case-insensitive), creates `TitheRecord` for matches, `TitheUnmatchedRecord` for no-match rows, and `TitheDisputeRecord` for rows that duplicate an existing record by `(memberId, paymentDate, amount)`. The transaction ensures idempotent retries — a mid-batch failure rolls back all inserts so the next attempt starts from a clean slate.
 
-**Failed batch requeue:** If a batch reaches `FAILED` status, a finance admin can requeue it via
-`POST /admin/tithes/batches/:id/requeue`. The stored `rows` JSONB field is used to reconstruct the job without
-re-uploading the file.
+**Failed batch requeue:** If a batch reaches `FAILED` status, a finance admin can requeue it via `POST /admin/tithes/batches/:id/requeue`. The stored `rows` JSONB field is used to reconstruct the job without re-uploading the file.
 
-**Excel template:** Three-sheet workbook — `Tithe Template` (headers only), `Instructions`, `Sample`. Served at
-`GET /admin/tithes/template`.
+**Excel template:** Three-sheet workbook — `Tithe Template` (headers only), `Instructions`, `Sample`. Served at `GET /admin/tithes/template`.
 
 **Admin records list:** `GET /admin/tithes/records` returns all confirmed tithe records (paginated, `FINANCE_READ`). Supports the following query params:
 
@@ -1234,14 +1266,14 @@ re-uploading the file.
 | `fromMonth` | `YYYY-MM` | Start of payment date range (inclusive) |
 | `toMonth` | `YYYY-MM` | End of payment date range (inclusive, last day of month) |
 | `search` | string | Wildcard match on member firstname, lastname, or email |
+| `accountId` | UUID | Filter to records tied to a specific tithe account |
 | `page` / `limit` | int | Pagination (default 1 / 20) |
 
-`GET /admin/tithes/records/download` accepts the same filters (no pagination) and returns an `.xlsx` file with columns: Member Name, Email, Amount (NGN), Payment Date, Bank, Reference.
+`GET /admin/tithes/records/download` accepts the same filters (no pagination) and returns an `.xlsx` file with columns: Member Name, Email, Account (bank name), Currency, Amount, Payment Date, Sender Bank, Reference.
 
-**Member visibility:** Members view their own tithes at `GET /tithes/me` and request a PDF statement emailed to them
-at `POST /tithes/me/download`. Optional query params `fromMonth` and `toMonth` (format `YYYY-MM`) filter the records included in the statement and display a period range in the PDF (e.g. `?fromMonth=2026-01&toMonth=2026-06`). If only one bound is supplied the other is open-ended.
+**Member visibility:** Members view their own tithes at `GET /tithes/me` and request a PDF statement emailed to them at `POST /tithes/me/download`. Optional query params `fromMonth` and `toMonth` (format `YYYY-MM`) filter the records included in the statement and display a period range in the PDF (e.g. `?fromMonth=2026-01&toMonth=2026-06`). If only one bound is supplied the other is open-ended.
 
-**Tithe payment proof:** Members and workers can submit proof of an offline tithe payment (bank transfer receipt, etc.) via `POST /tithes/proof` (multipart, field: `file`, max 2 MB). The file is uploaded to Cloudinary and a `TithePaymentProof` record is created with status `PENDING` and `expiresAt` set to `TITHE_PROOF_EXPIRY_DAYS` days from submission (default 90). Finance team admins review proofs at `GET /admin/tithes/proofs` and can `CONFIRM` or `DECLINE` each one. Confirming or declining triggers an email to the member. A daily cron at `03:00 UTC` (with distributed Redis lock `lock:tithe-proof-cleanup`) finds all expired proofs (`expiresAt ≤ now`), deletes each file from Cloudinary using the stored `publicId` + `resourceType`, and removes the DB rows.
+**Tithe payment proof:** Members and workers submit proof of an offline tithe payment via `POST /tithes/proof` (multipart, field: `file`, max 2 MB; body field `titheAccountId` — the account they paid into). The file is uploaded to Cloudinary and a `TithePaymentProof` record is created with status `PENDING` and `expiresAt` set to `TITHE_PROOF_EXPIRY_DAYS` days from submission (default 90). Finance team admins review proofs at `GET /admin/tithes/proofs` and can `CONFIRM` or `DECLINE` each one. Confirming or declining triggers an email to the member that includes the bank name and account-level currency. A daily cron at `03:00 UTC` (with distributed Redis lock `lock:tithe-proof-cleanup`) finds all expired proofs (`expiresAt ≤ now`), deletes each file from Cloudinary using the stored `publicId` + `resourceType`, and removes the DB rows.
 
 **Routes prefix (admin):** `/admin/tithes`  
 **Routes prefix (member):** `/tithes`

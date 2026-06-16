@@ -18,7 +18,7 @@ export class VenueService {
         private readonly cacheService: CacheService,
         private readonly configService: ConfigService,
     ) {
-        this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS', 300);
+        this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS');
     }
 
     async create(dto: CreateVenueDto): Promise<Venue> {

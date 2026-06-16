@@ -1,5 +1,53 @@
-import {IsDateString, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, IsUUID, MaxLength} from 'class-validator';
+import {IsBoolean, IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, IsUUID, MaxLength} from 'class-validator';
 import {Type} from 'class-transformer';
+import {CurrencyCode} from '../enum/tithe.enum';
+
+export class CreateTitheAccountDto {
+    @IsString()
+    @IsNotEmpty()
+    bankName: string;
+
+    @IsString()
+    @IsNotEmpty()
+    accountNumber: string;
+
+    @IsString()
+    @IsNotEmpty()
+    accountName: string;
+
+    @IsEnum(CurrencyCode)
+    currency: CurrencyCode;
+
+    @IsString()
+    @IsOptional()
+    description?: string;
+}
+
+export class UpdateTitheAccountDto {
+    @IsString()
+    @IsOptional()
+    bankName?: string;
+
+    @IsString()
+    @IsOptional()
+    accountNumber?: string;
+
+    @IsString()
+    @IsOptional()
+    accountName?: string;
+
+    @IsEnum(CurrencyCode)
+    @IsOptional()
+    currency?: CurrencyCode;
+
+    @IsString()
+    @IsOptional()
+    description?: string;
+
+    @IsBoolean()
+    @IsOptional()
+    isActive?: boolean;
+}
 
 export class MatchUnmatchedDto {
     @IsUUID()
@@ -14,6 +62,10 @@ export class DownloadTitheDto {
 }
 
 export class SubmitTitheProofDto {
+    @IsUUID()
+    @IsNotEmpty()
+    titheAccountId: string;
+
     @Type(() => Number)
     @IsNumber()
     @IsPositive()
@@ -21,10 +73,6 @@ export class SubmitTitheProofDto {
 
     @IsDateString()
     paymentDate: string;
-
-    @IsString()
-    @IsOptional()
-    bankName?: string;
 
     @IsString()
     @IsOptional()

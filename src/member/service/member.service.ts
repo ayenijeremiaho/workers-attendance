@@ -40,9 +40,9 @@ export class MemberService {
         private readonly sessionService: MemberSessionService,
         private readonly configService: ConfigService,
     ) {
-        this.productName = this.configService.get<string>('PRODUCT_NAME', 'Discovery Hub');
-        this.churchName = this.configService.get<string>('CHURCH_NAME', 'RCCG Discovery Centre');
-        this.churchAddress = this.configService.get<string>('CHURCH_ADDRESS', '62 Igi Olugbin Street, Bariga. Lagos, Nigeria');
+        this.productName = this.configService.get<string>('PRODUCT_NAME');
+        this.churchName = this.configService.get<string>('CHURCH_NAME');
+        this.churchAddress = this.configService.get<string>('CHURCH_ADDRESS');
     }
 
     async signup(dto: SignupDto): Promise<Member> {

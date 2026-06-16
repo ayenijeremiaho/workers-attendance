@@ -1,9 +1,10 @@
-import {Controller, Get, ServiceUnavailableException} from '@nestjs/common';
+import {Controller, Get, Res, ServiceUnavailableException, Version, VERSION_NEUTRAL} from '@nestjs/common';
 import {SkipThrottle} from '@nestjs/throttler';
 import {AppService} from './app.service';
 import {DataSource} from 'typeorm';
 import {CacheService} from './utility/service/cache.service';
 import {Public} from './auth/decorator/public.decorator';
+import {Response} from 'express';
 
 @Controller()
 export class AppController {
@@ -13,9 +14,13 @@ export class AppController {
         private readonly cacheService: CacheService,
     ) {}
 
+    @Public()
+    @SkipThrottle()
+    @Version(VERSION_NEUTRAL)
     @Get()
-    getHello(): string {
-        return this.appService.getHello();
+    getHello(@Res() res: Response): void {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.end(this.appService.getWelcomePage());
     }
 
     @Public()

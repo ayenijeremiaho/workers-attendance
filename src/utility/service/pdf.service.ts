@@ -1,4 +1,5 @@
 import {Injectable} from '@nestjs/common';
+import {ConfigService} from '@nestjs/config';
 import {jsPDF} from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {FullEventReport, SessionReport} from '../../service-programme/service/service-session.service';
@@ -20,6 +21,20 @@ const CONTENT_W = PAGE_W - MARGIN * 2;
 
 @Injectable()
 export class PdfService {
+    private readonly churchName: string;
+    private readonly churchAddress: string;
+    private readonly churchTagline: string;
+    private readonly currencyCode: string;
+    private readonly currencyLocale: string;
+
+    constructor(private readonly config: ConfigService) {
+        this.churchName = this.config.get<string>('CHURCH_NAME');
+        this.churchAddress = this.config.get<string>('CHURCH_ADDRESS');
+        this.churchTagline = this.config.get<string>('CHURCH_TAGLINE');
+        this.currencyCode = this.config.get<string>('CURRENCY_CODE');
+        this.currencyLocale = this.config.get<string>('CURRENCY_LOCALE');
+    }
+
     generateSessionReport(report: SessionReport): Promise<Buffer> {
         const doc = new jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
         this.drawSessionReport(doc, report);
@@ -169,7 +184,7 @@ export class PdfService {
             ['Email', member.email],
             ['Phone', member.phoneNumber ?? '—'],
             ['Total Records', `${records.length}`],
-            ['Total Paid (NGN)', total.toLocaleString('en-NG', {minimumFractionDigits: 2})],
+            [`Total Paid (${this.currencyCode})`, total.toLocaleString(this.currencyLocale, {minimumFractionDigits: 2})],
         ]);
 
         y += 8;
@@ -180,19 +195,19 @@ export class PdfService {
         autoTable(doc, {
             startY: y,
             margin: {left: MARGIN, right: MARGIN},
-            head: [['Month', 'Date', 'Amount (NGN)', 'Bank', 'Reference']],
+            head: [['Month', 'Date', `Amount (${this.currencyCode})`, 'Bank', 'Reference']],
             body: records.map((r) => {
                 const [yr, mo] = r.paymentDate.split('-').map(Number);
                 const monthName = new Date(yr, mo - 1, 1).toLocaleDateString('en-GB', {month: 'long', year: 'numeric'});
                 return [
                     monthName,
                     r.paymentDate,
-                    Number(r.amount).toLocaleString('en-NG', {minimumFractionDigits: 2}),
+                    Number(r.amount).toLocaleString(this.currencyLocale, {minimumFractionDigits: 2}),
                     r.bankName ?? '—',
                     r.reference ?? '—',
                 ];
             }),
-            foot: [['Total', '', `NGN ${total.toLocaleString('en-NG', {minimumFractionDigits: 2})}`, '', '']],
+            foot: [['Total', '', `${this.currencyCode} ${total.toLocaleString(this.currencyLocale, {minimumFractionDigits: 2})}`, '', '']],
 
             columnStyles: {
                 0: {cellWidth: 30},
@@ -398,13 +413,11 @@ export class PdfService {
         doc.setFillColor(DARK);
         doc.rect(0, 0, PAGE_W, 22, 'F');
 
-        doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(WHITE)
-            .text('RCCG', MARGIN, 10);
-        doc.setFont('helvetica', 'bold')
-            .text('Discovery Centre', MARGIN + 11, 10);
+        doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(WHITE)
+            .text(this.churchName, MARGIN, 10);
 
         doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(ACCENT)
-            .text('Destinies discovered, Champions raised', PAGE_W - MARGIN, 10, {align: 'right'});
+            .text(this.churchTagline, PAGE_W - MARGIN, 10, {align: 'right'});
 
         doc.setFont('helvetica', 'bold').setFontSize(15).setTextColor(DARK)
             .text(title, MARGIN, 36);
@@ -499,7 +512,7 @@ export class PdfService {
             doc.setDrawColor(ACCENT).setLineWidth(0.4)
                 .line(MARGIN, pageH - 16, PAGE_W - MARGIN, pageH - 16);
             doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(MUTED)
-                .text('RCCG Discovery Centre · 62 Igi Olugbin Street, Bariga, Lagos, Nigeria', MARGIN, pageH - 10);
+                .text(`${this.churchName} · ${this.churchAddress}`, MARGIN, pageH - 10);
             doc.text(`Page ${i} of ${pageCount}`, PAGE_W - MARGIN, pageH - 10, {align: 'right'});
         }
     }

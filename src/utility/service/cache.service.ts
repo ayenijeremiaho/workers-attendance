@@ -18,10 +18,10 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
     constructor(private readonly configService: ConfigService) {
         this.redis = new Redis({
-            host: this.configService.get<string>('REDIS_HOST', 'localhost'),
-            port: this.configService.get<number>('REDIS_PORT', 6379),
+            host: this.configService.get<string>('REDIS_HOST'),
+            port: this.configService.get<number>('REDIS_PORT'),
             password: this.configService.get<string>('REDIS_PASSWORD') || undefined,
-            db: this.configService.get<number>('REDIS_DB', 0),
+            db: this.configService.get<number>('REDIS_DB'),
             lazyConnect: true,
             retryStrategy: (times: number) => {
                 const delay = Math.min(100 * Math.pow(2, times - 1), 30_000);
@@ -33,9 +33,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
 
     async onModuleInit(): Promise<void> {
-        const host = this.configService.get<string>('REDIS_HOST', 'localhost');
-        const port = this.configService.get<number>('REDIS_PORT', 6379);
-        const db = this.configService.get<number>('REDIS_DB', 0);
+        const host = this.configService.get<string>('REDIS_HOST');
+        const port = this.configService.get<number>('REDIS_PORT');
+        const db = this.configService.get<number>('REDIS_DB');
         const hasPassword = !!this.configService.get<string>('REDIS_PASSWORD');
         this.logger.log(`Connecting to Redis at ${host}:${port} (db: ${db}, auth: ${hasPassword})`);
         try {

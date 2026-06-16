@@ -26,6 +26,7 @@ import {
     SundaySchoolAttendanceStatusLabels
 } from '../sunday-school/enums/sunday-school-attendance-status.enum';
 import {AdminPermissionGroups} from '../admin/enum/admin-permission.enum';
+import {CurrencyCode, CurrencyCodeLabels} from '../tithe/enum/tithe.enum';
 import {ServiceProgrammeStatusEnum, ServiceProgrammeStatusLabels} from '../service-programme/enum/service-programme-status.enum';
 import {ServiceSlotTypeEnum, ServiceSlotTypeLabels} from '../service-programme/enum/service-slot-type.enum';
 import {ServiceSessionStatusEnum, ServiceSessionStatusLabels} from '../service-programme/enum/service-session-status.enum';
@@ -63,6 +64,7 @@ export class EnumsController {
             serviceSessionSlotStatuses: toEnumOptions(ServiceSessionSlotStatusEnum, ServiceSessionSlotStatusLabels),
             servicePauseReasons: toEnumOptions(ServicePauseReasonEnum, ServicePauseReasonLabels),
             serviceActionRoles: toEnumOptions(ServiceActionRoleEnum, ServiceActionRoleLabels),
+            currencies: toEnumOptions(CurrencyCode, CurrencyCodeLabels),
             adminPermissionGroups: AdminPermissionGroups,
         };
     }

@@ -44,10 +44,46 @@ export const envValidationSchema = Joi.object({
     CLOUDINARY_API_KEY: Joi.string().required(),
     CLOUDINARY_API_SECRET: Joi.string().required(),
 
+    POSTMAN_URL: Joi.string().uri().default('https://www.postman.com/workers-team/workspace/workers-api-v2/collection/14371233-ef6dd771-a303-4aa9-b861-72fb483fa238?action=share&source=copy-link&creator=14371233'),
+    LOGO_URL: Joi.string().uri().default('https://res.cloudinary.com/dap7jwvms/image/upload/v1781539923/DC_LOGO_aswzgi.png'),
+
     PRODUCT_NAME: Joi.string().default('Discovery Hub'),
     CHURCH_NAME: Joi.string().default('RCCG Discovery Centre'),
+    CHURCH_TAGLINE: Joi.string().default('Destinies discovered, Champions raised'),
     CHURCH_ADDRESS: Joi.string().default('62 Igi Olugbin Street, Bariga. Lagos, Nigeria'),
     DEFAULT_VENUE_NAME: Joi.string().default('RCCG Discovery Centre'),
+
+    CURRENCY_CODE: Joi.string().default('NGN'),
+    CURRENCY_LOCALE: Joi.string().default('en-NG'),
+    TIMEZONE: Joi.string().default('Africa/Lagos'),
+
     ONLINE_CHECKIN_WINDOW_HOURS: Joi.number().default(3),
     FOLLOW_UP_DUE_DAYS: Joi.number().default(3),
+    ENFORCE_DISTANCE_CHECK: Joi.boolean().default(false),
+
+    OTP_TTL_SECONDS: Joi.number().default(900),
+    FORGOT_PASSWORD_MAX_ATTEMPTS: Joi.number().default(3),
+    FORGOT_PASSWORD_WINDOW_SECONDS: Joi.number().default(3600),
+
+    CACHE_TTL_REFERENCE_SECONDS: Joi.number().default(300),
+    CACHE_TTL_LEADERBOARD_SECONDS: Joi.number().default(90),
+    WISH_DAILY_LIMIT: Joi.number().default(20),
+
+    TITHE_PROOF_EXPIRY_DAYS: Joi.number().default(90),
+    MAX_FILE_UPLOAD_BYTES: Joi.number().default(5 * 1024 * 1024),
+
+    DEFAULT_ADMIN_EMAIL: Joi.string().email().required(),
+    DEFAULT_ADMIN_PASSWORD: Joi.string().required(),
+    DEFAULT_VENUE_ADDRESS: Joi.string().default('62 Igi Olugbin Street, Bariga. Lagos, Nigeria'),
+    DEFAULT_VENUE_LATITUDE: Joi.number().default(6.5244),
+    DEFAULT_VENUE_LONGITUDE: Joi.number().default(3.3792),
+    DEFAULT_EVENT_CONFIG_NAME: Joi.string().default('Default Event Config'),
+    DEFAULT_EVENT_ALLOWED_DISTANCE_IN_METERS: Joi.number().default(100),
+
+    WORKER_CHECKIN_START_OFFSET_SECONDS: Joi.number().default(-1800),
+    WORKER_LATE_OFFSET_SECONDS: Joi.number().default(0),
+    MEMBER_CHECKIN_START_OFFSET_SECONDS: Joi.number().default(-900),
+    CHECKIN_STOP_OFFSET_SECONDS: Joi.number().default(3600),
+
+    EMAIL_SERVICE: Joi.string().default('gmail'),
 }).options({allowUnknown: true});

@@ -24,7 +24,7 @@ export class FollowUpScheduler {
         private readonly emailQueueService: EmailQueueService,
         private readonly configService: ConfigService,
     ) {
-        this.churchName = this.configService.get<string>('CHURCH_NAME', 'RCCG Discovery Centre');
+        this.churchName = this.configService.get<string>('CHURCH_NAME');
     }
 
     @Cron('0 8 * * *')

@@ -1,3 +1,17 @@
+export enum CurrencyCode {
+    NGN = 'NGN',
+    USD = 'USD',
+    GBP = 'GBP',
+    EUR = 'EUR',
+}
+
+export const CurrencyCodeLabels: Record<CurrencyCode, string> = {
+    [CurrencyCode.NGN]: 'Nigerian Naira (₦)',
+    [CurrencyCode.USD]: 'US Dollar ($)',
+    [CurrencyCode.GBP]: 'British Pound (£)',
+    [CurrencyCode.EUR]: 'Euro (€)',
+};
+
 export enum TitheBatchStatus {
     PENDING = 'PENDING',
     PROCESSING = 'PROCESSING',

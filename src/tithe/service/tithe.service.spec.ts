@@ -10,6 +10,7 @@ import {TitheDisputeRecord} from '../entity/tithe-dispute-record.entity';
 import {TitheBatchStatus, TitheDisputeStatus, TitheProofStatus, TitheUnmatchedStatus} from '../enum/tithe.enum';
 import {TITHE_QUEUE} from '../processor/tithe.processor';
 import {TithePaymentProof} from '../entity/tithe-payment-proof.entity';
+import {TitheAccount} from '../entity/tithe-account.entity';
 import {Member} from '../../member/entity/member.entity';
 import {Admin} from '../../admin/entity/admin.entity';
 import {UtilityService} from '../../utility/service/utility.service';
@@ -18,8 +19,17 @@ import {CloudinaryService} from '../../utility/service/cloudinary.service';
 import {CacheService} from '../../utility/service/cache.service';
 import {PdfService} from '../../utility/service/pdf.service';
 import {ExcelService} from '../../utility/service/excel.service';
+import {ConfigService} from '@nestjs/config';
 import {SessionSurface} from '../../auth/enum/session-surface.enum';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
+
+const mockAccountRepo = {
+    findOne: jest.fn(),
+    find: jest.fn(),
+    create: jest.fn(),
+    save: jest.fn(),
+    createQueryBuilder: jest.fn(),
+};
 
 const mockBatchRepo = {
     findOne: jest.fn(),
@@ -95,6 +105,8 @@ const mockExcelService = {
     buildWorkbook: jest.fn().mockResolvedValue(Buffer.from('xlsx')),
 };
 
+const mockConfigService = {get: jest.fn().mockImplementation((_key: string, defaultValue?: string) => defaultValue)};
+
 const mockAdmin = {
     id: 'admin-1',
     member: {id: 'member-admin-1', email: 'admin@test.com', firstname: 'Admin'},
@@ -138,6 +150,7 @@ describe('TitheService', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 TitheService,
+                {provide: getRepositoryToken(TitheAccount), useValue: mockAccountRepo},
                 {provide: getRepositoryToken(TitheUploadBatch), useValue: mockBatchRepo},
                 {provide: getRepositoryToken(TitheRecord), useValue: mockRecordRepo},
                 {provide: getRepositoryToken(TitheUnmatchedRecord), useValue: mockUnmatchedRepo},
@@ -152,6 +165,7 @@ describe('TitheService', () => {
                 {provide: CacheService, useValue: mockCacheService},
                 {provide: PdfService, useValue: mockPdfService},
                 {provide: ExcelService, useValue: mockExcelService},
+                {provide: ConfigService, useValue: mockConfigService},
             ],
         }).compile();
 
@@ -176,16 +190,20 @@ describe('TitheService', () => {
             return {buffer: Buffer.from(buf), originalname: 'test.xlsx'} as Express.Multer.File;
         };
 
+        const mockAccount = {id: 'account-1', bankName: 'GTBank', accountName: 'Church Account', currency: 'NGN', isActive: true};
+
         it('should throw BadRequestException when required column is missing', async () => {
             const file = await buildXlsx([], ['name', 'amount']);
+            mockAccountRepo.findOne.mockResolvedValue(mockAccount);
 
-            await expect(service.uploadBatch(file, mockAdmin)).rejects.toThrow(BadRequestException);
+            await expect(service.uploadBatch(file, mockAdmin, 'account-1')).rejects.toThrow(BadRequestException);
         });
 
         it('should throw BadRequestException when file has no valid data rows', async () => {
             const file = await buildXlsx([]);
+            mockAccountRepo.findOne.mockResolvedValue(mockAccount);
 
-            await expect(service.uploadBatch(file, mockAdmin)).rejects.toThrow(BadRequestException);
+            await expect(service.uploadBatch(file, mockAdmin, 'account-1')).rejects.toThrow(BadRequestException);
         });
 
         it('should create batch, add job to queue, and return batch id and row count', async () => {
@@ -194,12 +212,13 @@ describe('TitheService', () => {
                 {email: 'b@test.com', amount: 2000, paymentDate: '2026-01-01'},
             ]);
 
+            mockAccountRepo.findOne.mockResolvedValue(mockAccount);
             const batch = {id: 'batch-1', status: TitheBatchStatus.PENDING, totalRows: 2};
             mockBatchRepo.create.mockReturnValue(batch);
             mockBatchRepo.save.mockResolvedValue(batch);
             mockTitheQueue.add.mockResolvedValue({});
 
-            const result = await service.uploadBatch(file, mockAdmin);
+            const result = await service.uploadBatch(file, mockAdmin, 'account-1');
 
             expect(result.batchId).toBe('batch-1');
             expect(result.totalRows).toBe(2);
@@ -223,12 +242,13 @@ describe('TitheService', () => {
                 {email: 'c@test.com', amount: Number.NaN, paymentDate: '2026-01-01'},
             ]);
 
+            mockAccountRepo.findOne.mockResolvedValue(mockAccount);
             const batch = {id: 'batch-1', status: TitheBatchStatus.PENDING, totalRows: 1};
             mockBatchRepo.create.mockReturnValue(batch);
             mockBatchRepo.save.mockResolvedValue(batch);
             mockTitheQueue.add.mockResolvedValue({});
 
-            const result = await service.uploadBatch(file, mockAdmin);
+            const result = await service.uploadBatch(file, mockAdmin, 'account-1');
 
             expect(result.totalRows).toBe(1);
         });
@@ -518,7 +538,8 @@ describe('TitheService', () => {
     // ── submitProof ───────────────────────────────────────────────────────────
 
     describe('submitProof', () => {
-        const dto = {amount: 5000, paymentDate: '2026-01-01', bankName: 'GTBank', reference: 'TRF001'};
+        const mockAccount = {id: 'account-1', bankName: 'GTBank', accountName: 'Church Account', currency: 'NGN', isActive: true};
+        const dto = {titheAccountId: 'account-1', amount: 5000, paymentDate: '2026-01-01', reference: 'TRF001'};
         const file = {buffer: Buffer.from('proof'), originalname: 'proof.jpg', size: 1024};
         const uploadResult = {secureUrl: 'https://cdn.example.com/proof.jpg', publicId: 'tithe-proofs/proof', resourceType: 'image'};
 
@@ -529,8 +550,9 @@ describe('TitheService', () => {
         });
 
         it('should upload proof, save record, and notify finance team', async () => {
+            mockAccountRepo.findOne.mockResolvedValue(mockAccount);
             mockCloudinaryService.uploadBuffer.mockResolvedValue(uploadResult);
-            const savedProof = {id: 'proof-1', ...dto, proofUrl: uploadResult.secureUrl, publicId: uploadResult.publicId, resourceType: uploadResult.resourceType};
+            const savedProof = {id: 'proof-1', ...dto, titheAccount: mockAccount, proofUrl: uploadResult.secureUrl, publicId: uploadResult.publicId, resourceType: uploadResult.resourceType};
             mockProofRepo.create.mockReturnValue(savedProof);
             mockProofRepo.save.mockResolvedValue(savedProof);
             const adminQb = {
@@ -559,7 +581,7 @@ describe('TitheService', () => {
         });
 
         it('should set status CONFIRMED, save, and email member', async () => {
-            const proof = {id: 'proof-1', status: TitheProofStatus.PENDING, member: mockMember, amount: 5000, paymentDate: '2026-01-01'};
+            const proof = {id: 'proof-1', status: TitheProofStatus.PENDING, member: mockMember, titheAccount: {currency: 'NGN'}, amount: 5000, paymentDate: '2026-01-01'};
             mockProofRepo.findOne.mockResolvedValue(proof);
             mockProofRepo.save.mockResolvedValue({...proof, status: TitheProofStatus.CONFIRMED});
 
@@ -583,7 +605,7 @@ describe('TitheService', () => {
         });
 
         it('should set status DECLINED, save note, and email member', async () => {
-            const proof = {id: 'proof-1', status: TitheProofStatus.PENDING, member: mockMember, amount: 5000, paymentDate: '2026-01-01'};
+            const proof = {id: 'proof-1', status: TitheProofStatus.PENDING, member: mockMember, titheAccount: {currency: 'NGN'}, amount: 5000, paymentDate: '2026-01-01'};
             mockProofRepo.findOne.mockResolvedValue(proof);
             mockProofRepo.save.mockResolvedValue({...proof, status: TitheProofStatus.DECLINED});
 
@@ -644,7 +666,7 @@ describe('TitheService', () => {
             const qb = makeRecordsQb([], 0);
             jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
 
-            await service.getAdminRecords(1, 20, 'member-1');
+            await service.getAdminRecords(1, 20, {memberId: 'member-1'});
 
             expect(qb.andWhere).toHaveBeenCalledWith('member.id = :memberId', {memberId: 'member-1'});
         });
@@ -653,7 +675,7 @@ describe('TitheService', () => {
             const qb = makeRecordsQb([], 0);
             jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
 
-            await service.getAdminRecords(1, 20, undefined, 'dept-1');
+            await service.getAdminRecords(1, 20, {departmentId: 'dept-1'});
 
             expect(qb.andWhere).toHaveBeenCalledWith('dept.id = :departmentId', {departmentId: 'dept-1'});
         });
@@ -662,7 +684,7 @@ describe('TitheService', () => {
             const qb = makeRecordsQb([], 0);
             jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
 
-            await service.getAdminRecords(1, 20, undefined, undefined, undefined, undefined, 'john');
+            await service.getAdminRecords(1, 20, {search: 'john'});
 
             expect(qb.andWhere).toHaveBeenCalledWith(
                 expect.stringContaining('LOWER(member.firstname)'),

@@ -7,6 +7,7 @@ import {
     Param,
     ParseIntPipe,
     ParseUUIDPipe,
+    Patch,
     Post,
     Query,
     Res,
@@ -24,12 +25,48 @@ import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 import {CurrentAdmin} from '../../admin/decorator/current-admin.decorator';
 import {Admin} from '../../admin/entity/admin.entity';
 import {TitheService} from '../service/tithe.service';
-import {DeclineTitheProofDto, MatchUnmatchedDto} from '../dto/tithe.dto';
+import {CreateTitheAccountDto, DeclineTitheProofDto, MatchUnmatchedDto, UpdateTitheAccountDto} from '../dto/tithe.dto';
 
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/tithes')
 export class TitheAdminController {
     constructor(private readonly titheService: TitheService) {}
+
+    // ── Tithe Accounts ────────────────────────────────────────────────────────
+
+    @RequiresPermission(AdminPermission.FINANCE_WRITE)
+    @Post('accounts')
+    createAccount(@Body() dto: CreateTitheAccountDto, @CurrentAdmin() admin: Admin) {
+        return this.titheService.createAccount(dto, admin);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_READ)
+    @Get('accounts')
+    getAccounts() {
+        return this.titheService.getAccounts();
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_WRITE)
+    @Patch('accounts/:id')
+    updateAccount(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: UpdateTitheAccountDto,
+        @CurrentAdmin() admin: Admin,
+    ) {
+        return this.titheService.updateAccount(id, dto, admin);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_READ)
+    @Get('accounts/:id/summary')
+    getAccountSummary(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Query('fromMonth') fromMonth?: string,
+        @Query('toMonth') toMonth?: string,
+    ) {
+        return this.titheService.getAccountSummary(id, fromMonth, toMonth);
+    }
+
+    // ── Template & Upload ─────────────────────────────────────────────────────
 
     @RequiresPermission(AdminPermission.FINANCE_READ)
     @Get('template')
@@ -49,11 +86,14 @@ export class TitheAdminController {
     @UseInterceptors(FileInterceptor('file'))
     async upload(
         @UploadedFile() file: Express.Multer.File,
+        @Body('titheAccountId') titheAccountId: string,
         @CurrentAdmin() admin: Admin,
     ): Promise<{batchId: string; totalRows: number; message: string}> {
-        const result = await this.titheService.uploadBatch(file, admin);
+        const result = await this.titheService.uploadBatch(file, admin, titheAccountId);
         return {...result, message: 'Upload queued for processing.'};
     }
+
+    // ── Batches ───────────────────────────────────────────────────────────────
 
     @RequiresPermission(AdminPermission.FINANCE_READ)
     @Get('batches')
@@ -76,6 +116,8 @@ export class TitheAdminController {
     requeueBatch(@Param('id', ParseUUIDPipe) id: string, @CurrentAdmin() admin: Admin): Promise<void> {
         return this.titheService.requeueBatch(id, admin);
     }
+
+    // ── Unmatched ─────────────────────────────────────────────────────────────
 
     @RequiresPermission(AdminPermission.FINANCE_READ)
     @Get('unmatched')
@@ -108,6 +150,8 @@ export class TitheAdminController {
         return this.titheService.dismissUnmatched(id, admin);
     }
 
+    // ── Disputes ──────────────────────────────────────────────────────────────
+
     @RequiresPermission(AdminPermission.FINANCE_READ)
     @Get('disputes')
     getDisputes(
@@ -131,6 +175,8 @@ export class TitheAdminController {
     rejectDispute(@Param('id', ParseUUIDPipe) id: string, @CurrentAdmin() admin: Admin): Promise<void> {
         return this.titheService.rejectDispute(id, admin);
     }
+
+    // ── Proofs ────────────────────────────────────────────────────────────────
 
     @RequiresPermission(AdminPermission.FINANCE_READ)
     @Get('proofs')
@@ -160,31 +206,24 @@ export class TitheAdminController {
         return this.titheService.declineProof(id, dto, admin);
     }
 
+    // ── Records ───────────────────────────────────────────────────────────────
+
     @RequiresPermission(AdminPermission.FINANCE_READ)
     @Get('records')
     getRecords(
-        @Query('page', new ParseIntPipe({optional: true})) page = 1,
-        @Query('limit', new ParseIntPipe({optional: true})) limit = 20,
-        @Query('memberId') memberId?: string,
-        @Query('departmentId') departmentId?: string,
-        @Query('fromMonth') fromMonth?: string,
-        @Query('toMonth') toMonth?: string,
-        @Query('search') search?: string,
+        @Query() q: {page?: string; limit?: string; memberId?: string; departmentId?: string; fromMonth?: string; toMonth?: string; search?: string; accountId?: string},
     ) {
-        return this.titheService.getAdminRecords(page, limit, memberId, departmentId, fromMonth, toMonth, search);
+        const {memberId, departmentId, fromMonth, toMonth, search, accountId} = q;
+        return this.titheService.getAdminRecords(Number(q.page) || 1, Number(q.limit) || 20, {memberId, departmentId, fromMonth, toMonth, search, accountId});
     }
 
     @RequiresPermission(AdminPermission.FINANCE_READ)
     @Get('records/download')
     async downloadRecords(
         @Res() res: Response,
-        @Query('memberId') memberId?: string,
-        @Query('departmentId') departmentId?: string,
-        @Query('fromMonth') fromMonth?: string,
-        @Query('toMonth') toMonth?: string,
-        @Query('search') search?: string,
+        @Query() q: {memberId?: string; departmentId?: string; fromMonth?: string; toMonth?: string; search?: string; accountId?: string},
     ): Promise<void> {
-        const buffer = await this.titheService.getAdminRecordsExcel(memberId, departmentId, fromMonth, toMonth, search);
+        const buffer = await this.titheService.getAdminRecordsExcel(q);
         res.set({
             'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition': 'attachment; filename="tithe-records.xlsx"',

@@ -73,7 +73,7 @@ export class EventController {
     @RequiresPermission(AdminPermission.EVENTS_WRITE)
     @Delete('recurring/:recurringEventId')
     async deleteFutureRecurring(
-        @Param('recurringEventId') recurringEventId: string,
+        @Param('recurringEventId', ParseUUIDPipe) recurringEventId: string,
         @CurrentUser() user: MemberAuth,
     ) {
         await this.eventService.deleteFutureRecurring(recurringEventId, user.id);

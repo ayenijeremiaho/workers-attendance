@@ -2,6 +2,7 @@ import {
     BadRequestException,
     ForbiddenException,
     Injectable,
+    Logger,
     NotFoundException,
 } from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
@@ -151,6 +152,8 @@ export class ServiceSessionService {
         @InjectRepository(Member)
         private readonly memberRepo: Repository<Member>,
     ) {}
+
+    private readonly logger = new Logger(ServiceSessionService.name);
 
     async start(programmeId: string, memberId: string): Promise<ServiceSession> {
         await this.assertAdminDeptWorker(memberId);
@@ -861,7 +864,7 @@ export class ServiceSessionService {
                 {sessionCode, serviceName, date},
                 [{filename: `session-report-${sessionCode}.pdf`, content: pdfBuffer}],
             );
-        }).catch(() => {});
+        }).catch((err) => this.logger.error('Failed to dispatch session report email', err?.stack));
     }
 
     private async findAdminWorkerEmails(): Promise<string[]> {

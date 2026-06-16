@@ -1,4 +1,4 @@
-import {Injectable} from '@nestjs/common';
+import {Injectable, Logger} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {MemberSession} from '../entity/member-session.entity';
@@ -11,6 +11,8 @@ export class MemberSessionService {
         private readonly sessionRepository: Repository<MemberSession>,
     ) {
     }
+
+    private readonly logger = new Logger(MemberSessionService.name);
 
     async updateLogin(memberId: string, hashedRefreshToken: string, surface: SessionSurface): Promise<void> {
         const existing = await this.sessionRepository.findOne({
@@ -32,6 +34,7 @@ export class MemberSessionService {
                 }),
             );
         }
+        this.logger.log(`Login session recorded: member ${memberId} [${surface}]`);
     }
 
     async updateLogout(memberId: string, surface: SessionSurface): Promise<void> {
@@ -42,6 +45,9 @@ export class MemberSessionService {
             session.hashedRefreshToken = null;
             session.lastLogout = new Date();
             await this.sessionRepository.save(session);
+            this.logger.log(`Logout session cleared: member ${memberId} [${surface}]`);
+        } else {
+            this.logger.warn(`Logout: no active session found for member ${memberId} [${surface}]`);
         }
     }
 

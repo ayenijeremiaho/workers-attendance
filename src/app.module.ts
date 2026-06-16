@@ -51,7 +51,36 @@ import {ServiceHeadcountModule} from './service-headcount/service-headcount.modu
             }],
             inject: [ConfigService],
         }),
-        LoggerModule.forRoot(),
+        LoggerModule.forRootAsync({
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => {
+                const isDev = config.get<string>('NODE_ENV') === 'development';
+                return {
+                    pinoHttp: {
+                        level: isDev ? 'debug' : 'info',
+                        redact: {
+                            paths: [
+                                'req.headers.authorization',
+                                'req.headers.cookie',
+                                'req.body.password',
+                                'req.body.newPassword',
+                                'req.body.oldPassword',
+                                'req.body.confirmPassword',
+                            ],
+                            censor: '[REDACTED]',
+                        },
+                        customLogLevel: (_req: unknown, res: {statusCode: number}, err: unknown) => {
+                            if (err || res.statusCode >= 500) return 'error';
+                            if (res.statusCode >= 400) return 'warn';
+                            return 'info';
+                        },
+                        ...(isDev && {
+                            transport: {target: 'pino-pretty', options: {colorize: true, singleLine: false}},
+                        }),
+                    },
+                };
+            },
+        }),
         ScheduleModule.forRoot(),
         MulterModule.register({
             limits: {

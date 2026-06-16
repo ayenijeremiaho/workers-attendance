@@ -1,4 +1,4 @@
-import {Body, Controller, Get, Param, Patch, Post, Query, UseGuards} from '@nestjs/common';
+import {Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards} from '@nestjs/common';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
@@ -21,7 +21,7 @@ export class ServiceHeadcountController {
 
     @Patch(':id')
     @RequiresPermission(AdminPermission.HEADCOUNT_WRITE)
-    update(@Param('id') id: string, @Body() dto: UpdateServiceHeadcountDto) {
+    update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateServiceHeadcountDto) {
         return this.headcountSvc.update(id, dto);
     }
 
@@ -50,7 +50,7 @@ export class ServiceHeadcountController {
 
     @Get(':id')
     @RequiresPermission(AdminPermission.HEADCOUNT_READ)
-    findOne(@Param('id') id: string) {
+    findOne(@Param('id', ParseUUIDPipe) id: string) {
         return this.headcountSvc.findOne(id);
     }
 }

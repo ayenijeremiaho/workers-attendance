@@ -2,6 +2,7 @@ import {
     BadRequestException,
     ForbiddenException,
     Injectable,
+    Logger,
     NotFoundException,
 } from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
@@ -50,13 +51,19 @@ export class FollowUpService {
         this.churchName = this.configService.get<string>('CHURCH_NAME', 'RCCG Discovery Centre');
     }
 
+    private readonly logger = new Logger(FollowUpService.name);
+
     async createFirstTimerByWorker(dto: CreateFirstTimerDto, memberId: string): Promise<FirstTimer> {
         await this.assertWorkerInFollowUpDept(memberId);
-        return this.doCreateFirstTimer(dto, {memberCreatorId: memberId});
+        const created = await this.doCreateFirstTimer(dto, {memberCreatorId: memberId});
+        this.logger.log(`First-timer ${created.id} recorded by worker ${memberId}`);
+        return created;
     }
 
     async createFirstTimerByAdmin(dto: CreateFirstTimerDto, adminId: string): Promise<FirstTimer> {
-        return this.doCreateFirstTimer(dto, {adminCreatorId: adminId});
+        const created = await this.doCreateFirstTimer(dto, {adminCreatorId: adminId});
+        this.logger.log(`First-timer ${created.id} recorded by admin ${adminId}`);
+        return created;
     }
 
     async getFirstTimers(
@@ -159,6 +166,7 @@ export class FollowUpService {
         if (dto.outcomeNotes !== undefined) task.outcomeNotes = dto.outcomeNotes;
 
         const saved = await this.taskRepo.save(task);
+        this.logger.log(`Follow-up task ${taskId} updated by member ${memberId} (status: ${saved.status})`);
 
         if (dto.noteContent) {
             await this.noteRepo.save(
@@ -189,6 +197,7 @@ export class FollowUpService {
 
         task.assignedTo = targetProfile;
         const saved = await this.taskRepo.save(task);
+        this.logger.log(`Task ${taskId} reassigned to worker ${dto.workerProfileId}`);
         this.cacheService.flushNamespace('follow-up:report');
 
         if (targetProfile.member?.email) {
@@ -221,6 +230,7 @@ export class FollowUpService {
         }
 
         await this.taskRepo.save(tasks);
+        this.logger.log(`Bulk task update: ${tasks.length} task(s) updated`);
         this.cacheService.flushNamespace('follow-up:report');
         return {updated: tasks.length};
     }
@@ -258,6 +268,7 @@ export class FollowUpService {
             );
         }
 
+        this.logger.log(`Online non-responder follow-up task created for member ${memberId} → assigned to ${assignee.id}`);
         this.cacheService.flushNamespace('follow-up:report');
         return task;
     }

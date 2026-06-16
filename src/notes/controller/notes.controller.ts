@@ -1,4 +1,4 @@
-import {Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards,} from '@nestjs/common';
+import {BadRequestException, Body, Controller, Delete, Get, Param, ParseEnumPipe, ParseUUIDPipe, Post, Put, Query, UseGuards,} from '@nestjs/common';
 import {NotesService} from '../service/notes.service';
 import {NoteTypeEnum} from '../enums/note-type.enums';
 import {UtilityService} from '../../utility/service/utility.service';
@@ -20,7 +20,9 @@ export class NotesController {
     @RequiresPermission(AdminPermission.NOTES_READ)
     @Get('/:type')
     async findAll(
-        @Param('type') type: NoteTypeEnum,
+        @Param('type', new ParseEnumPipe(NoteTypeEnum, {
+            exceptionFactory: () => new BadRequestException(`Invalid note type. Must be one of: ${Object.values(NoteTypeEnum).join(', ')}`),
+        })) type: NoteTypeEnum,
         @Query('page') page?: number,
         @Query('limit') limit?: number,
         @Query('order') order?: 'ASC' | 'DESC',
@@ -39,7 +41,7 @@ export class NotesController {
     @RequiresPermission(AdminPermission.NOTES_WRITE)
     @Put('/:id')
     async updateNote(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() updateNoteDto: UpdateNoteRequest & { type: NoteTypeEnum },
         @CurrentUser() user: MemberAuth,
     ) {
@@ -49,7 +51,12 @@ export class NotesController {
 
     @RequiresPermission(AdminPermission.NOTES_READ)
     @Get('/:type/:id')
-    async getNote(@Param('type') type: NoteTypeEnum, @Param('id') id: string) {
+    async getNote(
+        @Param('type', new ParseEnumPipe(NoteTypeEnum, {
+            exceptionFactory: () => new BadRequestException(`Invalid note type. Must be one of: ${Object.values(NoteTypeEnum).join(', ')}`),
+        })) type: NoteTypeEnum,
+        @Param('id', ParseUUIDPipe) id: string,
+    ) {
         const note = await this.notesService.get(type, id);
         return plainToInstance(NoteDto, note, {excludeExtraneousValues: true});
     }
@@ -57,8 +64,10 @@ export class NotesController {
     @RequiresPermission(AdminPermission.NOTES_WRITE)
     @Delete('/:type/:id')
     async deleteNote(
-        @Param('type') type: NoteTypeEnum,
-        @Param('id') id: string,
+        @Param('type', new ParseEnumPipe(NoteTypeEnum, {
+            exceptionFactory: () => new BadRequestException(`Invalid note type. Must be one of: ${Object.values(NoteTypeEnum).join(', ')}`),
+        })) type: NoteTypeEnum,
+        @Param('id', ParseUUIDPipe) id: string,
         @CurrentUser() user: MemberAuth,
     ) {
         return this.notesService.delete(type, id, user.id);

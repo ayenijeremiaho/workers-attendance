@@ -1,4 +1,4 @@
-import {BadRequestException, Injectable, NotFoundException,} from '@nestjs/common';
+import {BadRequestException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {DataSource, MoreThanOrEqual, Repository} from 'typeorm';
 import {Event} from '../entity/event.entity';
@@ -37,6 +37,8 @@ export class EventService {
         private readonly slotRepository: Repository<ServiceSlot>,
     ) {
     }
+
+    private readonly logger = new Logger(EventService.name);
 
     async create(dto: CreateEventDto, actorId: string): Promise<Event | Event[]> {
         const eventDate = new Date(dto.eventDate);
@@ -157,8 +159,14 @@ export class EventService {
         const eventDay = new Date(event.eventDate);
         eventDay.setHours(0, 0, 0, 0);
 
-        if (eventDay < today) throw new BadRequestException('Past events cannot be deleted');
-        if (event.attendanceMarked) throw new BadRequestException('Events with recorded attendance cannot be deleted');
+        if (eventDay < today) {
+            this.logger.warn(`Delete of event "${event.name}" (id: ${eventId}) blocked — event is in the past`);
+            throw new BadRequestException('Past events cannot be deleted');
+        }
+        if (event.attendanceMarked) {
+            this.logger.warn(`Delete of event "${event.name}" (id: ${eventId}) blocked — attendance already recorded`);
+            throw new BadRequestException('Events with recorded attendance cannot be deleted');
+        }
 
         const {name} = event;
         await this.eventRepository.remove(event);

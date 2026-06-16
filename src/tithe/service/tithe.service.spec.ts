@@ -17,6 +17,7 @@ import {AuditLogService} from '../../utility/service/audit-log.service';
 import {CloudinaryService} from '../../utility/service/cloudinary.service';
 import {CacheService} from '../../utility/service/cache.service';
 import {PdfService} from '../../utility/service/pdf.service';
+import {ExcelService} from '../../utility/service/excel.service';
 import {SessionSurface} from '../../auth/enum/session-surface.enum';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
 
@@ -33,6 +34,7 @@ const mockRecordRepo = {
     findAndCount: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+    createQueryBuilder: jest.fn(),
 };
 
 const mockUnmatchedRepo = {
@@ -89,6 +91,10 @@ const mockPdfService = {
     generateTitheStatement: jest.fn().mockResolvedValue(Buffer.from('pdf')),
 };
 
+const mockExcelService = {
+    buildWorkbook: jest.fn().mockResolvedValue(Buffer.from('xlsx')),
+};
+
 const mockAdmin = {
     id: 'admin-1',
     member: {id: 'member-admin-1', email: 'admin@test.com', firstname: 'Admin'},
@@ -108,6 +114,20 @@ const mockUser = {
     requiresPasswordChange: false,
     surface: SessionSurface.MEMBER,
 };
+
+function makeRecordsQb(rows: object[], total: number) {
+    const qb: any = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(rows),
+        getManyAndCount: jest.fn().mockResolvedValue([rows, total]),
+    };
+    mockRecordRepo.createQueryBuilder.mockReturnValue(qb);
+    return qb;
+}
 
 describe('TitheService', () => {
     let service: TitheService;
@@ -131,6 +151,7 @@ describe('TitheService', () => {
                 {provide: CloudinaryService, useValue: mockCloudinaryService},
                 {provide: CacheService, useValue: mockCacheService},
                 {provide: PdfService, useValue: mockPdfService},
+                {provide: ExcelService, useValue: mockExcelService},
             ],
         }).compile();
 
@@ -602,6 +623,76 @@ describe('TitheService', () => {
             expect(mockProofRepo.remove).toHaveBeenCalledTimes(2);
             expect(mockAuditLogService.log).toHaveBeenCalledWith('TITHE_PROOF_EXPIRED_PURGED', expect.any(Object));
             expect(mockCacheService.releaseLock).toHaveBeenCalled();
+        });
+    });
+
+    // ── getAdminRecords ───────────────────────────────────────────────────────
+
+    describe('getAdminRecords', () => {
+        it('should return paginated records with no filters', async () => {
+            const records = [{id: 'r-1', amount: 5000, paymentDate: '2026-01-01', member: {firstname: 'John', lastname: 'Doe', email: 'j@test.com'}}];
+            const qb = makeRecordsQb(records, 1);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: records as any, page: 1, limit: 20, totalCount: 1, totalPages: 1});
+
+            const result = await service.getAdminRecords(1, 20);
+
+            expect(qb.getManyAndCount).toHaveBeenCalled();
+            expect(result.totalCount).toBe(1);
+        });
+
+        it('should apply memberId filter', async () => {
+            const qb = makeRecordsQb([], 0);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
+
+            await service.getAdminRecords(1, 20, 'member-1');
+
+            expect(qb.andWhere).toHaveBeenCalledWith('member.id = :memberId', {memberId: 'member-1'});
+        });
+
+        it('should apply departmentId filter', async () => {
+            const qb = makeRecordsQb([], 0);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
+
+            await service.getAdminRecords(1, 20, undefined, 'dept-1');
+
+            expect(qb.andWhere).toHaveBeenCalledWith('dept.id = :departmentId', {departmentId: 'dept-1'});
+        });
+
+        it('should apply search filter on member name and email', async () => {
+            const qb = makeRecordsQb([], 0);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
+
+            await service.getAdminRecords(1, 20, undefined, undefined, undefined, undefined, 'john');
+
+            expect(qb.andWhere).toHaveBeenCalledWith(
+                expect.stringContaining('LOWER(member.firstname)'),
+                expect.objectContaining({s: '%john%'}),
+            );
+        });
+    });
+
+    // ── getAdminRecordsExcel ──────────────────────────────────────────────────
+
+    describe('getAdminRecordsExcel', () => {
+        it('should return an Excel buffer with the correct columns', async () => {
+            const records = [{id: 'r-1', amount: 5000, paymentDate: '2026-01-01', bankName: 'GTB', reference: 'REF1', member: {firstname: 'Jane', lastname: 'Smith', email: 'jane@test.com'}}];
+            const qb: any = {
+                leftJoinAndSelect: jest.fn().mockReturnThis(),
+                orderBy: jest.fn().mockReturnThis(),
+                andWhere: jest.fn().mockReturnThis(),
+                getMany: jest.fn().mockResolvedValue(records),
+                getManyAndCount: jest.fn().mockResolvedValue([records, 1]),
+            };
+            mockRecordRepo.createQueryBuilder.mockReturnValue(qb);
+
+            const result = await service.getAdminRecordsExcel();
+
+            expect(mockExcelService.buildWorkbook).toHaveBeenCalledWith(
+                'Tithe Records',
+                expect.arrayContaining([expect.objectContaining({key: 'memberName'}), expect.objectContaining({key: 'amount'})]),
+                expect.arrayContaining([expect.objectContaining({memberName: 'Jane Smith', email: 'jane@test.com', amount: 5000})]),
+            );
+            expect(result).toBeInstanceOf(Buffer);
         });
     });
 

@@ -17,6 +17,7 @@ import {MemberAuth} from '../../auth/interface/auth.interface';
 import {UtilityService} from '../../utility/service/utility.service';
 import {AuditLogService} from '../../utility/service/audit-log.service';
 import {CloudinaryService} from '../../utility/service/cloudinary.service';
+import {ExcelService} from '../../utility/service/excel.service';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
 
@@ -34,6 +35,7 @@ export class FinanceRequestService {
         private readonly utilityService: UtilityService,
         private readonly auditLogService: AuditLogService,
         private readonly cloudinaryService: CloudinaryService,
+        private readonly excelService: ExcelService,
     ) {}
 
     // ── Categories ────────────────────────────────────────────────────────────
@@ -117,22 +119,82 @@ export class FinanceRequestService {
 
     // ── Requests (Admin/Finance Team) ─────────────────────────────────────────
 
-    async getAllRequests(page = 1, limit = 20, status?: FinanceRequestStatus, categoryId?: string): Promise<PaginationResponseDto<FinanceRequest>> {
+    async getAllRequests(
+        page = 1,
+        limit = 20,
+        status?: FinanceRequestStatus,
+        categoryId?: string,
+        memberId?: string,
+        departmentId?: string,
+        search?: string,
+    ): Promise<PaginationResponseDto<FinanceRequest>> {
+        const qb = this.buildRequestsQb(status, categoryId, memberId, departmentId, search);
+        const [data, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
+        return UtilityService.createPaginationResponse(data, page, limit, total);
+    }
+
+    async getRequestsExcel(
+        status?: FinanceRequestStatus,
+        categoryId?: string,
+        memberId?: string,
+        departmentId?: string,
+        search?: string,
+    ): Promise<Buffer> {
+        const requests = await this.buildRequestsQb(status, categoryId, memberId, departmentId, search).getMany();
+        return this.excelService.buildWorkbook('Finance Requests', [
+            {header: 'Requester', key: 'requester', width: 28},
+            {header: 'Email', key: 'email', width: 30},
+            {header: 'Department', key: 'department', width: 22},
+            {header: 'Category', key: 'category', width: 20},
+            {header: 'Amount (NGN)', key: 'amount', width: 18},
+            {header: 'Status', key: 'status', width: 14},
+            {header: 'Reason', key: 'reason', width: 40},
+            {header: 'Reviewed By', key: 'reviewedBy', width: 24},
+            {header: 'Reviewed At', key: 'reviewedAt', width: 18},
+            {header: 'Rejection Reason', key: 'rejectionReason', width: 35},
+        ], requests.map((r) => ({
+            requester: `${r.requestedBy.firstname} ${r.requestedBy.lastname}`,
+            email: r.requestedBy.email,
+            department: r.department?.name ?? '',
+            category: r.category?.name ?? '',
+            amount: Number(r.amount),
+            status: r.status,
+            reason: r.reason,
+            reviewedBy: r.reviewedBy?.member
+                ? `${r.reviewedBy.member.firstname} ${r.reviewedBy.member.lastname}`
+                : '',
+            reviewedAt: r.reviewedAt ? new Date(r.reviewedAt).toISOString().slice(0, 10) : '',
+            rejectionReason: r.rejectionReason ?? '',
+        })));
+    }
+
+    private buildRequestsQb(
+        status?: FinanceRequestStatus,
+        categoryId?: string,
+        memberId?: string,
+        departmentId?: string,
+        search?: string,
+    ) {
         const qb = this.requestRepo.createQueryBuilder('r')
             .leftJoinAndSelect('r.requestedBy', 'requestedBy')
             .leftJoinAndSelect('r.department', 'department')
             .leftJoinAndSelect('r.category', 'category')
             .leftJoinAndSelect('r.reviewedBy', 'reviewedBy')
             .leftJoinAndSelect('reviewedBy.member', 'reviewedByMember')
-            .orderBy('r.createdAt', 'DESC')
-            .skip((page - 1) * limit)
-            .take(limit);
+            .orderBy('r.createdAt', 'DESC');
 
         if (status) qb.andWhere('r.status = :status', {status});
-        if (categoryId) qb.andWhere('r.category_id = :categoryId', {categoryId});
+        if (categoryId) qb.andWhere('category.id = :categoryId', {categoryId});
+        if (memberId) qb.andWhere('requestedBy.id = :memberId', {memberId});
+        if (departmentId) qb.andWhere('department.id = :departmentId', {departmentId});
+        if (search) {
+            qb.andWhere(
+                '(LOWER(requestedBy.firstname) LIKE :s OR LOWER(requestedBy.lastname) LIKE :s OR LOWER(requestedBy.email) LIKE :s OR LOWER(r.reason) LIKE :s)',
+                {s: `%${search.toLowerCase()}%`},
+            );
+        }
 
-        const [data, total] = await qb.getManyAndCount();
-        return UtilityService.createPaginationResponse(data, page, limit, total);
+        return qb;
     }
 
     async getRequest(id: string): Promise<FinanceRequest> {

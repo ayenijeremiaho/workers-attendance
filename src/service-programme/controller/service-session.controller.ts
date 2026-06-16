@@ -23,7 +23,7 @@ export class ServiceSessionController {
     @Post('programme/:programmeId/start')
     @UseGuards(RolesGuard)
     @Roles(MemberRoleEnum.WORKER)
-    async start(@Param('programmeId') programmeId: string, @CurrentUser() user: MemberAuth) {
+    async start(@Param('programmeId', ParseUUIDPipe) programmeId: string, @CurrentUser() user: MemberAuth) {
         const session = await this.sessionSvc.start(programmeId, user.id);
         const state = await this.sessionSvc.getState(session.sessionCode);
         this.gateway.broadcastState(session.sessionCode, state.anchor, state.session);

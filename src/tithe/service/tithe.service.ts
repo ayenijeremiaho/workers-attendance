@@ -25,6 +25,7 @@ import {AuditLogService} from '../../utility/service/audit-log.service';
 import {CloudinaryService} from '../../utility/service/cloudinary.service';
 import {CacheService} from '../../utility/service/cache.service';
 import {PdfService} from '../../utility/service/pdf.service';
+import {ExcelService} from '../../utility/service/excel.service';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
 import {MemberAuth} from '../../auth/interface/auth.interface';
@@ -62,6 +63,7 @@ export class TitheService {
         private readonly cloudinaryService: CloudinaryService,
         private readonly cacheService: CacheService,
         private readonly pdfService: PdfService,
+        private readonly excelService: ExcelService,
     ) {}
 
     async getTemplate(): Promise<Buffer> {
@@ -437,6 +439,73 @@ export class TitheService {
         } finally {
             this.cacheService.releaseLock(TitheService.PROOF_CLEANUP_LOCK);
         }
+    }
+
+    async getAdminRecords(
+        page = 1,
+        limit = 20,
+        memberId?: string,
+        departmentId?: string,
+        fromMonth?: string,
+        toMonth?: string,
+        search?: string,
+    ): Promise<PaginationResponseDto<TitheRecord>> {
+        const qb = this.buildRecordsQb(memberId, departmentId, fromMonth, toMonth, search);
+        const [data, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
+        return UtilityService.createPaginationResponse(data, page, limit, total);
+    }
+
+    async getAdminRecordsExcel(
+        memberId?: string,
+        departmentId?: string,
+        fromMonth?: string,
+        toMonth?: string,
+        search?: string,
+    ): Promise<Buffer> {
+        const records = await this.buildRecordsQb(memberId, departmentId, fromMonth, toMonth, search).getMany();
+        return this.excelService.buildWorkbook('Tithe Records', [
+            {header: 'Member Name', key: 'memberName', width: 28},
+            {header: 'Email', key: 'email', width: 32},
+            {header: 'Amount (NGN)', key: 'amount', width: 18},
+            {header: 'Payment Date', key: 'paymentDate', width: 16},
+            {header: 'Bank', key: 'bank', width: 22},
+            {header: 'Reference', key: 'reference', width: 30},
+        ], records.map((r) => ({
+            memberName: `${r.member.firstname} ${r.member.lastname}`,
+            email: r.member.email,
+            amount: Number(r.amount),
+            paymentDate: r.paymentDate,
+            bank: r.bankName ?? '',
+            reference: r.reference ?? '',
+        })));
+    }
+
+    private buildRecordsQb(
+        memberId?: string,
+        departmentId?: string,
+        fromMonth?: string,
+        toMonth?: string,
+        search?: string,
+    ) {
+        const qb = this.recordRepo
+            .createQueryBuilder('r')
+            .leftJoinAndSelect('r.member', 'member')
+            .leftJoinAndSelect('member.workerProfile', 'wp')
+            .leftJoinAndSelect('wp.department', 'dept')
+            .orderBy('r.paymentDate', 'DESC');
+
+        if (memberId) qb.andWhere('member.id = :memberId', {memberId});
+        if (departmentId) qb.andWhere('dept.id = :departmentId', {departmentId});
+        if (fromMonth) qb.andWhere('r.paymentDate >= :fromDate', {fromDate: `${fromMonth}-01`});
+        if (toMonth) qb.andWhere('r.paymentDate <= :toDate', {toDate: this.lastDayOfMonth(toMonth)});
+        if (search) {
+            qb.andWhere(
+                '(LOWER(member.firstname) LIKE :s OR LOWER(member.lastname) LIKE :s OR LOWER(member.email) LIKE :s)',
+                {s: `%${search.toLowerCase()}%`},
+            );
+        }
+
+        return qb;
     }
 
     private lastDayOfMonth(ym: string): string {

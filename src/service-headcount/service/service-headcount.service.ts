@@ -1,4 +1,4 @@
-import {BadRequestException, Injectable, NotFoundException} from '@nestjs/common';
+import {BadRequestException, Injectable, Logger, NotFoundException} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {ServiceHeadcount} from '../entity/service-headcount.entity';
@@ -52,6 +52,8 @@ export class ServiceHeadcountService {
         private readonly serviceSlotRepo: Repository<ServiceSlot>,
     ) {}
 
+    private readonly logger = new Logger(ServiceHeadcountService.name);
+
     async create(dto: CreateServiceHeadcountDto, admin: Admin): Promise<ServiceHeadcount & {total: number}> {
         const serviceSlot = await this.serviceSlotRepo.findOne({where: {id: dto.serviceSlotId}});
         if (!serviceSlot) throw new NotFoundException('Service slot not found');
@@ -69,7 +71,9 @@ export class ServiceHeadcountService {
         });
         const saved = await this.headcountRepo.save(record);
         this.cacheService.flushNamespace('headcount:trends');
-        return Object.assign(saved, {total: this.computeTotal(saved)});
+        const total = this.computeTotal(saved);
+        this.logger.log(`Headcount recorded for slot ${dto.serviceSlotId} by admin ${admin.id} (total: ${total})`);
+        return Object.assign(saved, {total});
     }
 
     async update(id: string, dto: UpdateServiceHeadcountDto): Promise<ServiceHeadcount & {total: number}> {
@@ -86,6 +90,7 @@ export class ServiceHeadcountService {
 
         const saved = await this.headcountRepo.save(record);
         this.cacheService.flushNamespace('headcount:trends');
+        this.logger.log(`Headcount ${id} updated`);
         return Object.assign(saved, {total: this.computeTotal(saved)});
     }
 

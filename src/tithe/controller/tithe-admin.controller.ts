@@ -14,10 +14,9 @@ import {
     UseGuards,
     UseInterceptors,
 } from '@nestjs/common';
-
+import {Response} from 'express';
 import {TitheDisputeStatus, TitheProofStatus, TitheUnmatchedStatus} from '../enum/tithe.enum';
 import {FileInterceptor} from '@nestjs/platform-express';
-import {Response} from 'express';
 import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
@@ -159,5 +158,38 @@ export class TitheAdminController {
         @CurrentAdmin() admin: Admin,
     ): Promise<void> {
         return this.titheService.declineProof(id, dto, admin);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_READ)
+    @Get('records')
+    getRecords(
+        @Query('page', new ParseIntPipe({optional: true})) page = 1,
+        @Query('limit', new ParseIntPipe({optional: true})) limit = 20,
+        @Query('memberId') memberId?: string,
+        @Query('departmentId') departmentId?: string,
+        @Query('fromMonth') fromMonth?: string,
+        @Query('toMonth') toMonth?: string,
+        @Query('search') search?: string,
+    ) {
+        return this.titheService.getAdminRecords(page, limit, memberId, departmentId, fromMonth, toMonth, search);
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_READ)
+    @Get('records/download')
+    async downloadRecords(
+        @Res() res: Response,
+        @Query('memberId') memberId?: string,
+        @Query('departmentId') departmentId?: string,
+        @Query('fromMonth') fromMonth?: string,
+        @Query('toMonth') toMonth?: string,
+        @Query('search') search?: string,
+    ): Promise<void> {
+        const buffer = await this.titheService.getAdminRecordsExcel(memberId, departmentId, fromMonth, toMonth, search);
+        res.set({
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="tithe-records.xlsx"',
+            'Content-Length': buffer.length,
+        });
+        res.end(buffer);
     }
 }

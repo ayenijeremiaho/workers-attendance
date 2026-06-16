@@ -1,4 +1,4 @@
-import {Injectable} from '@nestjs/common';
+import {Injectable, Logger} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Between, Repository} from 'typeorm';
 import {NoteTypeEnum} from '../enums/note-type.enums';
@@ -13,6 +13,8 @@ export class NotesAnalyticsService {
         private readonly noteRepository: Repository<Note>,
     ) {
     }
+
+    private readonly logger = new Logger(NotesAnalyticsService.name);
 
     async getChildNamingAnalytics(from?: Date, to?: Date) {
         const notes = await this.fetchNotes(NoteTypeEnum.CHILD_NAMING, from, to);

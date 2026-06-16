@@ -1,4 +1,4 @@
-import {BadRequestException, Injectable, NotFoundException,} from '@nestjs/common';
+import {BadRequestException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {ChurchClass} from '../entity/church-class.entity';
@@ -32,6 +32,8 @@ export class ClassesService {
     ) {
     }
 
+    private readonly logger = new Logger(ClassesService.name);
+
     async createClass(dto: CreateChurchClassDto): Promise<ChurchClass> {
         const churchClass = this.classRepo.create({
             name: dto.name,
@@ -41,7 +43,9 @@ export class ClassesService {
             endDate: dto.endDate ?? null,
             facilitator: dto.facilitatorId ? {id: dto.facilitatorId} : null,
         });
-        return this.classRepo.save(churchClass);
+        const saved = await this.classRepo.save(churchClass);
+        this.logger.log(`Class "${saved.name}" created (id: ${saved.id})`);
+        return saved;
     }
 
     async updateClass(id: string, dto: UpdateChurchClassDto): Promise<ChurchClass> {
@@ -55,7 +59,9 @@ export class ClassesService {
             churchClass.facilitator = dto.facilitatorId ? ({id: dto.facilitatorId} as Member) : null;
         }
 
-        return this.classRepo.save(churchClass);
+        const saved = await this.classRepo.save(churchClass);
+        this.logger.log(`Class "${saved.name}" updated (id: ${saved.id})`);
+        return saved;
     }
 
     async deleteClass(id: string): Promise<void> {
@@ -65,12 +71,15 @@ export class ClassesService {
             where: {churchClass: {id}, status: EnrollmentStatusEnum.IN_PROGRESS},
         });
         if (activeEnrollments > 0) {
+            this.logger.warn(`Delete of class "${churchClass.name}" blocked — ${activeEnrollments} active enrollment(s)`);
             throw new BadRequestException(
                 `Cannot delete this class — ${activeEnrollments} member(s) are currently enrolled. Complete or cancel their enrolments first.`,
             );
         }
 
+        const {name} = churchClass;
         await this.classRepo.remove(churchClass);
+        this.logger.log(`Class "${name}" deleted (id: ${id})`);
     }
 
     async getClass(id: string): Promise<ChurchClass> {
@@ -124,7 +133,9 @@ export class ClassesService {
             existing.status = EnrollmentStatusEnum.IN_PROGRESS;
             existing.cancelledAt = null;
             existing.completedAt = null;
-            return this.enrollmentRepo.save(existing);
+            const re = await this.enrollmentRepo.save(existing);
+            this.logger.log(`Member ${dto.memberId} re-enrolled in class "${churchClass.name}" (id: ${churchClass.id})`);
+            return re;
         }
 
         const enrollment = this.enrollmentRepo.create({
@@ -132,7 +143,9 @@ export class ClassesService {
             churchClass,
             status: EnrollmentStatusEnum.IN_PROGRESS,
         });
-        return this.enrollmentRepo.save(enrollment);
+        const saved = await this.enrollmentRepo.save(enrollment);
+        this.logger.log(`Member ${dto.memberId} enrolled in class "${churchClass.name}" (id: ${churchClass.id})`);
+        return saved;
     }
 
     async countActiveEnrollments(): Promise<number> {
@@ -210,7 +223,9 @@ export class ClassesService {
             enrollment.completedAt = null;
         }
 
-        return this.enrollmentRepo.save(enrollment);
+        const saved = await this.enrollmentRepo.save(enrollment);
+        this.logger.log(`Enrollment ${enrollmentId} status updated to ${status}`);
+        return saved;
     }
 
     async getMyEnrollments(memberId: string): Promise<ClassEnrollment[]> {

@@ -9,6 +9,7 @@ import {Admin} from '../../admin/entity/admin.entity';
 import {UtilityService} from '../../utility/service/utility.service';
 import {AuditLogService} from '../../utility/service/audit-log.service';
 import {CloudinaryService} from '../../utility/service/cloudinary.service';
+import {ExcelService} from '../../utility/service/excel.service';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 import {SessionSurface} from '../../auth/enum/session-surface.enum';
 import {MemberRoleEnum} from '../../member/enums/member-role.enum';
@@ -49,6 +50,10 @@ const mockAuditLogService = {log: jest.fn()};
 
 const mockCloudinaryService = {
     uploadBuffer: jest.fn(),
+};
+
+const mockExcelService = {
+    buildWorkbook: jest.fn().mockResolvedValue(Buffer.from('xlsx')),
 };
 
 const mockUtilityService = {
@@ -100,6 +105,7 @@ describe('FinanceRequestService', () => {
                 {provide: UtilityService, useValue: mockUtilityService},
                 {provide: AuditLogService, useValue: mockAuditLogService},
                 {provide: CloudinaryService, useValue: mockCloudinaryService},
+                {provide: ExcelService, useValue: mockExcelService},
             ],
         }).compile();
 
@@ -378,6 +384,99 @@ describe('FinanceRequestService', () => {
                 'FINANCE_REQUEST_REJECTED',
                 expect.objectContaining({metadata: expect.objectContaining({reason: 'No budget'})}),
             );
+        });
+    });
+
+    describe('getAllRequests', () => {
+        it('should return paginated requests with no filters', async () => {
+            const qb = makeQb();
+            qb.getManyAndCount.mockResolvedValue([[pendingRequest], 1]);
+            mockRequestRepo.createQueryBuilder.mockReturnValue(qb);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [pendingRequest] as any, page: 1, limit: 20, totalCount: 1, totalPages: 1});
+
+            const result = await service.getAllRequests(1, 20);
+
+            expect(qb.getManyAndCount).toHaveBeenCalled();
+            expect(result.totalCount).toBe(1);
+        });
+
+        it('should apply status filter', async () => {
+            const qb = makeQb();
+            qb.getManyAndCount.mockResolvedValue([[], 0]);
+            mockRequestRepo.createQueryBuilder.mockReturnValue(qb);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
+
+            await service.getAllRequests(1, 20, FinanceRequestStatus.PENDING);
+
+            expect(qb.andWhere).toHaveBeenCalledWith('r.status = :status', {status: FinanceRequestStatus.PENDING});
+        });
+
+        it('should apply memberId filter', async () => {
+            const qb = makeQb();
+            qb.getManyAndCount.mockResolvedValue([[], 0]);
+            mockRequestRepo.createQueryBuilder.mockReturnValue(qb);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
+
+            await service.getAllRequests(1, 20, undefined, undefined, 'member-1');
+
+            expect(qb.andWhere).toHaveBeenCalledWith('requestedBy.id = :memberId', {memberId: 'member-1'});
+        });
+
+        it('should apply departmentId filter', async () => {
+            const qb = makeQb();
+            qb.getManyAndCount.mockResolvedValue([[], 0]);
+            mockRequestRepo.createQueryBuilder.mockReturnValue(qb);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
+
+            await service.getAllRequests(1, 20, undefined, undefined, undefined, 'dept-1');
+
+            expect(qb.andWhere).toHaveBeenCalledWith('department.id = :departmentId', {departmentId: 'dept-1'});
+        });
+
+        it('should apply search filter across name, email, and reason', async () => {
+            const qb = makeQb();
+            qb.getManyAndCount.mockResolvedValue([[], 0]);
+            mockRequestRepo.createQueryBuilder.mockReturnValue(qb);
+            jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({data: [], page: 1, limit: 20, totalCount: 0, totalPages: 0});
+
+            await service.getAllRequests(1, 20, undefined, undefined, undefined, undefined, 'projector');
+
+            expect(qb.andWhere).toHaveBeenCalledWith(
+                expect.stringContaining('LOWER(requestedBy.firstname)'),
+                expect.objectContaining({s: '%projector%'}),
+            );
+        });
+    });
+
+    describe('getRequestsExcel', () => {
+        it('should return an Excel buffer with correct row shape', async () => {
+            const request = {
+                ...pendingRequest,
+                requestedBy: {id: 'member-1', firstname: 'John', lastname: 'Doe', email: 'john@test.com'},
+                department: {id: 'dept-1', name: 'Media'},
+                category: {id: 'cat-1', name: 'Equipment'},
+                reviewedBy: null,
+                reviewedAt: null,
+                rejectionReason: null,
+            };
+            const qb = makeQb();
+            qb.getMany.mockResolvedValue([request]);
+            mockRequestRepo.createQueryBuilder.mockReturnValue(qb);
+
+            const result = await service.getRequestsExcel();
+
+            expect(mockExcelService.buildWorkbook).toHaveBeenCalledWith(
+                'Finance Requests',
+                expect.arrayContaining([
+                    expect.objectContaining({key: 'requester'}),
+                    expect.objectContaining({key: 'amount'}),
+                    expect.objectContaining({key: 'status'}),
+                ]),
+                expect.arrayContaining([
+                    expect.objectContaining({requester: 'John Doe', email: 'john@test.com', department: 'Media', amount: 50000}),
+                ]),
+            );
+            expect(result).toBeInstanceOf(Buffer);
         });
     });
 

@@ -1,4 +1,4 @@
-import {BadRequestException, ForbiddenException, Injectable, NotFoundException,} from '@nestjs/common';
+import {BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {MoreThanOrEqual, Repository} from 'typeorm';
 import {Department} from '../entity/department.entity';
@@ -61,6 +61,8 @@ export class DepartmentService {
         this.cacheTtl = this.configService.get<number>('CACHE_TTL_REFERENCE_SECONDS', 300);
     }
 
+    private readonly logger = new Logger(DepartmentService.name);
+
     async create(dto: CreateDepartmentDto, actorId: string): Promise<Department> {
         await this.assertNameUnique(dto.name);
         const dept = await this.departmentRepository.save({...dto});
@@ -114,6 +116,7 @@ export class DepartmentService {
             this.workerProfileRepository.exists({where: {secondaryDepartment: {id}}}),
         ]);
         if (hasPrimaryWorkers || hasSecondaryWorkers) {
+            this.logger.warn(`Delete of department "${department.name}" blocked — workers are still assigned`);
             throw new BadRequestException(
                 `${department.name} has workers assigned and cannot be deleted`,
             );

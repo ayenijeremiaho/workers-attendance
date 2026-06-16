@@ -3,6 +3,7 @@ import {
     ConflictException,
     ForbiddenException,
     Injectable,
+    Logger,
     NotFoundException,
 } from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
@@ -38,6 +39,8 @@ export class ServiceProgrammeService {
         private readonly memberRepo: Repository<Member>,
     ) {}
 
+    private readonly logger = new Logger(ServiceProgrammeService.name);
+
     async create(dto: CreateServiceProgrammeDto, admin: Admin): Promise<ServiceProgramme> {
         const serviceSlot = await this.serviceSlotRepo.findOne({where: {id: dto.serviceSlotId}});
         if (!serviceSlot) throw new NotFoundException('Service slot not found');
@@ -50,7 +53,9 @@ export class ServiceProgrammeService {
             saveAsTemplate: dto.saveAsTemplate ?? false,
             createdByAdmin: admin,
         });
-        return this.programmeRepo.save(programme);
+        const saved = await this.programmeRepo.save(programme);
+        this.logger.log(`Programme ${saved.id} created for slot ${dto.serviceSlotId} by admin ${admin.id}`);
+        return saved;
     }
 
     async findAll(page = 1, limit = 20): Promise<PaginationResponseDto<ServiceProgramme>> {
@@ -87,7 +92,9 @@ export class ServiceProgrammeService {
         const programme = await this.programmeRepo.findOne({where: {id}});
         if (!programme) throw new NotFoundException('Programme not found');
         Object.assign(programme, dto);
-        return this.programmeRepo.save(programme);
+        const saved = await this.programmeRepo.save(programme);
+        this.logger.log(`Programme ${id} updated`);
+        return saved;
     }
 
     async remove(id: string): Promise<void> {
@@ -97,6 +104,7 @@ export class ServiceProgrammeService {
             throw new BadRequestException('Only DRAFT programmes can be deleted');
         }
         await this.programmeRepo.remove(programme);
+        this.logger.log(`Programme ${id} deleted`);
     }
 
     async addSlot(programmeId: string, dto: CreateServiceProgrammeSlotDto): Promise<ServiceProgrammeSlot> {
@@ -134,7 +142,9 @@ export class ServiceProgrammeService {
             backupGuestName: dto.backupGuestName ?? null,
             allocatedMinutes: dto.allocatedMinutes,
         });
-        return this.slotRepo.save(slot);
+        const saved = await this.slotRepo.save(slot);
+        this.logger.log(`Slot added to programme ${programmeId} at position ${nextPosition}`);
+        return saved;
     }
 
     async updateSlot(programmeId: string, slotId: string, dto: UpdateServiceProgrammeSlotDto): Promise<ServiceProgrammeSlot> {
@@ -164,7 +174,9 @@ export class ServiceProgrammeService {
         if (dto.backupGuestName !== undefined) slot.backupGuestName = dto.backupGuestName ?? null;
         if (dto.allocatedMinutes !== undefined) slot.allocatedMinutes = dto.allocatedMinutes;
 
-        return this.slotRepo.save(slot);
+        const saved = await this.slotRepo.save(slot);
+        this.logger.log(`Slot ${slotId} updated on programme ${programmeId}`);
+        return saved;
     }
 
     async reorderSlots(programmeId: string, dto: ReorderProgrammeSlotsDto): Promise<ServiceProgrammeSlot[]> {
@@ -201,6 +213,7 @@ export class ServiceProgrammeService {
             throw new BadRequestException('Slots can only be removed from DRAFT programmes');
         }
         await this.slotRepo.remove(slot);
+        this.logger.log(`Slot ${slotId} removed from programme ${programmeId}`);
     }
 
     async applyTemplate(programmeId: string, templateId: string): Promise<ServiceProgramme> {
@@ -216,7 +229,7 @@ export class ServiceProgrammeService {
         const template = await this.templateRepo.findOne({where: {id: templateId}});
         if (!template) throw new NotFoundException('Template not found');
 
-        return this.dataSource.transaction(async (manager) => {
+        const result = await this.dataSource.transaction(async (manager) => {
             if (programme.slots.length > 0) {
                 await manager.remove(ServiceProgrammeSlot, programme.slots);
             }
@@ -232,6 +245,8 @@ export class ServiceProgrammeService {
             programme.slots = await manager.save(ServiceProgrammeSlot, newSlots);
             return manager.save(ServiceProgramme, programme);
         });
+        this.logger.log(`Template ${templateId} applied to programme ${programmeId} (${result.slots.length} slots)`);
+        return result;
     }
 
     async findAllTemplates(): Promise<ServiceProgrammeTemplate[]> {
@@ -242,6 +257,7 @@ export class ServiceProgrammeService {
         const template = await this.templateRepo.findOne({where: {id}});
         if (!template) throw new NotFoundException('Template not found');
         await this.templateRepo.remove(template);
+        this.logger.log(`Template ${id} deleted`);
     }
 
     async upsertTemplateFromProgramme(programme: ServiceProgramme): Promise<void> {
@@ -260,6 +276,7 @@ export class ServiceProgrammeService {
             existing.slots = slots;
             existing.createdFrom = programme;
             await this.templateRepo.save(existing);
+            this.logger.log(`Template "${slotName}" updated from programme ${programme.id}`);
         } else {
             const template = this.templateRepo.create({
                 name: slotName,
@@ -268,6 +285,7 @@ export class ServiceProgrammeService {
                 createdFrom: programme,
             });
             await this.templateRepo.save(template);
+            this.logger.log(`Template "${slotName}" created from programme ${programme.id}`);
         }
     }
 

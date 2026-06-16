@@ -4,6 +4,7 @@ import {
     Delete,
     Get,
     Param,
+    ParseUUIDPipe,
     Patch,
     Post,
     Put,
@@ -54,63 +55,63 @@ export class ServiceProgrammeController {
     @Delete('templates/:templateId')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
-    removeTemplate(@Param('templateId') templateId: string) {
+    removeTemplate(@Param('templateId', ParseUUIDPipe) templateId: string) {
         return this.programmeSvc.removeTemplate(templateId);
     }
 
     @Get(':id')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_READ)
-    findOne(@Param('id') id: string) {
+    findOne(@Param('id', ParseUUIDPipe) id: string) {
         return this.programmeSvc.findOne(id);
     }
 
     @Patch(':id')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
-    update(@Param('id') id: string, @Body() dto: UpdateServiceProgrammeDto) {
+    update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateServiceProgrammeDto) {
         return this.programmeSvc.update(id, dto);
     }
 
     @Delete(':id')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
-    remove(@Param('id') id: string) {
+    remove(@Param('id', ParseUUIDPipe) id: string) {
         return this.programmeSvc.remove(id);
     }
 
     @Post(':id/slots')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
-    addSlot(@Param('id') id: string, @Body() dto: CreateServiceProgrammeSlotDto) {
+    addSlot(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateServiceProgrammeSlotDto) {
         return this.programmeSvc.addSlot(id, dto);
     }
 
     @Put(':id/slots/reorder')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
-    reorderSlots(@Param('id') id: string, @Body() dto: ReorderProgrammeSlotsDto) {
+    reorderSlots(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReorderProgrammeSlotsDto) {
         return this.programmeSvc.reorderSlots(id, dto);
     }
 
     @Patch(':id/slots/:slotId')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
-    updateSlot(@Param('id') id: string, @Param('slotId') slotId: string, @Body() dto: UpdateServiceProgrammeSlotDto) {
+    updateSlot(@Param('id', ParseUUIDPipe) id: string, @Param('slotId', ParseUUIDPipe) slotId: string, @Body() dto: UpdateServiceProgrammeSlotDto) {
         return this.programmeSvc.updateSlot(id, slotId, dto);
     }
 
     @Delete(':id/slots/:slotId')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
-    removeSlot(@Param('id') id: string, @Param('slotId') slotId: string) {
+    removeSlot(@Param('id', ParseUUIDPipe) id: string, @Param('slotId', ParseUUIDPipe) slotId: string) {
         return this.programmeSvc.removeSlot(id, slotId);
     }
 
     @Post(':id/apply-template/:templateId')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
-    applyTemplate(@Param('id') id: string, @Param('templateId') templateId: string) {
+    applyTemplate(@Param('id', ParseUUIDPipe) id: string, @Param('templateId', ParseUUIDPipe) templateId: string) {
         return this.programmeSvc.applyTemplate(id, templateId);
     }
 
@@ -118,7 +119,7 @@ export class ServiceProgrammeController {
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_READ)
     getSessions(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
     ) {

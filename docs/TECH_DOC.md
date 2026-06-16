@@ -1225,6 +1225,19 @@ re-uploading the file.
 **Excel template:** Three-sheet workbook — `Tithe Template` (headers only), `Instructions`, `Sample`. Served at
 `GET /admin/tithes/template`.
 
+**Admin records list:** `GET /admin/tithes/records` returns all confirmed tithe records (paginated, `FINANCE_READ`). Supports the following query params:
+
+| Param | Type | Description |
+|---|---|---|
+| `memberId` | UUID | Filter to one specific member |
+| `departmentId` | UUID | Filter to tithes paid by workers in that department |
+| `fromMonth` | `YYYY-MM` | Start of payment date range (inclusive) |
+| `toMonth` | `YYYY-MM` | End of payment date range (inclusive, last day of month) |
+| `search` | string | Wildcard match on member firstname, lastname, or email |
+| `page` / `limit` | int | Pagination (default 1 / 20) |
+
+`GET /admin/tithes/records/download` accepts the same filters (no pagination) and returns an `.xlsx` file with columns: Member Name, Email, Amount (NGN), Payment Date, Bank, Reference.
+
 **Member visibility:** Members view their own tithes at `GET /tithes/me` and request a PDF statement emailed to them
 at `POST /tithes/me/download`. Optional query params `fromMonth` and `toMonth` (format `YYYY-MM`) filter the records included in the statement and display a period range in the PDF (e.g. `?fromMonth=2026-01&toMonth=2026-06`). If only one bound is supplied the other is open-ended.
 
@@ -1250,6 +1263,19 @@ separate `PATCH /:id/proof` endpoint.
 
 **HOD enforcement:** Only workers with a lead assignment (`DepartmentLead` record) can create or view department
 requests. A worker can only raise a request for their own department (verified server-side).
+
+**Admin list filters:** `GET /admin/finance/requests` now accepts additional query params for richer filtering:
+
+| Param | Type | Description |
+|---|---|---|
+| `status` | enum | `PENDING \| APPROVED \| REJECTED` |
+| `categoryId` | UUID | Filter to a specific expense category |
+| `memberId` | UUID | Filter to requests raised by a specific member |
+| `departmentId` | UUID | Filter to requests raised by a specific department |
+| `search` | string | Wildcard match on requester name, email, or reason text |
+| `page` / `limit` | int | Pagination (default 1 / 20) |
+
+`GET /admin/finance/requests/download` accepts the same filters (no pagination) and returns an `.xlsx` file with columns: Requester, Email, Department, Category, Amount (NGN), Status, Reason, Reviewed By, Reviewed At, Rejection Reason.
 
 **Routes prefix (admin):** `/admin/finance`  
 **Routes prefix (worker):** `/finance`
@@ -1508,6 +1534,8 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | PATCH  | /children-church/checkin/:id/flag                          | WORKER (CC-dept)                                              | Flag a check-in record                                                                                        |
 | GET    | /children-church/checkin/active?classGroupId=              | WORKER (CC-dept)                                              | List active check-ins                                                                                         |
 | GET    | /children-church/checkin/slot/:slotId                      | AdminGuard (CHILDREN_CHURCH_READ)                             | All check-ins for a service slot                                                                              |
+| GET    | /admin/tithes/records                                      | AdminGuard (FINANCE_READ)                                     | List all confirmed tithe records (paginated); filters: `memberId`, `departmentId`, `fromMonth`, `toMonth`, `search` |
+| GET    | /admin/tithes/records/download                             | AdminGuard (FINANCE_READ)                                     | Download filtered tithe records as `.xlsx`; same query params as list endpoint, no pagination                 |
 | GET    | /admin/tithes/template                                     | AdminGuard (FINANCE_READ)                                     | Download the tithe upload Excel template (3-sheet workbook)                                                   |
 | POST   | /admin/tithes/upload                                       | AdminGuard (FINANCE_WRITE)                                    | Upload tithe payment Excel; validates headers, creates batch, dispatches Bull job                              |
 | GET    | /admin/tithes/batches                                      | AdminGuard (FINANCE_READ)                                     | List all upload batches (paginated)                                                                           |
@@ -1529,7 +1557,8 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /admin/finance/categories                                  | AdminGuard (FINANCE_READ)                                     | List finance categories                                                                                       |
 | POST   | /admin/finance/categories                                  | AdminGuard (FINANCE_WRITE)                                    | Create finance category                                                                                       |
 | PATCH  | /admin/finance/categories/:id                              | AdminGuard (FINANCE_WRITE)                                    | Update finance category                                                                                       |
-| GET    | /admin/finance/requests                                    | AdminGuard (FINANCE_READ)                                     | List finance requests (paginated; filterable by status, categoryId)                                           |
+| GET    | /admin/finance/requests                                    | AdminGuard (FINANCE_READ)                                     | List finance requests (paginated); filters: `status`, `categoryId`, `memberId`, `departmentId`, `search`      |
+| GET    | /admin/finance/requests/download                           | AdminGuard (FINANCE_READ)                                     | Download filtered finance requests as `.xlsx`; same query params as list endpoint, no pagination              |
 | GET    | /admin/finance/requests/:id                                | AdminGuard (FINANCE_READ)                                     | Get finance request by ID                                                                                     |
 | PATCH  | /admin/finance/requests/:id/approve                        | AdminGuard (FINANCE_WRITE)                                    | Approve a pending finance request — 403 if the approver is the same member who raised the request            |
 | PATCH  | /admin/finance/requests/:id/reject                         | AdminGuard (FINANCE_WRITE)                                    | Reject a pending finance request (body: rejectionReason)                                                      |

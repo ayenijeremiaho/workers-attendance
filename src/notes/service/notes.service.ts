@@ -1,4 +1,4 @@
-import {BadRequestException, Injectable, NotFoundException} from '@nestjs/common';
+import {BadRequestException, Injectable, Logger, NotFoundException} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {plainToInstance} from 'class-transformer';
@@ -23,6 +23,8 @@ export class NotesService {
     ) {
     }
 
+    private readonly logger = new Logger(NotesService.name);
+
     async create(request: NoteRequest, actorId: string): Promise<Note> {
         await NotesService.validateRequest(request.type, request);
 
@@ -31,6 +33,7 @@ export class NotesService {
         note.details = this.buildDetails(request);
 
         const saved = await this.noteRepository.save(note);
+        this.logger.log(`Note of type ${saved.type} created (id: ${saved.id}) by actor ${actorId}`);
         this.auditLogService.log('NOTE_CREATED', {
             actorId,
             targetId: saved.id,

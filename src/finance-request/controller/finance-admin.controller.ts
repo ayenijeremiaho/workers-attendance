@@ -7,11 +7,13 @@ import {
     Patch,
     Post,
     Query,
+    Res,
     UploadedFile,
     UseGuards,
     UseInterceptors,
 } from '@nestjs/common';
 import {FileInterceptor} from '@nestjs/platform-express';
+import {Response} from 'express';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
@@ -59,8 +61,34 @@ export class FinanceAdminController {
         @Query('limit') limit = 20,
         @Query('status') status?: FinanceRequestStatus,
         @Query('categoryId') categoryId?: string,
+        @Query('memberId') memberId?: string,
+        @Query('departmentId') departmentId?: string,
+        @Query('search') search?: string,
     ) {
-        return this.financeRequestService.getAllRequests(Number(page), Number(limit), status, categoryId);
+        return this.financeRequestService.getAllRequests(
+            Number(page), Number(limit), status, categoryId, memberId, departmentId, search,
+        );
+    }
+
+    @RequiresPermission(AdminPermission.FINANCE_READ)
+    @Get('requests/download')
+    async downloadRequests(
+        @Res() res: Response,
+        @Query('status') status?: FinanceRequestStatus,
+        @Query('categoryId') categoryId?: string,
+        @Query('memberId') memberId?: string,
+        @Query('departmentId') departmentId?: string,
+        @Query('search') search?: string,
+    ): Promise<void> {
+        const buffer = await this.financeRequestService.getRequestsExcel(
+            status, categoryId, memberId, departmentId, search,
+        );
+        res.set({
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="finance-requests.xlsx"',
+            'Content-Length': buffer.length,
+        });
+        res.end(buffer);
     }
 
     @RequiresPermission(AdminPermission.FINANCE_READ)

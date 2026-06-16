@@ -5680,6 +5680,48 @@
       "name": "Tithes (Admin)",
       "item": [
         {
+          "name": "List Tithe Records (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/records?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tithes", "records"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "memberId", "value": "", "disabled": true},
+                {"key": "departmentId", "value": "", "disabled": true},
+                {"key": "fromMonth", "value": "2026-01", "disabled": true},
+                {"key": "toMonth", "value": "2026-06", "disabled": true},
+                {"key": "search", "value": "", "disabled": true}
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Returns paginated confirmed tithe records. Filters: memberId, departmentId, fromMonth (YYYY-MM), toMonth (YYYY-MM), search (wildcard on name/email)."
+          }
+        },
+        {
+          "name": "Download Tithe Records (Excel)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/records/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tithes", "records", "download"],
+              "query": [
+                {"key": "memberId", "value": "", "disabled": true},
+                {"key": "departmentId", "value": "", "disabled": true},
+                {"key": "fromMonth", "value": "2026-01", "disabled": true},
+                {"key": "toMonth", "value": "2026-06", "disabled": true},
+                {"key": "search", "value": "", "disabled": true}
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Downloads all matching tithe records as tithe-records.xlsx. Supports same filters as the list endpoint; no pagination — all matching rows are included."
+          }
+        },
+        {
           "name": "Download Tithe Template",
           "request": {
             "method": "GET",
@@ -6453,26 +6495,36 @@
                 "requests"
               ],
               "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                },
-                {
-                  "key": "status",
-                  "value": "PENDING"
-                },
-                {
-                  "key": "categoryId",
-                  "value": "",
-                  "disabled": true
-                }
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "status", "value": "PENDING"},
+                {"key": "categoryId", "value": "", "disabled": true},
+                {"key": "memberId", "value": "", "disabled": true},
+                {"key": "departmentId", "value": "", "disabled": true},
+                {"key": "search", "value": "", "disabled": true}
               ]
             },
-            "description": "AdminGuard (FINANCE_READ). Paginated list of all finance requests. Filterable by status (PENDING/APPROVED/REJECTED) and categoryId."
+            "description": "AdminGuard (FINANCE_READ). Paginated list of all finance requests. Filters: status (PENDING/APPROVED/REJECTED), categoryId, memberId, departmentId, search (wildcard on requester name, email, or reason)."
+          }
+        },
+        {
+          "name": "Download Finance Requests (Excel)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/admin/finance/requests/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "finance", "requests", "download"],
+              "query": [
+                {"key": "status", "value": "PENDING", "disabled": true},
+                {"key": "categoryId", "value": "", "disabled": true},
+                {"key": "memberId", "value": "", "disabled": true},
+                {"key": "departmentId", "value": "", "disabled": true},
+                {"key": "search", "value": "", "disabled": true}
+              ]
+            },
+            "description": "AdminGuard (FINANCE_READ). Downloads all matching finance requests as finance-requests.xlsx. Supports same filters as the list endpoint; no pagination — all matching rows are included."
           }
         },
         {

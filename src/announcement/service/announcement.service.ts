@@ -1,4 +1,4 @@
-import {BadRequestException, Injectable, NotFoundException,} from '@nestjs/common';
+import {BadRequestException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {Announcement} from '../entity/announcement.entity';
@@ -22,6 +22,8 @@ export class AnnouncementService {
     ) {
     }
 
+    private readonly logger = new Logger(AnnouncementService.name);
+
     async create(dto: CreateAnnouncementDto, authorId: string): Promise<Announcement> {
         if (dto.audience === AnnouncementAudienceEnum.DEPARTMENT && !dto.departmentId) {
             throw new BadRequestException('departmentId is required for DEPARTMENT audience');
@@ -42,6 +44,7 @@ export class AnnouncementService {
         });
 
         const saved = await this.announcementRepo.save(announcement);
+        this.logger.log(`Announcement "${saved.title}" published to ${saved.audience} audience (id: ${saved.id}) by actor ${authorId}`);
         this.auditLogService.log('ANNOUNCEMENT_CREATED', {
             actorId: authorId,
             targetId: saved.id,

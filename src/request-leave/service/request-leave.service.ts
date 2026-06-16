@@ -1,4 +1,4 @@
-import {BadRequestException, Injectable, NotFoundException,} from '@nestjs/common';
+import {BadRequestException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {RequestLeave} from '../enitity/request-leave.entity';
@@ -22,6 +22,8 @@ export class RequestLeaveService {
         private readonly auditLogService: AuditLogService,
     ) {
     }
+
+    private readonly logger = new Logger(RequestLeaveService.name);
 
     async requestLeave(user: MemberAuth, dto: CreateRequestLeaveDto): Promise<RequestLeave> {
         const member = await this.memberService.getById(user.id, ['workerProfile']);
@@ -70,6 +72,7 @@ export class RequestLeaveService {
                 status: LeaveStatusEnum.PENDING,
             }),
         );
+        this.logger.log(`Leave request ${saved.id} submitted by member ${user.id} (${dto.dateFrom} → ${dto.dateTo})`);
 
         const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
         this.utilityService.sendEmailWithTemplate(
@@ -150,6 +153,7 @@ export class RequestLeaveService {
         }
 
         await this.repo.delete(leaveId);
+        this.logger.log(`Leave request ${leaveId} withdrawn by member ${user.id}`);
     }
 
     async getMyLeaveHistory(user: MemberAuth, status?: LeaveStatusEnum): Promise<RequestLeave[]> {

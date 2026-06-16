@@ -1,4 +1,4 @@
-import {BadRequestException, ConflictException, Injectable, NotFoundException,} from '@nestjs/common';
+import {BadRequestException, ConflictException, Injectable, Logger, NotFoundException,} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {AdminRole} from '../entity/admin-role.entity';
@@ -14,6 +14,8 @@ export class AdminRoleService {
     ) {
     }
 
+    private readonly logger = new Logger(AdminRoleService.name);
+
     async create(dto: CreateAdminRoleDto, actorId: string): Promise<AdminRole> {
         const exists = await this.adminRoleRepository.existsBy({name: dto.name});
         if (exists) throw new ConflictException(`Admin role "${dto.name}" already exists.`);
@@ -24,6 +26,7 @@ export class AdminRoleService {
             permissions: dto.permissions,
         });
         const saved = await this.adminRoleRepository.save(role);
+        this.logger.log(`Admin role "${saved.name}" created (id: ${saved.id}) by actor ${actorId}`);
         this.auditLogService.log('ADMIN_ROLE_CREATED', {
             actorId,
             targetId: saved.id,
@@ -44,6 +47,7 @@ export class AdminRoleService {
         if (dto.permissions !== undefined) role.permissions = dto.permissions;
 
         const saved = await this.adminRoleRepository.save(role);
+        this.logger.log(`Admin role "${saved.name}" updated (id: ${id}) by actor ${actorId}`);
         this.auditLogService.log('ADMIN_ROLE_UPDATED', {
             actorId,
             targetId: id,
@@ -61,6 +65,7 @@ export class AdminRoleService {
 
         const activeAdmins = role.admins?.filter((a) => a.isActive).length ?? 0;
         if (activeAdmins > 0) {
+            this.logger.warn(`Delete of admin role "${role.name}" blocked — ${activeAdmins} active admin(s) still assigned`);
             throw new BadRequestException(
                 'Cannot delete a role that has active admin users. Reassign or deactivate them first.',
             );
@@ -68,6 +73,7 @@ export class AdminRoleService {
 
         const {name} = role;
         await this.adminRoleRepository.remove(role);
+        this.logger.log(`Admin role "${name}" deleted (id: ${id}) by actor ${actorId}`);
         this.auditLogService.log('ADMIN_ROLE_DELETED', {
             actorId,
             targetId: id,
@@ -89,6 +95,7 @@ export class AdminRoleService {
         const existing = await this.adminRoleRepository.findOneBy({name: 'SuperAdmin'});
         if (existing) return existing;
 
+        this.logger.log('SuperAdmin role not found — seeding');
         const {AdminPermission} = await import('../enum/admin-permission.enum');
         return this.adminRoleRepository.save(
             this.adminRoleRepository.create({

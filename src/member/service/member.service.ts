@@ -104,7 +104,6 @@ export class MemberService {
         if (!department) throw new NotFoundException('Department not found');
 
         const profile = this.workerProfileRepository.create({
-            member,
             department,
             status: WorkerStatusEnum.ACTIVE,
             profession: dto.profession,
@@ -112,6 +111,7 @@ export class MemberService {
                 ? new Date(`${dto.yearJoinedWorkforce}-01-01`)
                 : null,
         });
+        profile.member = member;
 
         await this.workerProfileRepository.save(profile);
         member.role = MemberRoleEnum.WORKER;

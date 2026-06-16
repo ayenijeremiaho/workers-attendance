@@ -565,6 +565,70 @@ export class ServiceSessionService {
         return this.pdfService.generateFullEventReport(fullReport);
     }
 
+    async getEventSummaryReportPdf(eventId: string): Promise<Buffer> {
+        const sessions = await this.sessionRepo
+            .createQueryBuilder('session')
+            .innerJoinAndSelect('session.programme', 'programme')
+            .innerJoinAndSelect('programme.serviceSlot', 'serviceSlot')
+            .innerJoinAndSelect('serviceSlot.event', 'event')
+            .leftJoinAndSelect('session.sessionSlots', 'sessionSlots')
+            .leftJoinAndSelect('sessionSlots.programmeSlot', 'programmeSlot')
+            .leftJoinAndSelect('programmeSlot.member', 'member')
+            .leftJoinAndSelect('sessionSlots.overriddenMember', 'overriddenMember')
+            .leftJoinAndSelect('session.pauseEntries', 'pauseEntries')
+            .where('event.id = :eventId', {eventId})
+            .orderBy('serviceSlot.startTime', 'ASC')
+            .addOrderBy('sessionSlots.position', 'ASC')
+            .addOrderBy('pauseEntries.pausedAt', 'ASC')
+            .getMany();
+
+        if (sessions.length === 0) throw new NotFoundException('No sessions found for this event');
+
+        const event = sessions[0].programme.serviceSlot.event;
+        const eventDate = event.eventDate instanceof Date
+            ? event.eventDate.toISOString().slice(0, 10)
+            : String(event.eventDate);
+
+        const sessionReports = sessions.map((s) => this.buildSessionReport(s));
+        const totalAllocatedMinutes = sessionReports.reduce((sum, r) => sum + r.totalAllocatedMinutes, 0);
+        const totalSlotVarianceMinutes = sessionReports.reduce((sum, r) => sum + r.slotVarianceMinutes, 0);
+        const totalDurationMinutes = sessionReports.every((r) => r.totalDurationMinutes != null)
+            ? sessionReports.reduce((sum, r) => sum + (r.totalDurationMinutes ?? 0), 0)
+            : null;
+        const totalPauseMinutes = Math.round(
+            sessionReports.reduce((sum, r) => sum + r.totalPauseDurationSeconds, 0) / 60,
+        );
+        const avgCompletionRate = Math.round(
+            sessionReports.reduce((sum, r) => sum + r.completionRate, 0) / sessionReports.length,
+        );
+
+        const fullReport: FullEventReport = {
+            eventName: event.name,
+            eventDate,
+            sessions: sessions.map((session, i) => ({
+                serviceSlotName: session.programme.serviceSlot.name,
+                slotStartTime: session.programme.serviceSlot.startTime,
+                slotEndTime: session.programme.serviceSlot.endTime,
+                report: sessionReports[i],
+            })),
+            summary: {
+                sessionCount: sessions.length,
+                totalAllocatedMinutes,
+                totalSlotVarianceMinutes,
+                totalDurationMinutes,
+                totalPauseMinutes,
+                avgCompletionRate,
+            },
+        };
+
+        return this.pdfService.generateEventSummaryReport(fullReport);
+    }
+
+    async getEventSummaryReportPdfForWorker(eventId: string, memberId: string): Promise<Buffer> {
+        await this.assertAdminDeptWorker(memberId);
+        return this.getEventSummaryReportPdf(eventId);
+    }
+
     private buildSessionReport(session: ServiceSession): SessionReport {
         const slots = session.sessionSlots ?? [];
         const pauses = session.pauseEntries ?? [];

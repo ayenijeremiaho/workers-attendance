@@ -138,6 +138,23 @@ export class ServiceSessionController {
         res.end(pdf);
     }
 
+    @Get('event/:eventId/summary-pdf')
+    @UseGuards(RolesGuard)
+    @Roles(MemberRoleEnum.WORKER)
+    async downloadEventSummaryPdfForWorker(
+        @Param('eventId', ParseUUIDPipe) eventId: string,
+        @CurrentUser() user: MemberAuth,
+        @Res() res: Response,
+    ) {
+        const pdf = await this.sessionSvc.getEventSummaryReportPdfForWorker(eventId, user.id);
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="event-summary-${eventId}.pdf"`,
+            'Content-Length': pdf.length,
+        });
+        res.end(pdf);
+    }
+
     @Get('event/:eventId/report/pdf')
     @UseGuards(AdminGuard)
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_READ)
@@ -149,6 +166,22 @@ export class ServiceSessionController {
         res.set({
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename="event-report-${eventId}.pdf"`,
+            'Content-Length': pdf.length,
+        });
+        res.end(pdf);
+    }
+
+    @Get('event/:eventId/report/summary-pdf')
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_READ)
+    async downloadEventSummaryPdf(
+        @Param('eventId', ParseUUIDPipe) eventId: string,
+        @Res() res: Response,
+    ) {
+        const pdf = await this.sessionSvc.getEventSummaryReportPdf(eventId);
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="event-summary-${eventId}.pdf"`,
             'Content-Length': pdf.length,
         });
         res.end(pdf);

@@ -291,7 +291,7 @@ export class FinanceRequestService {
                 'New Finance Request Pending Review',
                 'finance-request-submitted',
                 {
-                    amount: Number(request.amount).toLocaleString(this.currencyLocale),
+                    amount: `${this.currencyCode} ${Number(request.amount).toLocaleString(this.currencyLocale)}`,
                     reason: request.reason,
                     requestId: request.id,
                 },
@@ -321,7 +321,7 @@ export class FinanceRequestService {
             templates[event],
             {
                 name: UtilityService.capitalizeFirstLetter(hod.requestedBy.firstname),
-                amount: Number(request.amount).toLocaleString(this.currencyLocale),
+                amount: `${this.currencyCode} ${Number(request.amount).toLocaleString(this.currencyLocale)}`,
                 reason: request.reason,
                 rejectionReason: request.rejectionReason ?? '',
                 proofUrl: request.proofUrl ?? '',

@@ -22,6 +22,7 @@ import {ReorderProgrammeSlotsDto} from '../dto/reorder-programme-slots.dto';
 import {ServiceProgrammeStatusEnum} from '../enum/service-programme-status.enum';
 import {PaginationResponseDto} from '../../utility/dto/pagination-response.dto';
 import {UtilityService} from '../../utility/service/utility.service';
+import {PdfService} from '../../utility/service/pdf.service';
 
 @Injectable()
 export class ServiceProgrammeService {
@@ -37,6 +38,7 @@ export class ServiceProgrammeService {
         private readonly serviceSlotRepo: Repository<ServiceSlot>,
         @InjectRepository(Member)
         private readonly memberRepo: Repository<Member>,
+        private readonly pdfService: PdfService,
     ) {}
 
     private readonly logger = new Logger(ServiceProgrammeService.name);
@@ -260,9 +262,51 @@ export class ServiceProgrammeService {
         this.logger.log(`Template ${id} deleted`);
     }
 
+    async downloadPdf(id: string): Promise<Buffer> {
+        const programme = await this.programmeRepo.findOne({
+            where: {id},
+            relations: [
+                'serviceSlot',
+                'serviceSlot.event',
+                'slots',
+                'slots.member',
+                'slots.backupMember',
+            ],
+            order: {slots: {position: 'ASC'}},
+        });
+        if (!programme) throw new NotFoundException('Programme not found');
+        return this.pdfService.generateProgrammeDraft(programme);
+    }
+
+    async downloadEventPdf(eventId: string): Promise<{buffer: Buffer; eventName: string}> {
+        const slots = await this.serviceSlotRepo.find({
+            where: {event: {id: eventId}},
+            relations: ['event'],
+            order: {startTime: 'ASC'},
+        });
+        if (!slots.length) throw new NotFoundException('Event not found or has no service slots');
+
+        const programmes = await this.programmeRepo.find({
+            where: slots.map((s) => ({serviceSlot: {id: s.id}})),
+            relations: ['serviceSlot', 'slots', 'slots.member', 'slots.backupMember'],
+            order: {slots: {position: 'ASC'}},
+        });
+
+        const programmeBySlotId = new Map(programmes.map((p) => [p.serviceSlot.id, p]));
+
+        const sections = slots.map((s) => ({
+            slot: s,
+            programme: programmeBySlotId.get(s.id) ?? null,
+        }));
+
+        const event = slots[0].event;
+        const buffer = await this.pdfService.generateEventProgramme(event, sections);
+        return {buffer, eventName: event.name};
+    }
+
     async upsertTemplateFromProgramme(programme: ServiceProgramme): Promise<void> {
         const slotName = (programme as any).serviceSlot?.name ?? 'Service';
-        const slots: TemplateProgrammeSlot[] = programme.slots
+        const slots: TemplateProgrammeSlot[] = [...programme.slots]
             .sort((a, b) => a.position - b.position)
             .map((s) => ({
                 position: s.position,

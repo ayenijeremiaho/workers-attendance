@@ -12,6 +12,7 @@ import {Admin} from '../../admin/entity/admin.entity';
 import {ServiceProgrammeStatusEnum} from '../enum/service-programme-status.enum';
 import {ServiceSlotTypeEnum} from '../enum/service-slot-type.enum';
 import {UtilityService} from '../../utility/service/utility.service';
+import {PdfService} from '../../utility/service/pdf.service';
 
 const mockProgrammeRepo = {
     create: jest.fn(),
@@ -47,6 +48,10 @@ const mockMemberRepo = {
 
 const mockDataSource = {
     transaction: jest.fn(),
+};
+
+const mockPdfService = {
+    generateProgrammeDraft: jest.fn().mockResolvedValue(Buffer.from('')),
 };
 
 const mockAdmin = {id: 'admin-1', member: {firstname: 'Ada'}} as unknown as Admin;
@@ -86,6 +91,7 @@ describe('ServiceProgrammeService', () => {
                 {provide: getRepositoryToken(ServiceProgrammeTemplate), useValue: mockTemplateRepo},
                 {provide: getRepositoryToken(ServiceSlot), useValue: mockServiceSlotRepo},
                 {provide: getRepositoryToken(Member), useValue: mockMemberRepo},
+                {provide: PdfService, useValue: mockPdfService},
             ],
         }).compile();
 

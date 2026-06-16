@@ -7817,6 +7817,81 @@
                 "description": "Paginated list of historical sessions for a programme, newest first."
               },
               "response": []
+            },
+            {
+              "name": "Download Full Event Programme PDF",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-programme/event/:eventId/pdf",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    "event",
+                    ":eventId",
+                    "pdf"
+                  ],
+                  "variable": [
+                    {
+                      "key": "eventId",
+                      "value": "{{event_id}}"
+                    }
+                  ]
+                },
+                "description": "Download the full event programme as a PDF (application/pdf). Covers every service slot in the event ordered by start time. Each service shows its programme (status, total time, all slots with type, topic, speaker/minister, backup, allocated minutes) or a notice if no programme exists yet. Filename is derived from the event name. Suitable for sharing on WhatsApp or other channels."
+              },
+              "response": []
+            },
+            {
+              "name": "Download Programme PDF",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-programme/:id/pdf",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-programme",
+                    ":id",
+                    "pdf"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{programme_id}}"
+                    }
+                  ]
+                },
+                "description": "Download a single programme schedule as a PDF (application/pdf). Shows slot name, event date/time, status, and all programme slots with type, topic, speaker/minister (member or guest), backup, and allocated minutes."
+              },
+              "response": []
             }
           ]
         },
@@ -8299,6 +8374,77 @@
                   ]
                 },
                 "description": "Download a PDF report covering all service slots for a Sunday event in one document. All sessions must be COMPLETED; returns 400 if any are still live, 404 if none exist. Requires SERVICE_PROGRAMME_READ permission."
+              },
+              "response": []
+            },
+            {
+              "name": "Download Event Summary PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-session/event/:eventId/report/summary-pdf",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    "event",
+                    ":eventId",
+                    "report",
+                    "summary-pdf"
+                  ],
+                  "variable": [
+                    {
+                      "key": "eventId",
+                      "value": "",
+                      "description": "UUID of the Event"
+                    }
+                  ]
+                },
+                "description": "Download a shareable one-page event summary PDF (admin access). Does not require sessions to be COMPLETED — works at any point after at least one session has started. Contains stat cards (Speakers Done, Total Allocated, Total Actual, Overall Variance) and a single flat table across all services with Speaker, Topic/Slot, Allocated, Actual, Variance, and Status columns. Times in MM:SS. Returns 404 if no sessions exist. Requires SERVICE_PROGRAMME_READ permission."
+              },
+              "response": []
+            },
+            {
+              "name": "Download Event Summary PDF (Worker / Mobile)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{member_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/v1/service-session/event/:eventId/summary-pdf",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "service-session",
+                    "event",
+                    ":eventId",
+                    "summary-pdf"
+                  ],
+                  "variable": [
+                    {
+                      "key": "eventId",
+                      "value": "",
+                      "description": "UUID of the Event"
+                    }
+                  ]
+                },
+                "description": "Worker-accessible version of the event summary PDF. Requires the authenticated member to be a WORKER in the Admin department (primary or secondary) — returns 403 otherwise. Identical PDF output to the admin summary-pdf route. Designed for mobile use so admin-dept personnel can download and share the summary immediately after service ends. Uses member JWT token."
               },
               "response": []
             }

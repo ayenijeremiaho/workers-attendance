@@ -9,8 +9,10 @@ import {
     Post,
     Put,
     Query,
+    Res,
     UseGuards,
 } from '@nestjs/common';
+import {Response} from 'express';
 import {AdminGuard} from '../../admin/guard/admin.guard';
 import {RequiresPermission} from '../../admin/decorator/requires-permission.decorator';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
@@ -57,6 +59,17 @@ export class ServiceProgrammeController {
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
     removeTemplate(@Param('templateId', ParseUUIDPipe) templateId: string) {
         return this.programmeSvc.removeTemplate(templateId);
+    }
+
+    @Get('event/:eventId/pdf')
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_READ)
+    async downloadEventPdf(@Param('eventId', ParseUUIDPipe) eventId: string, @Res() res: Response) {
+        const {buffer, eventName} = await this.programmeSvc.downloadEventPdf(eventId);
+        const safe = eventName.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="programme-${safe}.pdf"`);
+        res.end(buffer);
     }
 
     @Get(':id')
@@ -113,6 +126,16 @@ export class ServiceProgrammeController {
     @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_WRITE)
     applyTemplate(@Param('id', ParseUUIDPipe) id: string, @Param('templateId', ParseUUIDPipe) templateId: string) {
         return this.programmeSvc.applyTemplate(id, templateId);
+    }
+
+    @Get(':id/pdf')
+    @UseGuards(AdminGuard)
+    @RequiresPermission(AdminPermission.SERVICE_PROGRAMME_READ)
+    async downloadPdf(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
+        const buffer = await this.programmeSvc.downloadPdf(id);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="programme-${id}.pdf"`);
+        res.end(buffer);
     }
 
     @Get(':id/sessions')

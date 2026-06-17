@@ -13,7 +13,12 @@ Do not report a task as done without completing all three. Use `/sync-docs` if u
 ---
 
 ## Project Context
-NestJS backend for RCCG Discovery Centre church management. Stack: PostgreSQL · TypeORM · Redis (ioredis) · Bull queue · Argon2 · JWT.
+NestJS church management backend. Stack: PostgreSQL · TypeORM · Redis (ioredis) · Bull queue · Argon2 · JWT. Church-specific values (name, address, logo, currency, timezone) are driven by environment variables — configurable for any congregation.
+
+## Church-Agnostic Rule
+- Never hardcode a specific church name, address, or branding in source code, comments, docs, email templates, or generated descriptions.
+- Use env var references (`CHURCH_NAME`, `CHURCH_ADDRESS`, `LOGO_URL`) or generic language ("your church", "the congregation") everywhere.
+- Default values in `env.validation.ts` may reference a real church as a convenience default — that is the only permitted location.
 
 ## Migration Rules (CRITICAL)
 - **Never edit an existing migration file.** Once a migration has been committed or run, it is immutable history.

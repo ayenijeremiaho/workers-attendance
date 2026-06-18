@@ -7,6 +7,12 @@ import {Admin} from '../../admin/entity/admin.entity';
 import {FollowUpTaskStatusEnum} from '../enums/follow-up.enum';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 import {EmailQueueService} from '../../utility/service/email-queue.service';
+import {CacheService} from '../../utility/service/cache.service';
+
+const mockCacheService = {
+    acquireLock: jest.fn().mockResolvedValue(true),
+    releaseLock: jest.fn(),
+};
 
 const mockTaskQb = {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -63,6 +69,7 @@ describe('FollowUpScheduler', () => {
                 {provide: getRepositoryToken(Admin), useValue: mockAdminRepo},
                 {provide: EmailQueueService, useValue: mockEmailQueueService},
                 {provide: ConfigService, useValue: mockConfigService},
+                {provide: CacheService, useValue: mockCacheService},
             ],
         }).compile();
 
@@ -137,5 +144,24 @@ describe('FollowUpScheduler', () => {
             (c: any[]) => c[2] === 'follow-up-overdue-worker',
         );
         expect(workerCalls).toHaveLength(0);
+    });
+
+    it('skips execution and sends no emails when another instance holds the lock', async () => {
+        mockCacheService.acquireLock.mockResolvedValue(false);
+
+        await scheduler.escalateOverdueTasks();
+
+        expect(mockTaskQb.getMany).not.toHaveBeenCalled();
+        expect(mockEmailQueueService.queueEmailWithTemplate).not.toHaveBeenCalled();
+        expect(mockCacheService.releaseLock).not.toHaveBeenCalled();
+    });
+
+    it('releases the lock after execution even when there are no overdue tasks', async () => {
+        mockCacheService.acquireLock.mockResolvedValue(true);
+        mockTaskQb.getMany.mockResolvedValue([]);
+
+        await scheduler.escalateOverdueTasks();
+
+        expect(mockCacheService.releaseLock).toHaveBeenCalledWith('lock:follow-up-escalation');
     });
 });

@@ -24,12 +24,20 @@ const mockUtilityService = {
 
 const mockAuditLogService = {log: jest.fn()};
 
+const mockOtpQb = {
+    delete: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    execute: jest.fn().mockResolvedValue({affected: 5}),
+};
+
 const mockCacheService = {
     key: jest.fn().mockImplementation((ns: string, id: string) => `${ns}:${id}`),
     get: jest.fn().mockResolvedValue(0),
     set: jest.fn().mockResolvedValue(undefined),
     del: jest.fn().mockResolvedValue(1),
     incr: jest.fn().mockResolvedValue(1),
+    acquireLock: jest.fn().mockResolvedValue(true),
+    releaseLock: jest.fn(),
 };
 
 const mockOtpRepository = {
@@ -37,6 +45,7 @@ const mockOtpRepository = {
     save: jest.fn(),
     create: jest.fn(),
     delete: jest.fn(),
+    createQueryBuilder: jest.fn().mockReturnValue(mockOtpQb),
 };
 
 const mockDeviceResetOtpRepository = {
@@ -360,6 +369,26 @@ describe('AuthService', () => {
             await service.validateAccessToken('member-1', SessionSurface.MEMBER);
 
             expect(mockMemberService.getById).toHaveBeenCalledWith('member-1', expect.any(Array));
+        });
+    });
+
+    describe('purgeExpiredOtps', () => {
+        it('should run the delete query and release the lock when lock is acquired', async () => {
+            mockCacheService.acquireLock.mockResolvedValue(true);
+
+            await service.purgeExpiredOtps();
+
+            expect(mockOtpQb.execute).toHaveBeenCalled();
+            expect(mockCacheService.releaseLock).toHaveBeenCalledWith('lock:otp-purge');
+        });
+
+        it('should skip the delete query when another instance holds the lock', async () => {
+            mockCacheService.acquireLock.mockResolvedValue(false);
+
+            await service.purgeExpiredOtps();
+
+            expect(mockOtpQb.execute).not.toHaveBeenCalled();
+            expect(mockCacheService.releaseLock).not.toHaveBeenCalled();
         });
     });
 });

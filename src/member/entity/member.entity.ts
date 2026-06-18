@@ -72,6 +72,9 @@ export class Member extends BaseEntity {
     @Column({nullable: true, type: 'date'})
     dateJoinedChurch: Date;
 
+    @Column({nullable: true, type: 'smallint', name: 'birthday_greeted_year'})
+    birthdayGreetedYear: number | null;
+
     @OneToOne(() => WorkerProfile, (wp) => wp.member, {
         nullable: true,
         cascade: true,

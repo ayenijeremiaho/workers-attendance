@@ -52,6 +52,8 @@ export class EventReminderService {
             throw new BadRequestException('INDIVIDUAL audience is not supported for slot reminders');
         }
 
+        const fireAt = new Date(slot.startTime.getTime() - PRESET_MINUTES[dto.intervalPreset] * 60_000);
+
         const reminder = this.reminderRepo.create({
             serviceSlot: slot,
             audience,
@@ -59,6 +61,7 @@ export class EventReminderService {
             intervalPreset: dto.intervalPreset,
             enabled: true,
             lastSentAt: null,
+            fireAt,
         });
 
         const saved = await this.reminderRepo.save(reminder);
@@ -74,7 +77,10 @@ export class EventReminderService {
             throw new BadRequestException('departmentId is required for DEPARTMENT audience');
         }
 
-        if (dto.intervalPreset !== undefined) reminder.intervalPreset = dto.intervalPreset;
+        if (dto.intervalPreset !== undefined) {
+            reminder.intervalPreset = dto.intervalPreset;
+            reminder.fireAt = new Date(reminder.serviceSlot.startTime.getTime() - PRESET_MINUTES[dto.intervalPreset] * 60_000);
+        }
         if (dto.audience !== undefined) reminder.audience = dto.audience;
         if (dto.departmentId !== undefined) {
             reminder.department = dto.departmentId ? ({id: dto.departmentId} as Department) : null;
@@ -108,20 +114,15 @@ export class EventReminderService {
         try {
             const now = new Date();
 
-            const dueReminders = await this.reminderRepo
+            const toFire = await this.reminderRepo
                 .createQueryBuilder('r')
                 .innerJoinAndSelect('r.serviceSlot', 'slot')
                 .leftJoinAndSelect('r.department', 'dept')
                 .where('r.enabled = true')
                 .andWhere('r.lastSentAt IS NULL')
+                .andWhere('r.fireAt <= :now', {now})
                 .andWhere('slot.startTime > :now', {now})
                 .getMany();
-
-            const toFire = dueReminders.filter((r) => {
-                const minutesBefore = PRESET_MINUTES[r.intervalPreset];
-                const fireAt = new Date(r.serviceSlot.startTime.getTime() - minutesBefore * 60_000);
-                return fireAt <= now;
-            });
 
             for (const reminder of toFire) {
                 await this.fireReminder(reminder, now);

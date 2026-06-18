@@ -376,13 +376,14 @@ preset).
 
 | Field          | Type                       | Notes                                                |
 |----------------|----------------------------|------------------------------------------------------|
-| id             | UUID                       | PK                                                   |
-| serviceSlot    | ServiceSlot                | ManyToOne, CASCADE on delete                         |
-| audience       | AnnouncementAudienceEnum   | ALL \| WORKERS_ONLY \| DEPARTMENT                    |
-| department     | Department \| null         | Required when audience=DEPARTMENT                    |
-| intervalPreset | ReminderIntervalPresetEnum | 15m \| 30m \| 1h \| 3h \| 24h \| 48h                 |
-| enabled        | boolean                    | Admin can disable without deleting                   |
-| lastSentAt     | timestamptz \| null        | Set when the reminder fires; prevents double-sending |
+| id             | UUID                       | PK                                                                                         |
+| serviceSlot    | ServiceSlot                | ManyToOne, CASCADE on delete                                                               |
+| audience       | AnnouncementAudienceEnum   | ALL \| WORKERS_ONLY \| DEPARTMENT                                                          |
+| department     | Department \| null         | Required when audience=DEPARTMENT                                                          |
+| intervalPreset | ReminderIntervalPresetEnum | 15m \| 30m \| 1h \| 3h \| 24h \| 48h                                                      |
+| enabled        | boolean                    | Admin can disable without deleting                                                         |
+| lastSentAt     | timestamptz \| null        | Set when the reminder fires; prevents double-sending                                       |
+| fireAt         | timestamptz \| null        | Pre-computed: `slot.startTime − preset_minutes`. Set on create and on interval preset update; used by the dispatch cron to filter in SQL (no in-memory filtering) |
 
 **Unique constraint:** (serviceSlot, intervalPreset) — one reminder per preset per slot.
 
@@ -1061,8 +1062,9 @@ propagates to all check-ins that reference it.
 
 **Routes prefix:** `/events`, `/event-config`
 
-Each slot can have multiple reminder schedules via sub-resource `/events/slots/:slotId/reminders` (admin-only). See
-EventReminder model.
+Each slot can have multiple reminder schedules via sub-resource `/events/slots/:slotId/reminders` (admin-only). See EventReminder model.
+
+**Reminder dispatch (cron `*/15 * * * *`):** Queries `EventReminder` rows where `enabled = true`, `lastSentAt IS NULL`, `fireAt <= now`, and `slot.startTime > now`. The filter runs entirely in SQL — `fireAt` is pre-computed at reminder creation (and recalculated if `intervalPreset` is updated). When a slot is deleted or recreated (e.g., event update), its reminders are cascade-deleted. On `create`, `fireAt = slot.startTime − preset_minutes`. On `update` with a new `intervalPreset`, `fireAt` is recalculated from the existing slot's `startTime`.
 
 ### Venue Module
 
@@ -1177,11 +1179,15 @@ rate-limit counter clears and increments are fire-and-forget.
 Automatically greets members on their birthday with an email and a congregation-wide announcement. Other members can
 send personal wishes that persist permanently in the member's birthday book.
 
-**Cron:** Runs daily at 6 AM. Queries all active members whose `birthMonth` and `birthDay` match today,
-then for each:
+**Cron:** Runs daily at 6 AM. Queries all active members whose `birthMonth` and `birthDay` match today and whose `birthdayGreetedYear` is not the current year, then for each member (in an isolated try/catch):
 
 - Creates an `ALL`-audience announcement with `expiresAt = 23:59:59` tonight
-- Sends the birthday email
+- Updates `birthdayGreetedYear` to the current year (only after the announcement saves)
+- Sends the birthday email (fire-and-forget via email queue)
+
+**Resilience:** `BirthdayService` implements `OnApplicationBootstrap`. On startup, if the hour is ≥ 6, it fires `triggerBirthdayGreetings()` as a background task (fire-and-forget, guarded by a separate `lock:birthday-catchup` Redis lock). This recovers greetings missed because the app was down at 6 AM — the `birthdayGreetedYear` field prevents re-sending to members already greeted. Per-member isolation means one member's failure never blocks the rest.
+
+**`birthdayGreetedYear`:** Integer column (`smallint`) on the `Member` entity. Null for members who have never been greeted. Set to the current year after a successful greeting. The cron and catch-up both filter `WHERE birthdayGreetedYear IS NULL OR birthdayGreetedYear != currentYear` to skip already-greeted members.
 
 **Wish wall:** Wishes persist in `birthday_wishes` regardless of announcement expiry. Rate-limited to `WISH_DAILY_LIMIT`
 wishes per sender per day (default: 20). Input is DOMPurify-sanitized.

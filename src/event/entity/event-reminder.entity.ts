@@ -32,4 +32,7 @@ export class EventReminder extends BaseEntity {
     @Index()
     @Column({type: 'timestamptz', nullable: true, name: 'last_sent_at'})
     lastSentAt: Date | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'fire_at'})
+    fireAt: Date | null;
 }

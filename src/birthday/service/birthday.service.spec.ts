@@ -37,6 +37,7 @@ const mockWishRepo = {
 
 const mockMemberRepo = {
     createQueryBuilder: jest.fn(),
+    update: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockAnnouncementRepo = {
@@ -79,6 +80,7 @@ describe('BirthdayService', () => {
 
     beforeEach(async () => {
         jest.clearAllMocks();
+        mockCacheService.acquireLock.mockResolvedValue(true);
         mockConfigService.get.mockReturnValue(20);
 
         const module: TestingModule = await Test.createTestingModule({
@@ -142,7 +144,7 @@ describe('BirthdayService', () => {
             expect(createCall.expiresAt.getHours()).toBe(23);
         });
 
-        it('queries only ACTIVE members', async () => {
+        it('queries only ACTIVE members not yet greeted this year', async () => {
             const qb = makeQb();
             qb.getMany.mockResolvedValue([]);
             mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
@@ -152,6 +154,60 @@ describe('BirthdayService', () => {
             expect(qb.andWhere).toHaveBeenCalledWith('m.status = :status', {
                 status: MemberStatusEnum.ACTIVE,
             });
+            expect(qb.andWhere).toHaveBeenCalledWith(
+                '(m.birthdayGreetedYear IS NULL OR m.birthdayGreetedYear != :year)',
+                {year: new Date().getFullYear()},
+            );
+        });
+
+        it('sets birthdayGreetedYear after announcement saves successfully', async () => {
+            const member = makeMember({id: 'm1'});
+            const qb = makeQb();
+            qb.getMany.mockResolvedValue([member]);
+            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+            mockAnnouncementRepo.create.mockReturnValue({});
+            mockAnnouncementRepo.save.mockResolvedValue({});
+
+            await service.triggerBirthdayGreetings();
+
+            expect(mockMemberRepo.update).toHaveBeenCalledWith('m1', {
+                birthdayGreetedYear: new Date().getFullYear(),
+            });
+        });
+
+        it('continues to next member when one fails and does not set birthdayGreetedYear for the failed member', async () => {
+            const members = [makeMember({id: 'm1'}), makeMember({id: 'm2', firstname: 'Jane'})];
+            const qb = makeQb();
+            qb.getMany.mockResolvedValue(members);
+            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+            mockAnnouncementRepo.create.mockReturnValue({});
+            mockAnnouncementRepo.save
+                .mockRejectedValueOnce(new Error('DB timeout'))
+                .mockResolvedValue({});
+
+            await service.triggerBirthdayGreetings();
+
+            expect(mockMemberRepo.update).toHaveBeenCalledTimes(1);
+            expect(mockMemberRepo.update).toHaveBeenCalledWith('m2', expect.any(Object));
+            expect(mockMemberRepo.update).not.toHaveBeenCalledWith('m1', expect.any(Object));
+        });
+
+        it('skips when another instance holds the lock', async () => {
+            mockCacheService.acquireLock.mockResolvedValue(false);
+
+            await service.triggerBirthdayGreetings();
+
+            expect(mockMemberRepo.createQueryBuilder).not.toHaveBeenCalled();
+        });
+
+        it('releases the lock even when the run completes with no members', async () => {
+            const qb = makeQb();
+            qb.getMany.mockResolvedValue([]);
+            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+
+            await service.triggerBirthdayGreetings();
+
+            expect(mockCacheService.releaseLock).toHaveBeenCalledWith('lock:birthday-greetings');
         });
     });
 

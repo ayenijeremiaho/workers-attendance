@@ -446,14 +446,25 @@ export class AuthService {
         };
     }
 
+    private static readonly OTP_PURGE_LOCK = 'lock:otp-purge';
+
     @Cron('0 2 * * *')
     async purgeExpiredOtps(): Promise<void> {
-        this.logger.log('Running scheduled purge of expired OTPs');
-        await this.otpRepository
-            .createQueryBuilder()
-            .delete()
-            .where('used_at IS NOT NULL OR expires_at < :now', {now: new Date()})
-            .execute();
+        const acquired = await this.cacheService.acquireLock(AuthService.OTP_PURGE_LOCK, 120);
+        if (!acquired) {
+            this.logger.debug('OTP purge skipped — another instance holds the lock');
+            return;
+        }
+        try {
+            this.logger.log('Running scheduled purge of expired OTPs');
+            await this.otpRepository
+                .createQueryBuilder()
+                .delete()
+                .where('used_at IS NOT NULL OR expires_at < :now', {now: new Date()})
+                .execute();
+        } finally {
+            this.cacheService.releaseLock(AuthService.OTP_PURGE_LOCK);
+        }
     }
 
     private getTokenExpirySeconds(): number {

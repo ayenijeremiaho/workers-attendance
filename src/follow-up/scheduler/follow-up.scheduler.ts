@@ -8,8 +8,10 @@ import {Admin} from '../../admin/entity/admin.entity';
 import {FollowUpTaskStatusEnum} from '../enums/follow-up.enum';
 import {AdminPermission} from '../../admin/enum/admin-permission.enum';
 import {EmailQueueService} from '../../utility/service/email-queue.service';
+import {CacheService} from '../../utility/service/cache.service';
 
 const OPEN_STATUSES = [FollowUpTaskStatusEnum.PENDING, FollowUpTaskStatusEnum.IN_PROGRESS];
+const ESCALATION_LOCK = 'lock:follow-up-escalation';
 
 @Injectable()
 export class FollowUpScheduler {
@@ -23,12 +25,26 @@ export class FollowUpScheduler {
         private readonly adminRepo: Repository<Admin>,
         private readonly emailQueueService: EmailQueueService,
         private readonly configService: ConfigService,
+        private readonly cacheService: CacheService,
     ) {
         this.churchName = this.configService.get<string>('CHURCH_NAME');
     }
 
     @Cron('0 8 * * *')
     async escalateOverdueTasks(): Promise<void> {
+        const acquired = await this.cacheService.acquireLock(ESCALATION_LOCK, 270);
+        if (!acquired) {
+            this.logger.debug('Follow-up escalation skipped — another instance holds the lock');
+            return;
+        }
+        try {
+            await this.runEscalation();
+        } finally {
+            this.cacheService.releaseLock(ESCALATION_LOCK);
+        }
+    }
+
+    private async runEscalation(): Promise<void> {
         const overdueTasks = await this.taskRepo
             .createQueryBuilder('task')
             .leftJoinAndSelect('task.firstTimer', 'ft')

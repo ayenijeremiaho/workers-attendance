@@ -1,4 +1,4 @@
-import {BadRequestException, HttpException, HttpStatus, Injectable, Logger} from '@nestjs/common';
+import {BadRequestException, HttpException, HttpStatus, Injectable, Logger, OnApplicationBootstrap} from '@nestjs/common';
 import {InjectRepository} from '@nestjs/typeorm';
 import {Repository} from 'typeorm';
 import {Cron} from '@nestjs/schedule';
@@ -14,7 +14,7 @@ import {MemberStatusEnum} from '../../member/enums/member-status.enum';
 
 
 @Injectable()
-export class BirthdayService {
+export class BirthdayService implements OnApplicationBootstrap {
     private readonly logger = new Logger(BirthdayService.name);
 
     constructor(
@@ -32,6 +32,26 @@ export class BirthdayService {
     }
 
     private static readonly LOCK_KEY = 'lock:birthday-greetings';
+    private static readonly CATCHUP_LOCK_KEY = 'lock:birthday-catchup';
+
+    onApplicationBootstrap(): void {
+        this.runBirthdayCatchUp().catch((err) =>
+            this.logger.error('Birthday catch-up failed on startup', err),
+        );
+    }
+
+    private async runBirthdayCatchUp(): Promise<void> {
+        if (new Date().getHours() < 6) return;
+
+        const acquired = await this.cacheService.acquireLock(BirthdayService.CATCHUP_LOCK_KEY, 60);
+        if (!acquired) return;
+
+        try {
+            await this.triggerBirthdayGreetings();
+        } finally {
+            this.cacheService.releaseLock(BirthdayService.CATCHUP_LOCK_KEY);
+        }
+    }
 
     @Cron('0 6 * * *')
     async triggerBirthdayGreetings(): Promise<void> {
@@ -44,12 +64,14 @@ export class BirthdayService {
         const today = new Date();
         const month = today.getMonth() + 1;
         const day = today.getDate();
+        const year = today.getFullYear();
 
         const birthdayMembers = await this.memberRepository
             .createQueryBuilder('m')
             .where('m.birthMonth = :month', {month})
             .andWhere('m.birthDay = :day', {day})
             .andWhere('m.status = :status', {status: MemberStatusEnum.ACTIVE})
+            .andWhere('(m.birthdayGreetedYear IS NULL OR m.birthdayGreetedYear != :year)', {year})
             .getMany();
 
         try {
@@ -59,9 +81,14 @@ export class BirthdayService {
             endOfDay.setHours(23, 59, 59, 999);
 
             for (const member of birthdayMembers) {
-                await this.createBirthdayAnnouncement(member, endOfDay);
-                this.sendBirthdayEmail(member);
-                this.logger.log(`Birthday greetings sent to ${member.firstname} ${member.lastname}`);
+                try {
+                    await this.createBirthdayAnnouncement(member, endOfDay);
+                    await this.memberRepository.update(member.id, {birthdayGreetedYear: year});
+                    this.sendBirthdayEmail(member);
+                    this.logger.log(`Birthday greetings sent to ${member.firstname} ${member.lastname}`);
+                } catch (err) {
+                    this.logger.error(`Birthday greeting failed for member ${member.id}`, err);
+                }
             }
         } finally {
             this.cacheService.releaseLock(BirthdayService.LOCK_KEY);

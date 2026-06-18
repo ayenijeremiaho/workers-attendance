@@ -20,6 +20,7 @@ const mockMemberRepo = {
     findOne: jest.fn(),
     findAndCount: jest.fn(),
     save: jest.fn(),
+    update: jest.fn(),
     create: jest.fn(),
     exists: jest.fn(),
     count: jest.fn(),
@@ -190,15 +191,13 @@ describe('MemberService', () => {
             mockDepartmentRepo.findOneBy.mockResolvedValue(department);
             mockWorkerProfileRepo.create.mockReturnValue(workerProfile);
             mockWorkerProfileRepo.save.mockResolvedValue(workerProfile);
-            mockMemberRepo.save.mockResolvedValue({...member, role: MemberRoleEnum.WORKER});
+            mockMemberRepo.update.mockResolvedValue({affected: 1});
             jest.spyOn(UtilityService, 'capitalizeFirstLetter').mockReturnValue('Jane');
 
             const result = await service.promoteToWorker('member-1', {departmentId: 'dept-1'} as any, 'actor-1');
 
             expect(mockWorkerProfileRepo.save).toHaveBeenCalled();
-            expect(mockMemberRepo.save).toHaveBeenCalledWith(
-                expect.objectContaining({role: MemberRoleEnum.WORKER}),
-            );
+            expect(mockMemberRepo.update).toHaveBeenCalledWith('member-1', {role: MemberRoleEnum.WORKER});
             expect(result.role).toBe(MemberRoleEnum.WORKER);
         });
     });

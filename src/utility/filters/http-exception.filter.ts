@@ -32,6 +32,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
                 const maxMb = Math.round(maxBytes / (1024 * 1024));
                 message = `The uploaded file exceeds the maximum allowed size of ${maxMb} MB. Please upload a smaller file.`;
             }
+
+            if (status >= 500) {
+                this.logger.error(`[${status}] ${message}`, exception.stack);
+            } else {
+                this.logger.warn(`[${status}] ${message}`);
+            }
         } else {
             const stack = exception instanceof Error ? exception.stack : JSON.stringify(exception);
             this.logger.error('Unhandled exception', stack);

@@ -60,14 +60,25 @@ import {ServiceHeadcountModule} from './service-headcount/service-headcount.modu
                         level: isDev ? 'debug' : 'info',
                         redact: {
                             paths: [
-                                'req.headers.authorization',
-                                'req.headers.cookie',
                                 'req.body.password',
                                 'req.body.newPassword',
                                 'req.body.oldPassword',
                                 'req.body.confirmPassword',
                             ],
                             censor: '[REDACTED]',
+                        },
+                        serializers: {
+                            req(req) {
+                                return {
+                                    id: req.id,
+                                    method: req.method,
+                                    url: req.url,
+                                    query: req.query,
+                                    'content-type': req.headers['content-type'],
+                                    'user-agent': req.headers['user-agent'],
+                                    'x-real-ip': req.headers['x-real-ip'],
+                                };
+                            },
                         },
                         autoLogging: {
                             ignore: (req: {url?: string}) => req.url === '/v1/health' || req.url === '/health',

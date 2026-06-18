@@ -114,8 +114,7 @@ export class MemberService {
         profile.member = member;
 
         await this.workerProfileRepository.save(profile);
-        member.role = MemberRoleEnum.WORKER;
-        await this.memberRepository.save(member);
+        await this.memberRepository.update(memberId, {role: MemberRoleEnum.WORKER});
 
         this.logger.log(`Member ${memberId} promoted to worker in department ${dto.departmentId}`);
         this.auditLogService.log('WORKER_PROMOTED', {

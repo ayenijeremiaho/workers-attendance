@@ -1,4 +1,4 @@
-import {IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min,} from 'class-validator';
+import {IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Max, Min,} from 'class-validator';
 
 export class CreateEventConfigDto {
     @IsNotEmpty()
@@ -13,6 +13,7 @@ export class CreateEventConfigDto {
     defaultVenueId: string;
 
     @IsInt()
+    @Max(-1)
     workerCheckinStartOffsetSeconds: number;
 
     @IsInt()
@@ -20,6 +21,7 @@ export class CreateEventConfigDto {
     workerLateOffsetSeconds: number;
 
     @IsInt()
+    @Max(-1)
     memberCheckinStartOffsetSeconds: number;
 
     @IsInt()

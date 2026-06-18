@@ -66,6 +66,7 @@ export class EventConfigService {
 
         const {defaultVenueId: _ignored, ...rest} = dto;
         Object.assign(config, rest);
+        this.validateOffsets(config);
         const saved = await this.repo.save(config);
         this.cacheService.del(EventConfigService.CACHE_KEY);
         this.logger.log(`Updated event config "${saved.name}" (${id})`);
@@ -112,15 +113,26 @@ export class EventConfigService {
         this.logger.log(`Deleted event config "${config.name}" (${id})`);
     }
 
-    private validateOffsets(dto: CreateEventConfigDto): void {
-        if (dto.workerLateOffsetSeconds <= dto.workerCheckinStartOffsetSeconds) {
+    private validateOffsets(cfg: {
+        workerCheckinStartOffsetSeconds: number;
+        workerLateOffsetSeconds: number;
+        memberCheckinStartOffsetSeconds: number;
+        checkinStopOffsetSeconds: number;
+    }): void {
+        if (cfg.workerCheckinStartOffsetSeconds >= 0) {
+            throw new BadRequestException('Worker check-in must open before the service starts');
+        }
+        if (cfg.memberCheckinStartOffsetSeconds >= 0) {
+            throw new BadRequestException('Member check-in must open before the service starts');
+        }
+        if (cfg.workerLateOffsetSeconds <= cfg.workerCheckinStartOffsetSeconds) {
             throw new BadRequestException(
-                'workerLateOffsetSeconds must be greater than workerCheckinStartOffsetSeconds',
+                'Workers cannot be marked late before check-in has even opened',
             );
         }
-        if (dto.checkinStopOffsetSeconds <= dto.workerLateOffsetSeconds) {
+        if (cfg.checkinStopOffsetSeconds <= cfg.workerLateOffsetSeconds) {
             throw new BadRequestException(
-                'checkinStopOffsetSeconds must be greater than workerLateOffsetSeconds',
+                'Check-in must close after the late threshold',
             );
         }
     }

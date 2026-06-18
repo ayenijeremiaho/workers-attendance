@@ -69,15 +69,30 @@ describe('EventConfigService', () => {
             await expect(service.create(validDto)).rejects.toThrow(BadRequestException);
         });
 
+        it('should throw BadRequestException if workerCheckinStartOffsetSeconds is not negative', async () => {
+            mockRepo.exists.mockResolvedValue(false);
+
+            await expect(
+                service.create({...validDto, workerCheckinStartOffsetSeconds: 0}),
+            ).rejects.toThrow(BadRequestException);
+        });
+
+        it('should throw BadRequestException if memberCheckinStartOffsetSeconds is not negative', async () => {
+            mockRepo.exists.mockResolvedValue(false);
+
+            await expect(
+                service.create({...validDto, memberCheckinStartOffsetSeconds: 0}),
+            ).rejects.toThrow(BadRequestException);
+        });
+
         it('should throw BadRequestException if workerLateOffset <= workerCheckinStartOffset', async () => {
             mockRepo.exists.mockResolvedValue(false);
-            mockVenueService.getById.mockResolvedValue(defaultVenue);
 
             await expect(
                 service.create({
                     ...validDto,
-                    workerCheckinStartOffsetSeconds: 0,
-                    workerLateOffsetSeconds: -100,
+                    workerCheckinStartOffsetSeconds: -100,
+                    workerLateOffsetSeconds: -200,
                 }),
             ).rejects.toThrow(BadRequestException);
         });
@@ -158,6 +173,13 @@ describe('EventConfigService', () => {
     });
 
     describe('update', () => {
+        const validOffsets = {
+            workerCheckinStartOffsetSeconds: -7200,
+            workerLateOffsetSeconds: 0,
+            memberCheckinStartOffsetSeconds: -3600,
+            checkinStopOffsetSeconds: 7200,
+        };
+
         it('should throw NotFoundException if config to update is not found', async () => {
             mockRepo.findOne.mockResolvedValue(null);
 
@@ -165,7 +187,7 @@ describe('EventConfigService', () => {
         });
 
         it('should throw BadRequestException if new name conflicts with existing config', async () => {
-            const existingConfig = {id: 'config-1', name: 'Old Name', defaultVenue};
+            const existingConfig = {id: 'config-1', name: 'Old Name', defaultVenue, ...validOffsets};
             mockRepo.findOne.mockResolvedValue(existingConfig);
             mockRepo.exists.mockResolvedValue(true);
 
@@ -173,7 +195,7 @@ describe('EventConfigService', () => {
         });
 
         it('should update config successfully when no conflicts', async () => {
-            const existingConfig = {id: 'config-1', name: 'Old Name', description: 'Old desc', defaultVenue};
+            const existingConfig = {id: 'config-1', name: 'Old Name', description: 'Old desc', defaultVenue, ...validOffsets};
             mockRepo.findOne.mockResolvedValue(existingConfig);
             mockRepo.exists.mockResolvedValue(false);
             mockRepo.save.mockResolvedValue({...existingConfig, name: 'New Name'});
@@ -190,6 +212,7 @@ describe('EventConfigService', () => {
                 name: 'Same Name',
                 allowedDistanceInMeters: 100,
                 defaultVenue,
+                ...validOffsets,
             };
             mockRepo.findOne.mockResolvedValue(existingConfig);
             mockRepo.save.mockResolvedValue({...existingConfig, allowedDistanceInMeters: 200});
@@ -202,7 +225,7 @@ describe('EventConfigService', () => {
 
         it('should update defaultVenue when defaultVenueId is provided', async () => {
             const newVenue = {id: 'venue-2', name: 'Chapel', latitude: 6.5, longitude: 3.4};
-            const existingConfig = {id: 'config-1', name: 'Config', defaultVenue};
+            const existingConfig = {id: 'config-1', name: 'Config', defaultVenue, ...validOffsets};
             mockRepo.findOne.mockResolvedValue(existingConfig);
             mockVenueService.getById.mockResolvedValue(newVenue);
             mockRepo.save.mockResolvedValue({...existingConfig, defaultVenue: newVenue});
@@ -211,6 +234,33 @@ describe('EventConfigService', () => {
 
             expect(mockVenueService.getById).toHaveBeenCalledWith('venue-2');
             expect(result.defaultVenue).toEqual(newVenue);
+        });
+
+        it('should throw BadRequestException if updated workerCheckinStartOffsetSeconds is not negative', async () => {
+            const existingConfig = {id: 'config-1', name: 'Config', defaultVenue, ...validOffsets};
+            mockRepo.findOne.mockResolvedValue(existingConfig);
+
+            await expect(
+                service.update('config-1', {workerCheckinStartOffsetSeconds: 0}),
+            ).rejects.toThrow(BadRequestException);
+        });
+
+        it('should throw BadRequestException if updated memberCheckinStartOffsetSeconds is not negative', async () => {
+            const existingConfig = {id: 'config-1', name: 'Config', defaultVenue, ...validOffsets};
+            mockRepo.findOne.mockResolvedValue(existingConfig);
+
+            await expect(
+                service.update('config-1', {memberCheckinStartOffsetSeconds: 100}),
+            ).rejects.toThrow(BadRequestException);
+        });
+
+        it('should throw BadRequestException if updated offsets create invalid ordering', async () => {
+            const existingConfig = {id: 'config-1', name: 'Config', defaultVenue, ...validOffsets};
+            mockRepo.findOne.mockResolvedValue(existingConfig);
+
+            await expect(
+                service.update('config-1', {workerLateOffsetSeconds: 8000}),
+            ).rejects.toThrow(BadRequestException);
         });
     });
 

@@ -1,6 +1,14 @@
 import {Expose, Type} from 'class-transformer';
 import {WorkerStatusEnum} from '../enums/worker-status.enum';
 
+export class DepartmentRefDto {
+    @Expose()
+    id: string;
+
+    @Expose()
+    name: string;
+}
+
 export class WorkerProfileDto {
     @Expose()
     id: string;
@@ -21,8 +29,12 @@ export class WorkerProfileDto {
     completedBibleCollege: boolean;
 
     @Expose()
-    @Type(() => Object)
-    department: { id: string; name: string };
+    @Type(() => DepartmentRefDto)
+    department: DepartmentRefDto;
+
+    @Expose()
+    @Type(() => DepartmentRefDto)
+    secondaryDepartment: DepartmentRefDto | null;
 
     @Expose()
     createdAt: Date;

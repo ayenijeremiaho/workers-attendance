@@ -368,6 +368,11 @@ row — only the final outcome is recorded.
 `DEPARTMENT_CREATED` · `DEPARTMENT_UPDATED` · `DEPARTMENT_DELETED` · `DEPARTMENT_LEAD_ASSIGNED` ·
 `DEPARTMENT_LEAD_REMOVED` · `WORKER_PROFILE_UPDATED` · `ADMIN_ROLE_CREATED` · `ADMIN_ROLE_UPDATED` ·
 `ADMIN_ROLE_DELETED` · `ADMIN_USER_CREATED` · `ADMIN_USER_UPDATED` · `ADMIN_USER_DEACTIVATED`
+`TITHE_BATCH_QUEUED` · `TITHE_UNMATCHED_RESOLVED` · `TITHE_UNMATCHED_DISMISSED` · `TITHE_DISPUTE_APPROVED` · `TITHE_DISPUTE_REJECTED` · `TITHE_ACCOUNT_CREATED` · `TITHE_ACCOUNT_UPDATED` ·
+`FINANCE_CATEGORY_CREATED` · `FINANCE_CATEGORY_UPDATED` · `FINANCE_REQUEST_CREATED` · `FINANCE_REQUEST_APPROVED` · `FINANCE_REQUEST_REJECTED` · `FINANCE_PROOF_ATTACHED` ·
+`TITHE_PROOF_SUBMITTED` · `TITHE_PROOF_CONFIRMED` · `TITHE_PROOF_DECLINED` · `TITHE_PROOF_EXPIRED_PURGED` ·
+`CHURCH_SETTING_UPDATED` · `INCIDENT_REPORT_CREATED` · `INCIDENT_REPORT_STATUS_UPDATED` ·
+`ASSET_CREATED` · `ASSET_UPDATED` · `ASSET_MAINTENANCE_SCHEDULED` · `ASSET_MAINTENANCE_LOGGED` · `ASSET_INVENTORY_UPDATED`
 
 ### EventReminder
 
@@ -1642,6 +1647,32 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /service-headcount/trends                                  | AdminGuard + HEADCOUNT_READ                                   | Aggregated attendance trends bucketed by period (query: period=weekly\|monthly\|quarterly, from, to, serviceSlotName); returns grouped data per slot per bucket |
 | GET    | /service-headcount/:id                                     | AdminGuard + HEADCOUNT_READ                                   | Get a single headcount record by ID (includes computed `total`)                                               |
 
+| GET    | /admin/settings                                            | AdminGuard (any admin)                                        | List all known modules with their current enabled status and `required` flag (absent row = enabled by default) |
+| GET    | /admin/settings/:key                                       | AdminGuard (any admin)                                        | Get one module setting by key (e.g. `incident_report`, `asset_management`). Returns `required` flag.          |
+| PATCH  | /admin/settings/:key                                       | AdminGuard (ADMIN_WRITE)                                      | Enable or disable a module — body: `{ "enabled": boolean }`. Returns `400` if module is `required`. Upserts the row, invalidates cache, and writes `CHURCH_SETTING_UPDATED` audit log. |
+
+| POST   | /incidents                                                 | JwtAuthGuard + Module: incident_report                        | Submit a new incident report. Rate-limited to `INCIDENT_DAILY_REPORT_LIMIT` (default 2) per member per 24 h. Body: title, description, images? (Cloudinary URLs), location?, isAnonymous? (default false). Notifies admins with INCIDENT_REPORT_WRITE permission by email. |
+| GET    | /incidents?page=&limit=                                    | JwtAuthGuard + Module: incident_report                        | Returns only the current member's own reports. Members cannot see reports submitted by others.                |
+| GET    | /incidents/:id                                             | JwtAuthGuard + Module: incident_report                        | Returns a single report only if it was submitted by the current member. Returns `404` otherwise.             |
+| GET    | /admin/incidents?page=&limit=                              | AdminGuard (INCIDENT_REPORT_READ)                             | Paginated list of all incidents with full reporter identity and admin notes.                                  |
+| GET    | /admin/incidents/:id                                       | AdminGuard (INCIDENT_REPORT_READ)                             | Get a single incident report with full details.                                                               |
+| PATCH  | /admin/incidents/:id/status                                | AdminGuard (INCIDENT_REPORT_WRITE)                            | Update incident status (`OPEN` → `IN_PROGRESS` → `RESOLVED`) and optionally set adminNotes. Sets `resolvedAt` automatically when status is `RESOLVED`. |
+
+| POST   | /admin/assets                                              | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Create a new asset. `tagNumber` auto-generated (`AST-{YEAR}-{NNNN}`) if not provided. Optional: `serialNumber`, `manufacturer`, `model`, `warrantyExpiry`, `vendorName`, `vendorContact`, `departmentId`. Returns `409` if tag already exists. |
+| GET    | /admin/assets?page=&limit=&status=&category=&maintenanceEnabled=&departmentId= | AdminGuard (ASSET_MANAGEMENT_READ) + Module: asset_management | Paginated asset list. Filterable by status, category (case-insensitive), maintenanceEnabled, and departmentId. Each record includes `maintenanceSchedule` and `department`. |
+| GET    | /admin/assets/checkouts?page=&limit=                       | AdminGuard (ASSET_MANAGEMENT_READ) + Module: asset_management | All currently active checkouts across all assets (returnedAt IS NULL), newest first. |
+| GET    | /admin/assets/:id                                          | AdminGuard (ASSET_MANAGEMENT_READ) + Module: asset_management | Get asset with `maintenanceSchedule` and `department`. Maintenance history is paginated separately. |
+| PATCH  | /admin/assets/:id                                          | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Partial update. Supports all asset fields including `serialNumber`, `manufacturer`, `model`, `warrantyExpiry`, `vendorName`, `vendorContact`, `departmentId`. |
+| POST   | /admin/assets/:id/maintenance-schedule                     | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Set or update the maintenance schedule. Sets `maintenanceEnabled = true`. Resets all notification timestamps. Body: `frequencyUnit`, `frequencyValue`, `nextDueAt`. |
+| POST   | /admin/assets/:id/maintenance-records                      | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Log a maintenance record. `COMPLETED` → asset `ACTIVE` + recalculates `nextDueAt`. `IN_PROGRESS` → asset `UNDER_MAINTENANCE`. |
+| PATCH  | /admin/assets/:id/inventory                                | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Set inventory breakdown. Sets `inventoryEnabled = true`. Body: `inStorage`, `inUse`, `underRepair`, `writtenOff` (all int ≥ 0). `totalUnits = sum of all four`. |
+| GET    | /admin/assets/:id/maintenance-records?page=&limit=         | AdminGuard (ASSET_MANAGEMENT_READ) + Module: asset_management | Paginated maintenance history for an asset, newest first. |
+| POST   | /admin/assets/:id/checkouts                                | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Check out an asset. Requires `checkedOutToMemberId` or `checkedOutToDepartmentId` (at least one). Optional: `expectedReturnAt`, `purpose`, `notes`. Returns `400` if asset already has an active checkout, or asset is `UNDER_MAINTENANCE`, `DECOMMISSIONED`, or `INACTIVE`. **On success:** email notification sent to the checked-out member (if member checkout) and/or all HOD/D_HOD leads of the target department (if department checkout) via the `asset-checkout-notification` template. Notifications are fire-and-forget. |
+| PATCH  | /admin/assets/:id/checkouts/:checkoutId/return             | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Mark a checkout as returned. Optional body: `notes`. Returns `400` if already returned. **On success:** email notification sent to the original recipient (member or department HOD/D_HOD leads) confirming the return. A `RETURN_CONFIRMED` row is recorded in `asset_checkout_notifications`. |
+| GET    | /admin/assets/:id/checkouts?page=&limit=                   | AdminGuard (ASSET_MANAGEMENT_READ) + Module: asset_management | Paginated checkout history for a specific asset, newest first. |
+
+**Overdue checkout reminders (daily cron at 08:00):** `OverdueCheckoutScheduler` runs every day at 08:00 with a distributed Redis lock. It finds all active checkouts (`returnedAt IS NULL`) where `expectedReturnAt < now`. For each, it checks which day-thresholds defined in `ASSET_OVERDUE_NOTIFICATION_DAYS` have not yet been sent (tracked in the `asset_checkout_notifications` table with `type = OVERDUE_REMINDER`). Notifications go to the checked-out member and/or all HOD/D_HOD leads of the checked-out department. Set `ASSET_OVERDUE_NOTIFICATION_DAYS=` (empty) to disable all overdue reminders.
+
 ---
 
 ## 7. Check-In Flow
@@ -1920,6 +1951,7 @@ Used for finance request attachments and payment proofs.
 | `CLOUDINARY_API_SECRET`      | — *(required)* | Cloudinary API secret                                                      |
 | `MAX_FILE_UPLOAD_BYTES`      | `5242880`      | Global hard ceiling for all file uploads (bytes). Registered via `MulterModule` in `AppModule`; individual endpoints may enforce a stricter limit. |
 | `TITHE_PROOF_EXPIRY_DAYS`    | `90`           | Days after which a tithe payment proof is purged from Cloudinary and DB    |
+| `ASSET_OVERDUE_NOTIFICATION_DAYS` | `1,3,7`   | Comma-separated day thresholds for overdue checkout reminders. Leave empty to disable. |
 
 ### App URLs (embedded in emails)
 
@@ -2080,3 +2112,27 @@ if the department is not linked to any gated module). Multiple departments can s
 ### DepartmentKeyEnum (updated)
 
 `SUNDAY_SCHOOL` · `CHILDREN_CHURCH` · `WORSHIP` · `USHERING` · `MEDIA` · `PROTOCOL` · `WELFARE` · `PRAYER` · `EVANGELISM` · `YOUTH` · `YOUNG_ADULTS` · `FOLLOW_UP` · `ADMIN`
+
+### IncidentStatusEnum
+
+`OPEN` · `IN_PROGRESS` · `RESOLVED`
+
+### AssetStatusEnum
+
+`ACTIVE` · `INACTIVE` · `UNDER_MAINTENANCE` · `DECOMMISSIONED`
+
+### MaintenanceFrequencyUnitEnum
+
+`DAYS` · `WEEKS` · `MONTHS`
+
+### MaintenanceRecordTypeEnum
+
+`SCHEDULED` · `UNPLANNED`
+
+### MaintenanceCompletionStatusEnum
+
+`IN_PROGRESS` · `COMPLETED`
+
+### AssetConditionEnum
+
+`GOOD` · `FAIR` · `POOR`

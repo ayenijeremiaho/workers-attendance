@@ -33,6 +33,11 @@ export enum AdminPermission {
     SERVICE_PROGRAMME_WRITE = 'service_programme:write',
     HEADCOUNT_READ = 'headcount:read',
     HEADCOUNT_WRITE = 'headcount:write',
+    INCIDENT_REPORT_READ = 'incident_report:read',
+    INCIDENT_REPORT_WRITE = 'incident_report:write',
+    ASSET_MANAGEMENT_READ = 'asset_management:read',
+    ASSET_MANAGEMENT_WRITE = 'asset_management:write',
+    ASSET_MAINTENANCE_ALERT = 'asset_management:alert',
 }
 
 export const AdminPermissionLabels: Record<AdminPermission, string> = {
@@ -70,6 +75,11 @@ export const AdminPermissionLabels: Record<AdminPermission, string> = {
     [AdminPermission.SERVICE_PROGRAMME_WRITE]: 'Manage Service Programme',
     [AdminPermission.HEADCOUNT_READ]: 'View Service Headcount',
     [AdminPermission.HEADCOUNT_WRITE]: 'Record Service Headcount',
+    [AdminPermission.INCIDENT_REPORT_READ]: 'View Incident Reports',
+    [AdminPermission.INCIDENT_REPORT_WRITE]: 'Manage Incident Reports',
+    [AdminPermission.ASSET_MANAGEMENT_READ]: 'View Assets',
+    [AdminPermission.ASSET_MANAGEMENT_WRITE]: 'Manage Assets',
+    [AdminPermission.ASSET_MAINTENANCE_ALERT]: 'Receive Maintenance Reminders',
 };
 
 export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
@@ -107,6 +117,11 @@ export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
     [AdminPermission.SERVICE_PROGRAMME_WRITE]: 'Create and manage service programmes, slots, and reusable templates',
     [AdminPermission.HEADCOUNT_READ]: 'View service attendance headcounts and trends across all services',
     [AdminPermission.HEADCOUNT_WRITE]: 'Record and correct physical attendance headcounts after each service',
+    [AdminPermission.INCIDENT_REPORT_READ]: 'View all incident reports, reporter identity, and admin notes',
+    [AdminPermission.INCIDENT_REPORT_WRITE]: 'Update incident status, add admin notes, and receive new-incident notifications',
+    [AdminPermission.ASSET_MANAGEMENT_READ]: 'View asset registry, maintenance schedules, and maintenance history',
+    [AdminPermission.ASSET_MANAGEMENT_WRITE]: 'Create and manage assets, log scheduled and unplanned maintenance records',
+    [AdminPermission.ASSET_MAINTENANCE_ALERT]: 'Receive email reminders for upcoming and overdue asset maintenance',
 };
 
 export interface AdminPermissionGroupItem {
@@ -154,6 +169,12 @@ export const AdminPermissionGroups: AdminPermissionGroup[] = [
         AdminPermission.NOTES_WRITE,
         AdminPermission.FOLLOW_UP_READ,
         AdminPermission.FOLLOW_UP_WRITE,
+    ]),
+    buildGroup('Incident Reports', [AdminPermission.INCIDENT_REPORT_READ, AdminPermission.INCIDENT_REPORT_WRITE]),
+    buildGroup('Asset Management', [
+        AdminPermission.ASSET_MANAGEMENT_READ,
+        AdminPermission.ASSET_MANAGEMENT_WRITE,
+        AdminPermission.ASSET_MAINTENANCE_ALERT,
     ]),
     buildGroup('Administration', [
         AdminPermission.DASHBOARD_READ,

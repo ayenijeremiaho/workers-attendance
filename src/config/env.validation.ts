@@ -69,6 +69,8 @@ export const envValidationSchema = Joi.object({
     CACHE_TTL_LEADERBOARD_SECONDS: Joi.number().default(90),
     WISH_DAILY_LIMIT: Joi.number().default(20),
 
+    INCIDENT_DAILY_REPORT_LIMIT: Joi.number().default(2),
+    ASSET_OVERDUE_NOTIFICATION_DAYS: Joi.string().default('1,3,7'),
     TITHE_PROOF_EXPIRY_DAYS: Joi.number().default(90),
     MAX_FILE_UPLOAD_BYTES: Joi.number().default(5 * 1024 * 1024),
 

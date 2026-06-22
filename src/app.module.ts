@@ -34,6 +34,9 @@ import {FinanceRequestModule} from './finance-request/finance-request.module';
 import {FollowUpModule} from './follow-up/follow-up.module';
 import {ServiceProgrammeModule} from './service-programme/service-programme.module';
 import {ServiceHeadcountModule} from './service-headcount/service-headcount.module';
+import {ChurchSettingsModule} from './church-settings/church-settings.module';
+import {IncidentReportModule} from './incident-report/incident-report.module';
+import {AssetManagementModule} from './asset-management/asset-management.module';
 
 @Module({
     imports: [
@@ -137,6 +140,9 @@ import {ServiceHeadcountModule} from './service-headcount/service-headcount.modu
         FollowUpModule,
         ServiceProgrammeModule,
         ServiceHeadcountModule,
+        ChurchSettingsModule,
+        IncidentReportModule,
+        AssetManagementModule,
     ],
     controllers: [AppController],
     providers: [

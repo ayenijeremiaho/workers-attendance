@@ -2,7 +2,7 @@
   "info": {
     "name": "Discovery Hub API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "# Discovery Hub API\n\n**Discovery Hub** is a full-featured church management backend built for modern, growing congregations. It handles everything from Sunday check-ins and live service programme running to tithe statements, first-timer follow-up pipelines, finance requests, and children's church pickup codes — all through a single, secure REST API.\n\nDeployable anywhere. Configurable for any congregation — church name, address, logo, currency, and timezone are all driven by environment variables.\n\nBase URL: `http://localhost:3000/v1`\n\n---\n\n## Actor Types\n\n| Actor | How they access | Token variable |\n|-------|----------------|---------------|\n| **Member** | Mobile app — regular church member | `{{accessToken}}` |\n| **Worker** | Mobile app — serves in a department (role: WORKER) | `{{accessToken}}` |\n| **Admin** | Web portal — separate Admin entity linked to a member | `{{admin_token}}` |\n\nA member becomes a Worker via `POST /members/:id/promote`. Admin access is granted separately via `POST /admin/users`.\n\n---\n\n## Authentication Flow\n\n### Members and Workers\n1. **Sign Up** — `POST /auth/signup` (no password in body; server generates one and emails it)\n2. **Login** — `POST /auth/login` with `email`, `password`, and `deviceId`\n   - Auto-captures `{{accessToken}}` and `{{refreshToken}}` via the test script\n   - If `requires_password_change: true`, call `POST /auth/change-password` before anything else\n3. **Refresh** — `POST /auth/refresh` (pass `{{refreshToken}}` as Bearer header) when access token expires\n4. **Logout** — `POST /auth/logout` to invalidate the session\n\n### Admin\n1. **Admin Portal Login** — `POST /auth/admin-login` with `email` and `password`\n   - Returns tokens; capture `admin_token` manually or add a test script\n   - No device lock — web-first route\n\n---\n\n## Token Lifecycle\n\n- **Access token** expires in **1 hour** (`expires_in: 3600`)\n- **Refresh token** is long-lived; use it once to get a new pair\n- Logging out invalidates both tokens server-side (Redis blocklist)\n\n---\n\n## Device Binding\n\nThe first login from a device registers `deviceId` against the member record. All subsequent logins from a **different** `deviceId` return **403**. To switch devices:\n- Self-service: `POST /auth/device-reset/request` → OTP email → `POST /auth/device-reset/verify`\n- Admin override: `DELETE /members/:id/device` (clears lock, member may log in from any device)\n\n---\n\n## Collection Variables\n\n| Variable | Stores |\n|----------|--------|\n| `baseUrl` | `http://localhost:3000/v1` |\n| `accessToken` | Member/Worker JWT (auto-set by Login test script) |\n| `refreshToken` | Refresh token (auto-set by Login test script) |\n| `memberId` | Primary member UUID under test |\n| `memberId2` | Secondary member UUID (e.g. bulk operations) |\n| `departmentId` | Department UUID |\n| `eventId` | Event UUID |\n| `slotId` | ServiceSlot UUID |\n| `configId` | EventConfig UUID |\n| `classId` | Church class UUID |\n| `enrollmentId` | Enrollment UUID |\n| `leaveId` | Leave request UUID |\n| `venueId` | Venue UUID (auto-set by Create Venue test script) |\n| `ssClassId` | Sunday School class UUID |\n| `ssSessionId` | Sunday School session UUID |\n| `ageGroupId` | Children Church age group UUID |\n| `classGroupId` | Children Church class group UUID |\n| `childId` | Child profile UUID |\n| `guardianId` | Guardian UUID |\n| `checkinId` | Children Church check-in UUID (auto-set by Check In Child) |\n| `pickupCode` | 6-char pickup code (auto-set by Check In Child) |\n| `reminderId` | Event reminder UUID (auto-set by Create Reminder) |\n| `wishRecipientId` | Target member UUID for birthday wishes |\n| `adminRoleId` | Admin role UUID |\n| `adminUserId` | Admin user record UUID |\n| `admin_token` | Admin JWT (set manually after admin login) |\n\n---\n\n## Common Patterns\n\n**Pagination** — pass `?page=1&limit=20` on list endpoints. Response shape:\n```json\n{ \"data\": [...], \"page\": 1, \"limit\": 20, \"totalCount\": 150, \"totalPages\": 8 }\n```\n\n**Error shape:**\n```json\n{ \"statusCode\": 400, \"message\": \"Descriptive error message\" }\n```\n\n**Enum values** — call `GET /enums` (mobile) or `GET /admin/enums` (portal) on app launch to populate all dropdowns without hardcoding.\n\n**UUIDs** — all IDs are UUID v4, e.g. `a3f2e1b4-9c7d-4e5f-8a6b-1c2d3e4f5a6b`\n\n---\n\n## Quick-Start (Mobile App)\n\n1. `POST /auth/signup` — register a new member (password arrives by email)\n2. `POST /auth/login` — log in; `accessToken` and `refreshToken` are auto-saved\n3. `GET /auth/me` — fetch profile; save the `id` as `{{memberId}}`\n4. `GET /enums` — load all dropdown values\n5. `GET /events?upcoming=true` — list upcoming services\n6. `POST /attendances/checkin` with `serviceSlotId` — check in to a service"
+    "description": "# Discovery Hub API\n\n**Discovery Hub** is a full-featured church management backend built for modern, growing congregations. It handles everything from Sunday check-ins and live service programme running to tithe statements, first-timer follow-up pipelines, finance requests, and children's church pickup codes \u2014 all through a single, secure REST API.\n\nDeployable anywhere. Configurable for any congregation \u2014 church name, address, logo, currency, and timezone are all driven by environment variables.\n\nBase URL: `http://localhost:3000/v1`\n\n---\n\n## Actor Types\n\n| Actor | How they access | Token variable |\n|-------|----------------|---------------|\n| **Member** | Mobile app \u2014 regular church member | `{{accessToken}}` |\n| **Worker** | Mobile app \u2014 serves in a department (role: WORKER) | `{{accessToken}}` |\n| **Admin** | Web portal \u2014 separate Admin entity linked to a member | `{{admin_token}}` |\n\nA member becomes a Worker via `POST /members/:id/promote`. Admin access is granted separately via `POST /admin/users`.\n\n---\n\n## Authentication Flow\n\n### Members and Workers\n1. **Sign Up** \u2014 `POST /auth/signup` (no password in body; server generates one and emails it)\n2. **Login** \u2014 `POST /auth/login` with `email`, `password`, and `deviceId`\n   - Auto-captures `{{accessToken}}` and `{{refreshToken}}` via the test script\n   - If `requires_password_change: true`, call `POST /auth/change-password` before anything else\n3. **Refresh** \u2014 `POST /auth/refresh` (pass `{{refreshToken}}` as Bearer header) when access token expires\n4. **Logout** \u2014 `POST /auth/logout` to invalidate the session\n\n### Admin\n1. **Admin Portal Login** \u2014 `POST /auth/admin-login` with `email` and `password`\n   - Returns tokens; capture `admin_token` manually or add a test script\n   - No device lock \u2014 web-first route\n\n---\n\n## Token Lifecycle\n\n- **Access token** expires in **1 hour** (`expires_in: 3600`)\n- **Refresh token** is long-lived; use it once to get a new pair\n- Logging out invalidates both tokens server-side (Redis blocklist)\n\n---\n\n## Device Binding\n\nThe first login from a device registers `deviceId` against the member record. All subsequent logins from a **different** `deviceId` return **403**. To switch devices:\n- Self-service: `POST /auth/device-reset/request` \u2192 OTP email \u2192 `POST /auth/device-reset/verify`\n- Admin override: `DELETE /members/:id/device` (clears lock, member may log in from any device)\n\n---\n\n## Collection Variables\n\n| Variable | Stores |\n|----------|--------|\n| `baseUrl` | `http://localhost:3000/v1` |\n| `accessToken` | Member/Worker JWT (auto-set by Login test script) |\n| `refreshToken` | Refresh token (auto-set by Login test script) |\n| `memberId` | Primary member UUID under test |\n| `memberId2` | Secondary member UUID (e.g. bulk operations) |\n| `departmentId` | Department UUID |\n| `eventId` | Event UUID |\n| `slotId` | ServiceSlot UUID |\n| `configId` | EventConfig UUID |\n| `classId` | Church class UUID |\n| `enrollmentId` | Enrollment UUID |\n| `leaveId` | Leave request UUID |\n| `venueId` | Venue UUID (auto-set by Create Venue test script) |\n| `ssClassId` | Sunday School class UUID |\n| `ssSessionId` | Sunday School session UUID |\n| `ageGroupId` | Children Church age group UUID |\n| `classGroupId` | Children Church class group UUID |\n| `childId` | Child profile UUID |\n| `guardianId` | Guardian UUID |\n| `checkinId` | Children Church check-in UUID (auto-set by Check In Child) |\n| `pickupCode` | 6-char pickup code (auto-set by Check In Child) |\n| `reminderId` | Event reminder UUID (auto-set by Create Reminder) |\n| `wishRecipientId` | Target member UUID for birthday wishes |\n| `adminRoleId` | Admin role UUID |\n| `adminUserId` | Admin user record UUID |\n| `admin_token` | Admin JWT (set manually after admin login) |\n\n---\n\n## Common Patterns\n\n**Pagination** \u2014 pass `?page=1&limit=20` on list endpoints. Response shape:\n```json\n{ \"data\": [...], \"page\": 1, \"limit\": 20, \"totalCount\": 150, \"totalPages\": 8 }\n```\n\n**Error shape:**\n```json\n{ \"statusCode\": 400, \"message\": \"Descriptive error message\" }\n```\n\n**Enum values** \u2014 call `GET /enums` (mobile) or `GET /admin/enums` (portal) on app launch to populate all dropdowns without hardcoding.\n\n**UUIDs** \u2014 all IDs are UUID v4, e.g. `a3f2e1b4-9c7d-4e5f-8a6b-1c2d3e4f5a6b`\n\n---\n\n## Quick-Start (Mobile App)\n\n1. `POST /auth/signup` \u2014 register a new member (password arrives by email)\n2. `POST /auth/login` \u2014 log in; `accessToken` and `refreshToken` are auto-saved\n3. `GET /auth/me` \u2014 fetch profile; save the `id` as `{{memberId}}`\n4. `GET /enums` \u2014 load all dropdown values\n5. `GET /events?upcoming=true` \u2014 list upcoming services\n6. `POST /attendances/checkin` with `serviceSlotId` \u2014 check in to a service"
   },
   "variable": [
     {
@@ -164,7 +164,7 @@
   "item": [
     {
       "name": "Auth",
-      "description": "Handles all authentication flows for both mobile app users (members/workers) and the admin web portal.\n\n**Access:** Public (no token) for sign-up, login, forgot-password, reset-password. JWT required for logout, change-password, and device-reset-verify.\n\n**Typical flow:**\n1. Sign Up → password emailed to member\n2. Login → captures `{{accessToken}}` and `{{refreshToken}}`\n3. If `requires_password_change: true` → Change Password immediately\n4. When token expires → Refresh Token\n5. Switching devices → Request Device Reset → Verify Device Reset\n\n**Key constraints:**\n- One device per member. First `deviceId` sent at login is locked in. Subsequent logins from a different device return 403.\n- OTP codes (forgot-password, device-reset) are rate-limited and single-use.\n- Admin login (`/auth/admin-login`) has no device lock — web-only route.",
+      "description": "Handles all authentication flows for both mobile app users (members/workers) and the admin web portal.\n\n**Access:** Public (no token) for sign-up, login, forgot-password, reset-password. JWT required for logout, change-password, and device-reset-verify.\n\n**Typical flow:**\n1. Sign Up \u2192 password emailed to member\n2. Login \u2192 captures `{{accessToken}}` and `{{refreshToken}}`\n3. If `requires_password_change: true` \u2192 Change Password immediately\n4. When token expires \u2192 Refresh Token\n5. Switching devices \u2192 Request Device Reset \u2192 Verify Device Reset\n\n**Key constraints:**\n- One device per member. First `deviceId` sent at login is locked in. Subsequent logins from a different device return 403.\n- OTP codes (forgot-password, device-reset) are rate-limited and single-use.\n- Admin login (`/auth/admin-login`) has no device lock \u2014 web-only route.",
       "item": [
         {
           "name": "Sign Up",
@@ -198,7 +198,7 @@
                 "signup"
               ]
             },
-            "description": "Register a new member account. Do NOT include a password — the server generates a secure temporary password and emails it to the provided address. The account will have changedPassword=false, requiring a password change on first login."
+            "description": "Register a new member account. Do NOT include a password \u2014 the server generates a secure temporary password and emails it to the provided address. The account will have changedPassword=false, requiring a password change on first login."
           },
           "response": [
             {
@@ -266,7 +266,7 @@
                 "login"
               ]
             },
-            "description": "Mobile app login (members & workers). Requires deviceId — the first login from a device registers it; subsequent logins must match the registered device or receive 403. Returns requires_password_change: true when a forced password change is pending."
+            "description": "Mobile app login (members & workers). Requires deviceId \u2014 the first login from a device registers it; subsequent logins must match the registered device or receive 403. Returns requires_password_change: true when a forced password change is pending."
           },
           "response": [
             {
@@ -312,7 +312,7 @@
                 "admin-login"
               ]
             },
-            "description": "Admin portal login (web). Validates credentials AND verifies the caller has an active Admin record. Returns 403 if the member has no admin access. No device lock — this route is web-first."
+            "description": "Admin portal login (web). Validates credentials AND verifies the caller has an active Admin record. Returns 403 if the member has no admin access. No device lock \u2014 this route is web-first."
           },
           "response": [
             {
@@ -603,7 +603,7 @@
                 "request"
               ]
             },
-            "description": "Self-service device reset step 1. Rate-limited (default 3 per 24 h per email). Sends a 6-digit OTP to the registered email address. The newDeviceId submitted here is locked in — the OTP cannot be used to register a different device."
+            "description": "Self-service device reset step 1. Rate-limited (default 3 per 24 h per email). Sends a 6-digit OTP to the registered email address. The newDeviceId submitted here is locked in \u2014 the OTP cannot be used to register a different device."
           },
           "response": [
             {
@@ -671,7 +671,7 @@
     },
     {
       "name": "Members",
-      "description": "Manage the Member entity — the root record for every person in the system.\n\n**Access:** Admin-only for most write operations. Any authenticated member can read their own profile (`GET /members/me`).\n\n**Key concepts:**\n- `status`: `ACTIVE` (default) or `INACTIVE`. Use `PATCH /:id/status` to deactivate. **Member deletion is intentionally not exposed.**\n- `role`: `MEMBER` (default) or `WORKER`. Promote via `POST /:id/promote` (creates a WorkerProfile); demote via `POST /:id/revoke-worker`.\n- Workers have a `workerProfile` with `departmentId`, `profession`, `status`, and optional `secondaryDepartmentId`.\n- Device lock: each member may only log in from one registered device. Admins can clear the lock via `DELETE /:id/device`.\n\n**Typical flow:**\n1. `POST /auth/signup` creates the member\n2. Admin calls `GET /members` to find and review new registrations\n3. `POST /:id/promote` to make the member a worker\n4. `PATCH /:id/worker-profile` to update department or training flags\n5. `PATCH /:id/status` to deactivate if the member leaves",
+      "description": "Manage the Member entity \u2014 the root record for every person in the system.\n\n**Access:** Admin-only for most write operations. Any authenticated member can read their own profile (`GET /members/me`).\n\n**Key concepts:**\n- `status`: `ACTIVE` (default) or `INACTIVE`. Use `PATCH /:id/status` to deactivate. **Member deletion is intentionally not exposed.**\n- `role`: `MEMBER` (default) or `WORKER`. Promote via `POST /:id/promote` (creates a WorkerProfile); demote via `POST /:id/revoke-worker`.\n- Workers have a `workerProfile` with `departmentId`, `profession`, `status`, and optional `secondaryDepartmentId`.\n- Device lock: each member may only log in from one registered device. Admins can clear the lock via `DELETE /:id/device`.\n\n**Typical flow:**\n1. `POST /auth/signup` creates the member\n2. Admin calls `GET /members` to find and review new registrations\n3. `POST /:id/promote` to make the member a worker\n4. `PATCH /:id/worker-profile` to update department or training flags\n5. `PATCH /:id/status` to deactivate if the member leaves",
       "item": [
         {
           "name": "Get All Members",
@@ -1135,7 +1135,7 @@
     },
     {
       "name": "Admin",
-      "description": "Manages admin portal users (roles + access grants) and audit logs. Admin access is separate from the member/worker role system — an `Admin` entity is linked to a Member record and carries a permission set.\n\n**Access:** All endpoints require AdminGuard with specific permissions. The super-admin role has all permissions by default.\n\n**Key concepts:**\n- `AdminRole` — a named template of permissions (e.g. \"FinanceTeam\" with FINANCE_READ + FINANCE_WRITE). Create roles first.\n- `Admin User` — grants an existing member access to the portal by linking them to an AdminRole. The member logs in at `POST /auth/admin-login`.\n- Permissions gate individual actions (e.g. MEMBERS_WRITE, ATTENDANCE_READ). Call `GET /admin/enums` to list all valid permission strings.\n- Audit logs capture every admin action with actor, target, action type, and timestamp.\n\n**Typical flow:**\n1. Create an AdminRole with the desired permissions\n2. Grant a member admin access (`POST /admin/users`) — sends a welcome email\n3. Member logs in at `POST /auth/admin-login`\n4. Review admin actions via `GET /admin/audit-logs`",
+      "description": "Manages admin portal users (roles + access grants) and audit logs. Admin access is separate from the member/worker role system \u2014 an `Admin` entity is linked to a Member record and carries a permission set.\n\n**Access:** All endpoints require AdminGuard with specific permissions. The super-admin role has all permissions by default.\n\n**Key concepts:**\n- `AdminRole` \u2014 a named template of permissions (e.g. \"FinanceTeam\" with FINANCE_READ + FINANCE_WRITE). Create roles first.\n- `Admin User` \u2014 grants an existing member access to the portal by linking them to an AdminRole. The member logs in at `POST /auth/admin-login`.\n- Permissions gate individual actions (e.g. MEMBERS_WRITE, ATTENDANCE_READ). Call `GET /admin/enums` to list all valid permission strings.\n- Audit logs capture every admin action with actor, target, action type, and timestamp.\n\n**Typical flow:**\n1. Create an AdminRole with the desired permissions\n2. Grant a member admin access (`POST /admin/users`) \u2014 sends a welcome email\n3. Member logs in at `POST /auth/admin-login`\n4. Review admin actions via `GET /admin/audit-logs`",
       "item": [
         {
           "name": "Admin Roles",
@@ -1243,7 +1243,7 @@
                     "roles"
                   ]
                 },
-                "description": "AdminGuard (ADMIN_WRITE). Creates a new admin role template. permissions is an array of permission strings — call GET /admin/enums to get valid values. name must be unique."
+                "description": "AdminGuard (ADMIN_WRITE). Creates a new admin role template. permissions is an array of permission strings \u2014 call GET /admin/enums to get valid values. name must be unique."
               },
               "response": [
                 {
@@ -1750,7 +1750,7 @@
                 "checkin"
               ]
             },
-            "description": "Any authenticated user (MEMBER or WORKER) can check in. Workers MUST include location coordinates. Members may omit location. Location distance is validated if ENFORCE_DISTANCE_CHECK=true. One record per member per event — checking in to any slot of an event covers the whole event. Members are always PRESENT; workers are PRESENT or LATE depending on workerLateOffsetSeconds. Duplicate check-ins return 409 (enforced at DB level via unique constraint on (member, event))."
+            "description": "Any authenticated user (MEMBER or WORKER) can check in. Workers MUST include location coordinates. Members may omit location. Location distance is validated if ENFORCE_DISTANCE_CHECK=true. One record per member per event \u2014 checking in to any slot of an event covers the whole event. Members are always PRESENT; workers are PRESENT or LATE depending on workerLateOffsetSeconds. Duplicate check-ins return 409 (enforced at DB level via unique constraint on (member, event))."
           },
           "response": [
             {
@@ -2144,7 +2144,7 @@
     },
     {
       "name": "Events",
-      "description": "Manages church events (Sunday services, midweek services, etc.) and their service slots.\n\n**Access:** Admin-only for create/update/delete. Any authenticated user can list and get events.\n\n**Key concepts:**\n- Each event has one or more `serviceSlots`, each defining a time window and referencing an `EventConfig`.\n- **Recurring events** (`isRecurring: true`) generate one Event record per weekly occurrence up to `recurrenceEndDate` (max 1 year). All occurrences share the same slot template.\n- **Slot times** must fall within the event date range. Slots are auto-sorted and validated for no overlap.\n- To delete an entire recurring series, use `DELETE /events/recurring/:recurringEventId` — this removes all future occurrences.\n- **You must create an EventConfig and Venue before creating events** (slots reference `configId` and optionally `venueOverrideId`).\n\n**Typical flow:**\n1. Create a Venue (`POST /venues`)\n2. Create an EventConfig (`POST /event-config`) referencing the venue\n3. Create the Event (`POST /events`) with slots referencing the configId\n4. Reference slot UUIDs in attendance check-in and reminders",
+      "description": "Manages church events (Sunday services, midweek services, etc.) and their service slots.\n\n**Access:** Admin-only for create/update/delete. Any authenticated user can list and get events.\n\n**Key concepts:**\n- Each event has one or more `serviceSlots`, each defining a time window and referencing an `EventConfig`.\n- **Recurring events** (`isRecurring: true`) generate one Event record per weekly occurrence up to `recurrenceEndDate` (max 1 year). All occurrences share the same slot template.\n- **Slot times** must fall within the event date range. Slots are auto-sorted and validated for no overlap.\n- To delete an entire recurring series, use `DELETE /events/recurring/:recurringEventId` \u2014 this removes all future occurrences.\n- **You must create an EventConfig and Venue before creating events** (slots reference `configId` and optionally `venueOverrideId`).\n\n**Typical flow:**\n1. Create a Venue (`POST /venues`)\n2. Create an EventConfig (`POST /event-config`) referencing the venue\n3. Create the Event (`POST /events`) with slots referencing the configId\n4. Reference slot UUIDs in attendance check-in and reminders",
       "item": [
         {
           "name": "Create Event (Single)",
@@ -2231,7 +2231,7 @@
                 "events"
               ]
             },
-            "description": "Minimal single-event example — one slot with a configId. At least one serviceSlot is required; slots without a configId will fail at check-in time."
+            "description": "Minimal single-event example \u2014 one slot with a configId. At least one serviceSlot is required; slots without a configId will fail at check-in time."
           },
           "event": [
             {
@@ -2288,7 +2288,7 @@
                 "events"
               ]
             },
-            "description": "Creates one event record per recurrence date up to recurrenceEndDate (max 1 year ahead). serviceSlots are required (at least one) and must include a configId. The same slot template is stamped on every occurrence — all share the same config. Delete future occurrences in bulk via DELETE /events/recurring/:recurringEventId."
+            "description": "Creates one event record per recurrence date up to recurrenceEndDate (max 1 year ahead). serviceSlots are required (at least one) and must include a configId. The same slot template is stamped on every occurrence \u2014 all share the same config. Delete future occurrences in bulk via DELETE /events/recurring/:recurringEventId."
           },
           "response": [
             {
@@ -2340,7 +2340,7 @@
                 }
               ]
             },
-            "description": "Updates event metadata. When `serviceSlots` is provided (min 1 entry), ALL existing slots are replaced with the new ones — include `configId` on each slot to preserve config linkage. Omit `serviceSlots` entirely to leave existing slots unchanged. ADMIN only."
+            "description": "Updates event metadata. When `serviceSlots` is provided (min 1 entry), ALL existing slots are replaced with the new ones \u2014 include `configId` on each slot to preserve config linkage. Omit `serviceSlots` entirely to leave existing slots unchanged. ADMIN only."
           },
           "response": [
             {
@@ -2429,19 +2429,19 @@
                 {
                   "key": "from",
                   "value": "",
-                  "description": "YYYY-MM-DD — filter events on or after this date",
+                  "description": "YYYY-MM-DD \u2014 filter events on or after this date",
                   "disabled": true
                 },
                 {
                   "key": "to",
                   "value": "",
-                  "description": "YYYY-MM-DD — filter events on or before this date",
+                  "description": "YYYY-MM-DD \u2014 filter events on or before this date",
                   "disabled": true
                 },
                 {
                   "key": "upcoming",
                   "value": "true",
-                  "description": "true — return only future events (eventDate >= today)",
+                  "description": "true \u2014 return only future events (eventDate >= today)",
                   "disabled": true
                 }
               ]
@@ -2542,7 +2542,7 @@
     },
     {
       "name": "Event Config",
-      "description": "Reusable check-in configuration templates attached to service slots. Defines when check-in opens/closes and what distance from venue is acceptable.\n\n**Access:** Admin-only for all operations.\n\n**Key concepts:**\n- All time offsets are in **seconds relative to the slot's startTime**. Negative values mean \"before the slot starts\".\n- `workerCheckinStartOffsetSeconds` — how early workers may check in (e.g. -5400 = 90 min before)\n- `workerLateOffsetSeconds` — workers arriving after this offset are marked LATE (e.g. 0 = late if after slot start)\n- `memberCheckinStartOffsetSeconds` — how early members may check in (e.g. -1800 = 30 min before)\n- `checkinStopOffsetSeconds` — when check-in closes for everyone (e.g. 3600 = 1 hour after slot start)\n- `allowedDistanceInMeters` — max GPS distance for worker check-in (default 150m)\n- `defaultVenueId` — required; the venue whose coordinates are used for distance checks\n- Constraint: `workerLateOffset > workerCheckinStartOffset` and `checkinStopOffset > workerLateOffset`\n- A config cannot be deleted while service slots still reference it.",
+      "description": "Reusable check-in configuration templates attached to service slots. Defines when check-in opens/closes and what distance from venue is acceptable.\n\n**Access:** Admin-only for all operations.\n\n**Key concepts:**\n- All time offsets are in **seconds relative to the slot's startTime**. Negative values mean \"before the slot starts\".\n- `workerCheckinStartOffsetSeconds` \u2014 how early workers may check in (e.g. -5400 = 90 min before)\n- `workerLateOffsetSeconds` \u2014 workers arriving after this offset are marked LATE (e.g. 0 = late if after slot start)\n- `memberCheckinStartOffsetSeconds` \u2014 how early members may check in (e.g. -1800 = 30 min before)\n- `checkinStopOffsetSeconds` \u2014 when check-in closes for everyone (e.g. 3600 = 1 hour after slot start)\n- `allowedDistanceInMeters` \u2014 max GPS distance for worker check-in (default 150m)\n- `defaultVenueId` \u2014 required; the venue whose coordinates are used for distance checks\n- Constraint: `workerLateOffset > workerCheckinStartOffset` and `checkinStopOffset > workerLateOffset`\n- A config cannot be deleted while service slots still reference it.",
       "item": [
         {
           "name": "Create Event Config",
@@ -2572,7 +2572,7 @@
                 "event-config"
               ]
             },
-            "description": "Offsets are in seconds relative to slot startTime. Negative = before slot starts. Constraint: workerLateOffset > workerCheckinStartOffset and checkinStopOffset > workerLateOffset. defaultVenueId is required — create a Venue first and reference it here."
+            "description": "Offsets are in seconds relative to slot startTime. Negative = before slot starts. Constraint: workerLateOffset > workerCheckinStartOffset and checkinStopOffset > workerLateOffset. defaultVenueId is required \u2014 create a Venue first and reference it here."
           },
           "event": [
             {
@@ -3235,7 +3235,7 @@
               ],
               "query": []
             },
-            "description": "Returns aggregated stats for the department the caller leads (HOD or D-HOD): total/active/inactive worker counts, 30-day attendance %, and workers currently on approved or pending leave. WORKER (HOD/D-HOD) only — throws 403 if caller is not a department lead."
+            "description": "Returns aggregated stats for the department the caller leads (HOD or D-HOD): total/active/inactive worker counts, 30-day attendance %, and workers currently on approved or pending leave. WORKER (HOD/D-HOD) only \u2014 throws 403 if caller is not a department lead."
           },
           "response": [
             {
@@ -3256,7 +3256,7 @@
     },
     {
       "name": "Leave",
-      "description": "Leave request management for workers who will be absent during a service period.\n\n**Access:**\n- Request Leave, Delete Leave, My History, Department Leave: WORKER only\n- Action Leave (approve/reject), All History: Admin only (LEAVE_WRITE / LEAVE_READ)\n\n**Key concepts:**\n- Workers create a PENDING leave request with a date range. Admin approves or rejects.\n- Approved leave changes the worker's attendance status from ABSENT to ON_LEAVE for events during that period.\n- Workers can only delete their own PENDING requests (not approved or rejected ones).\n- Department leads can view leave requests from their department members via `GET /leave/department`.\n- Status flow: `PENDING` → `APPROVED` or `REJECTED`\n\n**Typical flow:**\n1. Worker: `POST /leave` with dateFrom, dateTo, reason\n2. Admin: `GET /leave/history?status=PENDING` to review pending requests\n3. Admin: `PATCH /leave/:id/action` with `{ \"status\": \"APPROVED\" }` or `\"REJECTED\"`\n4. Approved leave is automatically applied to attendance for the covered dates",
+      "description": "Leave request management for workers who will be absent during a service period.\n\n**Access:**\n- Request Leave, Delete Leave, My History, Department Leave: WORKER only\n- Action Leave (approve/reject), All History: Admin only (LEAVE_WRITE / LEAVE_READ)\n\n**Key concepts:**\n- Workers create a PENDING leave request with a date range. Admin approves or rejects.\n- Approved leave changes the worker's attendance status from ABSENT to ON_LEAVE for events during that period.\n- Workers can only delete their own PENDING requests (not approved or rejected ones).\n- Department leads can view leave requests from their department members via `GET /leave/department`.\n- Status flow: `PENDING` \u2192 `APPROVED` or `REJECTED`\n\n**Typical flow:**\n1. Worker: `POST /leave` with dateFrom, dateTo, reason\n2. Admin: `GET /leave/history?status=PENDING` to review pending requests\n3. Admin: `PATCH /leave/:id/action` with `{ \"status\": \"APPROVED\" }` or `\"REJECTED\"`\n4. Approved leave is automatically applied to attendance for the covered dates",
       "item": [
         {
           "name": "Request Leave (Worker)",
@@ -3349,7 +3349,7 @@
           },
           "response": [
             {
-              "name": "200 OK — Approved",
+              "name": "200 OK \u2014 Approved",
               "status": "OK",
               "code": 200,
               "body": "{\n  \"id\": \"a3f2e1b4-9c7d-4e5f-8a6b-1c2d3e4f5a6b\",\n  \"status\": \"APPROVED\",\n  \"dateFrom\": \"2026-07-01\",\n  \"dateTo\": \"2026-07-07\",\n  \"reason\": \"Family vacation\",\n  \"updatedAt\": \"2026-06-17T09:00:00.000Z\"\n}"
@@ -3531,7 +3531,7 @@
     },
     {
       "name": "Classes",
-      "description": "Discipleship classes (Believers, Baptismal, Workers-in-Training, Bible College) that members enroll in.\n\n**Access:** Admin-only for create/update/delete/enroll/update-enrollment. Any authenticated member can view their own enrollments via `GET /classes/my/enrollments`. General class listings are open to any authenticated user.\n\n**Key concepts:**\n- Class types: `BELIEVERS` | `BAPTISMAL` | `WORKERS_IN_TRAINING` | `BIBLE_COLLEGE`\n- Enrollment statuses: `IN_PROGRESS` | `COMPLETED` | `CANCELLED`\n- A member cannot enroll in the same class twice (409 if already enrolled and IN_PROGRESS)\n- Classes with active IN_PROGRESS enrollments cannot be deleted — complete or cancel all enrollments first\n- `facilitatorId` links a member as the class facilitator/teacher (optional)\n\n**Typical flow:**\n1. Admin creates a class with type and date range\n2. Admin enrolls members via `POST /classes/enroll`\n3. Member sees their enrollment in `GET /classes/my/enrollments`\n4. Admin marks complete via `PATCH /classes/enrollments/:id/status` with `{ \"status\": \"COMPLETED\" }`",
+      "description": "Discipleship classes (Believers, Baptismal, Workers-in-Training, Bible College) that members enroll in.\n\n**Access:** Admin-only for create/update/delete/enroll/update-enrollment. Any authenticated member can view their own enrollments via `GET /classes/my/enrollments`. General class listings are open to any authenticated user.\n\n**Key concepts:**\n- Class types: `BELIEVERS` | `BAPTISMAL` | `WORKERS_IN_TRAINING` | `BIBLE_COLLEGE`\n- Enrollment statuses: `IN_PROGRESS` | `COMPLETED` | `CANCELLED`\n- A member cannot enroll in the same class twice (409 if already enrolled and IN_PROGRESS)\n- Classes with active IN_PROGRESS enrollments cannot be deleted \u2014 complete or cancel all enrollments first\n- `facilitatorId` links a member as the class facilitator/teacher (optional)\n\n**Typical flow:**\n1. Admin creates a class with type and date range\n2. Admin enrolls members via `POST /classes/enroll`\n3. Member sees their enrollment in `GET /classes/my/enrollments`\n4. Admin marks complete via `PATCH /classes/enrollments/:id/status` with `{ \"status\": \"COMPLETED\" }`",
       "item": [
         {
           "name": "Create Class (Admin)",
@@ -3955,7 +3955,7 @@
     },
     {
       "name": "Announcements",
-      "description": "In-app announcement system for church communications. Supports targeted delivery by audience.\n\n**Access:** Admin-only for create/update/delete. Any authenticated user can view their feed.\n\n**Audience types:**\n- `ALL` — visible to all members and workers\n- `WORKERS_ONLY` — visible only to workers\n- `DEPARTMENT` — visible to workers in a specific department (`departmentId` required)\n- `INDIVIDUAL` — private announcement to one member (`targetMemberId` required)\n\n**Key concepts:**\n- `publishedAt` defaults to now if omitted. `expiresAt` is optional; expired announcements are excluded from feeds.\n- `GET /announcements/feed` returns the caller's relevant announcements: members see ALL, workers see ALL + WORKERS_ONLY + their department.\n- `GET /announcements/all` (admin) returns all announcements regardless of expiry.\n\n**Typical flow:**\n1. Admin: `POST /announcements` with title, body, audience (and departmentId/targetMemberId if needed)\n2. Member/Worker: `GET /announcements/feed` to see their personalized feed\n3. Admin: `PATCH /announcements/:id` to extend expiry or update content",
+      "description": "In-app announcement system for church communications. Supports targeted delivery by audience.\n\n**Access:** Admin-only for create/update/delete. Any authenticated user can view their feed.\n\n**Audience types:**\n- `ALL` \u2014 visible to all members and workers\n- `WORKERS_ONLY` \u2014 visible only to workers\n- `DEPARTMENT` \u2014 visible to workers in a specific department (`departmentId` required)\n- `INDIVIDUAL` \u2014 private announcement to one member (`targetMemberId` required)\n\n**Key concepts:**\n- `publishedAt` defaults to now if omitted. `expiresAt` is optional; expired announcements are excluded from feeds.\n- `GET /announcements/feed` returns the caller's relevant announcements: members see ALL, workers see ALL + WORKERS_ONLY + their department.\n- `GET /announcements/all` (admin) returns all announcements regardless of expiry.\n\n**Typical flow:**\n1. Admin: `POST /announcements` with title, body, audience (and departmentId/targetMemberId if needed)\n2. Member/Worker: `GET /announcements/feed` to see their personalized feed\n3. Admin: `PATCH /announcements/:id` to extend expiry or update content",
       "item": [
         {
           "name": "Create Announcement (Admin)",
@@ -3969,7 +3969,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Church Picnic — July 20th\",\n  \"body\": \"Join us for our annual church picnic at Tarkwa Bay Beach. Bring your family!\",\n  \"audience\": \"ALL\",\n  \"publishedAt\": \"2026-07-10T08:00:00.000Z\",\n  \"expiresAt\": \"2026-07-21T00:00:00.000Z\"\n}",
+              "raw": "{\n  \"title\": \"Church Picnic \u2014 July 20th\",\n  \"body\": \"Join us for our annual church picnic at Tarkwa Bay Beach. Bring your family!\",\n  \"audience\": \"ALL\",\n  \"publishedAt\": \"2026-07-10T08:00:00.000Z\",\n  \"expiresAt\": \"2026-07-21T00:00:00.000Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4638,7 +4638,7 @@
     },
     {
       "name": "Notes Analytics",
-      "description": "Aggregated statistics for pastoral notes — child namings, child dedications, and marriages. Admin-only. Supports optional date range filtering via `from` and `to` query params (YYYY-MM-DD). Returns totals, averages, and highlight data per type.",
+      "description": "Aggregated statistics for pastoral notes \u2014 child namings, child dedications, and marriages. Admin-only. Supports optional date range filtering via `from` and `to` query params (YYYY-MM-DD). Returns totals, averages, and highlight data per type.",
       "item": [
         {
           "name": "Child Naming Analytics",
@@ -4880,7 +4880,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Main Auditorium — Block A\",\n  \"address\": \"456 New Church Road, Lagos\"\n}",
+              "raw": "{\n  \"name\": \"Main Auditorium \u2014 Block A\",\n  \"address\": \"456 New Church Road, Lagos\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4953,7 +4953,7 @@
               "name": "400 In use",
               "status": "Bad Request",
               "code": 400,
-              "body": "{ \"statusCode\": 400, \"message\": \"Cannot delete this venue — it is referenced by one or more event configs or slots.\" }"
+              "body": "{ \"statusCode\": 400, \"message\": \"Cannot delete this venue \u2014 it is referenced by one or more event configs or slots.\" }"
             }
           ]
         }
@@ -4961,7 +4961,7 @@
     },
     {
       "name": "Dashboard",
-      "description": "Pre-aggregated dashboard payloads for each actor type. One call returns everything needed for the home screen.\n\n**Access:**\n- `GET /dashboard/member` — any authenticated user\n- `GET /dashboard/worker` — WORKER or ADMIN role\n- `GET /dashboard/admin` — AdminGuard\n\nAll endpoints support `?daysAgo=30` to control the attendance look-back window.",
+      "description": "Pre-aggregated dashboard payloads for each actor type. One call returns everything needed for the home screen.\n\n**Access:**\n- `GET /dashboard/member` \u2014 any authenticated user\n- `GET /dashboard/worker` \u2014 WORKER or ADMIN role\n- `GET /dashboard/admin` \u2014 AdminGuard\n\nAll endpoints support `?daysAgo=30` to control the attendance look-back window.",
       "item": [
         {
           "name": "Member Dashboard",
@@ -5092,7 +5092,7 @@
                 "classes"
               ]
             },
-            "description": "ADMIN or SS-dept worker. teacherId is optional — links an existing member as the class teacher."
+            "description": "ADMIN or SS-dept worker. teacherId is optional \u2014 links an existing member as the class teacher."
           },
           "response": [
             {
@@ -5127,7 +5127,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Beginners Class — Updated\",\n  \"description\": \"Updated description\",\n  \"teacherId\": \"{{memberId}}\"\n}",
+              "raw": "{\n  \"name\": \"Beginners Class \u2014 Updated\",\n  \"description\": \"Updated description\",\n  \"teacherId\": \"{{memberId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5521,7 +5521,7 @@
                 }
               ]
             },
-            "description": "WORKER (SS-dept or class teacher). Opens the self-mark window for the given number of minutes (5–480). Sets selfMarkClosesAt to now + closesInMinutes. Enrolled members can self-mark until that timestamp."
+            "description": "WORKER (SS-dept or class teacher). Opens the self-mark window for the given number of minutes (5\u2013480). Sets selfMarkClosesAt to now + closesInMinutes. Enrolled members can self-mark until that timestamp."
           },
           "response": [
             {
@@ -5959,7 +5959,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Nursery (0–23 months)\",\n  \"maxAgeMonths\": 23,\n  \"displayOrder\": 1\n}",
+              "raw": "{\n  \"name\": \"Nursery (0\u201323 months)\",\n  \"maxAgeMonths\": 23,\n  \"displayOrder\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6500,7 +6500,7 @@
                 {
                   "key": "classGroupId",
                   "value": "{{classGroupId}}",
-                  "description": "Optional — filter by class group"
+                  "description": "Optional \u2014 filter by class group"
                 },
                 {
                   "key": "page",
@@ -6817,7 +6817,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reason\": \"Unknown person attempting pickup — guardian not on record\"\n}",
+              "raw": "{\n  \"reason\": \"Unknown person attempting pickup \u2014 guardian not on record\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -7317,7 +7317,7 @@
           },
           "response": [
             {
-              "name": "200 OK — disabled",
+              "name": "200 OK \u2014 disabled",
               "status": "OK",
               "code": 200,
               "body": "{ \"id\": \"uuid\", \"intervalPreset\": \"1h\", \"audience\": \"ALL\", \"enabled\": false, \"lastSentAt\": null }"
@@ -7439,7 +7439,7 @@
     },
     {
       "name": "Tithes (Admin)",
-      "description": "Admin-side tithe management: bank account setup, bulk Excel upload, unmatched row resolution, dispute handling, and payment proof review.\n\n**Access:** AdminGuard — FINANCE_READ for reads, FINANCE_WRITE for mutations.\n\n**Key concepts:**\n- `TitheAccount` — a bank account records are credited to. Create accounts first; members select them when submitting proofs.\n- **Bulk upload flow:** Download template → fill rows (Email, Amount, Date, Ref, Bank) → Upload batch → Bull queue processes rows → Matched rows create TitheRecords → Unmatched rows (no member with that email) go to the unmatched queue → Disputes (duplicate record) go to disputes queue.\n- `UnmatchedRow` — manually match to a member or dismiss (e.g. test entry)\n- `TitheDispute` — duplicate detected; approve to create the record anyway, reject to discard\n- `TithePaymentProof` — member-submitted receipts. Admin confirms (creates TitheRecord) or declines (with a reason)\n\n**Typical flow:**\n1. Create TitheAccount(s)\n2. Upload batch via `POST /admin/tithes/upload`\n3. Check batch status via `GET /admin/tithes/batches/:id`\n4. Resolve unmatched: `GET /admin/tithes/unmatched` → `POST /:id/match` or `POST /:id/dismiss`\n5. Resolve disputes: `GET /admin/tithes/disputes` → `PATCH /:id/approve` or `PATCH /:id/reject`\n6. Review member-submitted proofs: `GET /admin/tithes/proofs` → `POST /:id/confirm` or `POST /:id/decline`",
+      "description": "Admin-side tithe management: bank account setup, bulk Excel upload, unmatched row resolution, dispute handling, and payment proof review.\n\n**Access:** AdminGuard \u2014 FINANCE_READ for reads, FINANCE_WRITE for mutations.\n\n**Key concepts:**\n- `TitheAccount` \u2014 a bank account records are credited to. Create accounts first; members select them when submitting proofs.\n- **Bulk upload flow:** Download template \u2192 fill rows (Email, Amount, Date, Ref, Bank) \u2192 Upload batch \u2192 Bull queue processes rows \u2192 Matched rows create TitheRecords \u2192 Unmatched rows (no member with that email) go to the unmatched queue \u2192 Disputes (duplicate record) go to disputes queue.\n- `UnmatchedRow` \u2014 manually match to a member or dismiss (e.g. test entry)\n- `TitheDispute` \u2014 duplicate detected; approve to create the record anyway, reject to discard\n- `TithePaymentProof` \u2014 member-submitted receipts. Admin confirms (creates TitheRecord) or declines (with a reason)\n\n**Typical flow:**\n1. Create TitheAccount(s)\n2. Upload batch via `POST /admin/tithes/upload`\n3. Check batch status via `GET /admin/tithes/batches/:id`\n4. Resolve unmatched: `GET /admin/tithes/unmatched` \u2192 `POST /:id/match` or `POST /:id/dismiss`\n5. Resolve disputes: `GET /admin/tithes/disputes` \u2192 `PATCH /:id/approve` or `PATCH /:id/reject`\n6. Review member-submitted proofs: `GET /admin/tithes/proofs` \u2192 `POST /:id/confirm` or `POST /:id/decline`",
       "item": [
         {
           "name": "Create Tithe Account",
@@ -7838,7 +7838,7 @@
                   "key": "file",
                   "type": "file",
                   "src": "",
-                  "description": "Excel .xlsx file with columns: Email, Amount, Payment Date (YYYY-MM-DD), Reference (optional), Bank Name (optional — sender's bank, not destination)"
+                  "description": "Excel .xlsx file with columns: Email, Amount, Payment Date (YYYY-MM-DD), Reference (optional), Bank Name (optional \u2014 sender's bank, not destination)"
                 },
                 {
                   "key": "titheAccountId",
@@ -8155,7 +8155,7 @@
                 }
               ]
             },
-            "description": "AdminGuard (FINANCE_WRITE). Marks a PENDING unmatched row as DISMISSED — intentionally ignored (e.g. test entry, refund, person not in the system). No TitheRecord is created."
+            "description": "AdminGuard (FINANCE_WRITE). Marks a PENDING unmatched row as DISMISSED \u2014 intentionally ignored (e.g. test entry, refund, person not in the system). No TitheRecord is created."
           },
           "response": [
             {
@@ -8479,7 +8479,7 @@
     },
     {
       "name": "Tithes (Member)",
-      "description": "Member-facing tithe features: view active bank accounts to pay into, see your own tithe history, submit a payment proof, and download a statement PDF.\n\n**Access:** JwtAuthGuard — any authenticated member or worker.\n\n**Typical flow:**\n1. `GET /tithes/accounts` — see active bank accounts and select where you paid\n2. `POST /tithes/proof` — upload receipt image/PDF (multipart) with amount, date, account, optional reference\n3. `GET /tithes/proof` — track the status of your submitted proofs (PENDING → CONFIRMED or DECLINED)\n4. `GET /tithes/me` — view your confirmed tithe history\n5. `POST /tithes/me/download` — request a PDF statement emailed to you",
+      "description": "Member-facing tithe features: view active bank accounts to pay into, see your own tithe history, submit a payment proof, and download a statement PDF.\n\n**Access:** JwtAuthGuard \u2014 any authenticated member or worker.\n\n**Typical flow:**\n1. `GET /tithes/accounts` \u2014 see active bank accounts and select where you paid\n2. `POST /tithes/proof` \u2014 upload receipt image/PDF (multipart) with amount, date, account, optional reference\n3. `GET /tithes/proof` \u2014 track the status of your submitted proofs (PENDING \u2192 CONFIRMED or DECLINED)\n4. `GET /tithes/me` \u2014 view your confirmed tithe history\n5. `POST /tithes/me/download` \u2014 request a PDF statement emailed to you",
       "item": [
         {
           "name": "List Active Tithe Accounts",
@@ -8737,7 +8737,7 @@
     },
     {
       "name": "Finance (Admin)",
-      "description": "Admin-side management of department finance requests raised by HODs.\n\n**Access:** AdminGuard — FINANCE_READ for list/get, FINANCE_WRITE for approve/reject/proof.\n\n**Key concepts:**\n- Finance categories group requests by expense type (e.g. Equipment, Printing, Transport). Admin creates categories first.\n- HODs raise requests with an amount, recipient bank details, reason, and optional attachment.\n- Admin reviews and approves or rejects (rejection requires a reason, which is emailed to the HOD).\n- After approving, admin can attach a payment proof file via `PATCH /admin/finance/requests/:id/proof` to confirm disbursement.\n\n**Status flow:** `PENDING` → `APPROVED` (admin approves) → proof attached OR `REJECTED` (with reason)",
+      "description": "Admin-side management of department finance requests raised by HODs.\n\n**Access:** AdminGuard \u2014 FINANCE_READ for list/get, FINANCE_WRITE for approve/reject/proof.\n\n**Key concepts:**\n- Finance categories group requests by expense type (e.g. Equipment, Printing, Transport). Admin creates categories first.\n- HODs raise requests with an amount, recipient bank details, reason, and optional attachment.\n- Admin reviews and approves or rejects (rejection requires a reason, which is emailed to the HOD).\n- After approving, admin can attach a payment proof file via `PATCH /admin/finance/requests/:id/proof` to confirm disbursement.\n\n**Status flow:** `PENDING` \u2192 `APPROVED` (admin approves) \u2192 proof attached OR `REJECTED` (with reason)",
       "item": [
         {
           "name": "List Finance Categories",
@@ -8997,7 +8997,7 @@
                 }
               ]
             },
-            "description": "AdminGuard (FINANCE_READ). Downloads all matching finance requests as finance-requests.xlsx. Supports same filters as the list endpoint; no pagination — all matching rows are included."
+            "description": "AdminGuard (FINANCE_READ). Downloads all matching finance requests as finance-requests.xlsx. Supports same filters as the list endpoint; no pagination \u2014 all matching rows are included."
           },
           "response": [
             {
@@ -9220,7 +9220,7 @@
     },
     {
       "name": "Finance (Worker/HOD)",
-      "description": "HOD (Head of Department) finance request submission and tracking from the mobile app.\n\n**Access:** RolesGuard (WORKER) — caller must also be a department lead (HOD or D-HOD). The `departmentId` in the request must match the caller's own department.\n\n**Typical flow:**\n1. `GET /finance/categories` — load expense categories for the dropdown\n2. `POST /finance/requests` (multipart) — submit request with amount, recipient bank details, reason, and optional attachment\n3. `GET /finance/requests` — track status of your department's requests\n4. `GET /finance/requests/:id` — view details including `proofUrl` once admin attaches payment",
+      "description": "HOD (Head of Department) finance request submission and tracking from the mobile app.\n\n**Access:** RolesGuard (WORKER) \u2014 caller must also be a department lead (HOD or D-HOD). The `departmentId` in the request must match the caller's own department.\n\n**Typical flow:**\n1. `GET /finance/categories` \u2014 load expense categories for the dropdown\n2. `POST /finance/requests` (multipart) \u2014 submit request with amount, recipient bank details, reason, and optional attachment\n3. `GET /finance/requests` \u2014 track status of your department's requests\n4. `GET /finance/requests/:id` \u2014 view details including `proofUrl` once admin attaches payment",
       "item": [
         {
           "name": "List Finance Categories",
@@ -9326,7 +9326,7 @@
                 "requests"
               ]
             },
-            "description": "RolesGuard (WORKER) — HOD only. Raises a finance request for the caller's department. Server verifies the caller is a department lead and that departmentId matches their department. Notifies all FINANCE_WRITE admins by email."
+            "description": "RolesGuard (WORKER) \u2014 HOD only. Raises a finance request for the caller's department. Server verifies the caller is a department lead and that departmentId matches their department. Notifies all FINANCE_WRITE admins by email."
           },
           "response": [
             {
@@ -9373,7 +9373,7 @@
                 }
               ]
             },
-            "description": "RolesGuard (WORKER) — HOD only. Returns paginated requests for the caller's own department."
+            "description": "RolesGuard (WORKER) \u2014 HOD only. Returns paginated requests for the caller's own department."
           },
           "response": [
             {
@@ -9417,7 +9417,7 @@
                 }
               ]
             },
-            "description": "RolesGuard (WORKER) — HOD only. Returns a single finance request belonging to the caller's own department. Includes proofUrl once payment proof has been attached. Returns 404 if the request belongs to a different department."
+            "description": "RolesGuard (WORKER) \u2014 HOD only. Returns a single finance request belonging to the caller's own department. Includes proofUrl once payment proof has been attached. Returns 404 if the request belongs to a different department."
           },
           "response": [
             {
@@ -9585,7 +9585,7 @@
     },
     {
       "name": "Follow-Up (Admin)",
-      "description": "Admin-level follow-up management: full visibility of first-timers and tasks, reassignment, bulk updates, and pastoral reporting.\n\n**Access:** AdminGuard — FOLLOW_UP_READ for list/report, FOLLOW_UP_WRITE for mutations.\n\n**Typical flow:**\n1. `GET /admin/follow-up/first-timers` — review all registered first-timers\n2. `GET /admin/follow-up/tasks?status=PENDING` — see unresolved tasks\n3. `PATCH /admin/follow-up/tasks/:id/reassign` — move a task to a different Follow-Up worker\n4. `PATCH /admin/follow-up/tasks/bulk` — bulk-update statuses for multiple tasks\n5. `GET /admin/follow-up/report` — review conversion rate, source breakdown, and per-worker performance",
+      "description": "Admin-level follow-up management: full visibility of first-timers and tasks, reassignment, bulk updates, and pastoral reporting.\n\n**Access:** AdminGuard \u2014 FOLLOW_UP_READ for list/report, FOLLOW_UP_WRITE for mutations.\n\n**Typical flow:**\n1. `GET /admin/follow-up/first-timers` \u2014 review all registered first-timers\n2. `GET /admin/follow-up/tasks?status=PENDING` \u2014 see unresolved tasks\n3. `PATCH /admin/follow-up/tasks/:id/reassign` \u2014 move a task to a different Follow-Up worker\n4. `PATCH /admin/follow-up/tasks/bulk` \u2014 bulk-update statuses for multiple tasks\n5. `GET /admin/follow-up/report` \u2014 review conversion rate, source breakdown, and per-worker performance",
       "item": [
         {
           "name": "Register First-Timer (Admin)",
@@ -9851,7 +9851,7 @@
     },
     {
       "name": "Service Programme",
-      "description": "Order-of-service programme builder with live session control. Admin creates and populates the programme; Admin-department workers run it live from the mobile app.\n\n**Access:**\n- Programme CRUD: AdminGuard\n- Session control (start/advance/rewind/pause/resume/end/override): WORKER in the Admin department (`key: ADMIN`)\n- Session state (read-only): public — the `sessionCode` is the credential\n- Reports and analytics: AdminGuard\n\n**Key concepts:**\n- A `ServiceProgramme` is linked 1:1 to a `serviceSlot`. One programme per slot.\n- Programmes have `ProgrammeSlot` items (type: `SPEAKER` | `BREAK`) with ordering, topic, assigned member, and allocatedMinutes.\n- Programmes progress: `DRAFT` (editable) → `LIVE` (session running) → `COMPLETED` (session ended)\n- When started, a live `ServiceSession` is created with a `sessionCode` (e.g. SVC-ABC123). Clients poll `GET /v1/service-session/:sessionCode/state` to track progress.\n- `saveAsTemplate: true` auto-upserts a `ServiceProgrammeTemplate` on session end for reuse.\n- PDFs: download the programme runsheet before service, or the full session report after.\n\n**Typical flow:**\n1. Admin: Create programme linked to a service slot\n2. Admin: Add slots (SPEAKER/BREAK), set members and topics, reorder as needed\n3. Worker (Admin dept): `POST /v1/service-session/programme/:programmeId/start` — session goes LIVE\n4. Worker: `POST /v1/service-session/:sessionCode/advance` as each slot completes\n5. Worker: `POST /v1/service-session/:sessionCode/end` — session COMPLETED, template saved\n6. Admin: `GET /v1/service-session/:sessionCode/report` for the post-service analysis",
+      "description": "Order-of-service programme builder with live session control. Admin creates and populates the programme; Admin-department workers run it live from the mobile app.\n\n**Access:**\n- Programme CRUD: AdminGuard\n- Session control (start/advance/rewind/pause/resume/end/override): WORKER in the Admin department (`key: ADMIN`)\n- Session state (read-only): public \u2014 the `sessionCode` is the credential\n- Reports and analytics: AdminGuard\n\n**Key concepts:**\n- A `ServiceProgramme` is linked 1:1 to a `serviceSlot`. One programme per slot.\n- Programmes have `ProgrammeSlot` items (type: `SPEAKER` | `BREAK`) with ordering, topic, assigned member, and allocatedMinutes.\n- Programmes progress: `DRAFT` (editable) \u2192 `LIVE` (session running) \u2192 `COMPLETED` (session ended)\n- When started, a live `ServiceSession` is created with a `sessionCode` (e.g. SVC-ABC123). Clients poll `GET /v1/service-session/:sessionCode/state` to track progress.\n- `saveAsTemplate: true` auto-upserts a `ServiceProgrammeTemplate` on session end for reuse.\n- PDFs: download the programme runsheet before service, or the full session report after.\n\n**Typical flow:**\n1. Admin: Create programme linked to a service slot\n2. Admin: Add slots (SPEAKER/BREAK), set members and topics, reorder as needed\n3. Worker (Admin dept): `POST /v1/service-session/programme/:programmeId/start` \u2014 session goes LIVE\n4. Worker: `POST /v1/service-session/:sessionCode/advance` as each slot completes\n5. Worker: `POST /v1/service-session/:sessionCode/end` \u2014 session COMPLETED, template saved\n6. Admin: `GET /v1/service-session/:sessionCode/report` for the post-service analysis",
       "item": [
         {
           "name": "Programme Management (Admin)",
@@ -9884,7 +9884,7 @@
                   "mode": "raw",
                   "raw": "{\n  \"serviceSlotId\": \"{{serviceSlotId}}\",\n  \"saveAsTemplate\": false\n}"
                 },
-                "description": "Create a service programme linked to a service slot. One programme per slot — 409 if one already exists. AdminGuard."
+                "description": "Create a service programme linked to a service slot. One programme per slot \u2014 409 if one already exists. AdminGuard."
               },
               "response": [
                 {
@@ -10691,7 +10691,7 @@
                     }
                   ]
                 },
-                "description": "Close current slot and open next. Returns updated anchor. 400 if on last slot — call /end instead."
+                "description": "Close current slot and open next. Returns updated anchor. 400 if on last slot \u2014 call /end instead."
               },
               "response": [
                 {
@@ -10933,7 +10933,7 @@
                     }
                   ]
                 },
-                "description": "End session. Current slot → COMPLETED, remaining PENDING → SKIPPED, programme → COMPLETED. If saveAsTemplate=true, auto-upserts ServiceProgrammeTemplate."
+                "description": "End session. Current slot \u2192 COMPLETED, remaining PENDING \u2192 SKIPPED, programme \u2192 COMPLETED. If saveAsTemplate=true, auto-upserts ServiceProgrammeTemplate."
               },
               "response": [
                 {
@@ -10954,7 +10954,7 @@
         },
         {
           "name": "Public & Reporting",
-          "description": "Session state polling (no auth — sessionCode is the credential) and post-session analytics/PDF reports (AdminGuard). The state endpoint is polled by the presenter display, speaker view, and stage manager tablet.",
+          "description": "Session state polling (no auth \u2014 sessionCode is the credential) and post-session analytics/PDF reports (AdminGuard). The state endpoint is polled by the presenter display, speaker view, and stage manager tablet.",
           "item": [
             {
               "name": "Get Session State (Public)",
@@ -11016,7 +11016,7 @@
                     }
                   ]
                 },
-                "description": "Returns single slot data + current anchor. No auth — session code is the credential. Used by the speaker view."
+                "description": "Returns single slot data + current anchor. No auth \u2014 session code is the credential. Used by the speaker view."
               },
               "response": [
                 {
@@ -11266,7 +11266,7 @@
                     }
                   ]
                 },
-                "description": "Download a shareable one-page event summary PDF (admin access). Does not require sessions to be COMPLETED — works at any point after at least one session has started. Contains stat cards (Speakers Done, Total Allocated, Total Actual, Overall Variance) and a single flat table across all services with Speaker, Topic/Slot, Allocated, Actual, Variance, and Status columns. Times in MM:SS. Returns 404 if no sessions exist. Requires SERVICE_PROGRAMME_READ permission."
+                "description": "Download a shareable one-page event summary PDF (admin access). Does not require sessions to be COMPLETED \u2014 works at any point after at least one session has started. Contains stat cards (Speakers Done, Total Allocated, Total Actual, Overall Variance) and a single flat table across all services with Speaker, Topic/Slot, Allocated, Actual, Variance, and Status columns. Times in MM:SS. Returns 404 if no sessions exist. Requires SERVICE_PROGRAMME_READ permission."
               },
               "response": [
                 {
@@ -11313,7 +11313,7 @@
                     }
                   ]
                 },
-                "description": "Worker-accessible version of the event summary PDF. Requires the authenticated member to be a WORKER in the Admin department (primary or secondary) — returns 403 otherwise. Identical PDF output to the admin summary-pdf route. Designed for mobile use so admin-dept personnel can download and share the summary immediately after service ends. Uses member JWT token."
+                "description": "Worker-accessible version of the event summary PDF. Requires the authenticated member to be a WORKER in the Admin department (primary or secondary) \u2014 returns 403 otherwise. Identical PDF output to the admin summary-pdf route. Designed for mobile use so admin-dept personnel can download and share the summary immediately after service ends. Uses member JWT token."
               },
               "response": [
                 {
@@ -11336,7 +11336,7 @@
     },
     {
       "name": "Service Headcount",
-      "description": "Manual headcount recording per service slot — tracks congregation by demographic group (male adults, female adults, teenagers, children, mobile church, and custom groups).\n\n**Access:** Admin-department workers (primary or secondary department `key: ADMIN`) or AdminGuard.\n\n**Key concepts:**\n- One headcount record per service slot. A second `POST` for the same slot returns 409.\n- Corrections are allowed at any time via `PATCH /v1/service-headcount/:id` (partial update).\n- `customGroups` is a flexible JSON map for additional demographic splits.\n- `GET /v1/service-headcount/trends` returns weekly/monthly aggregates for admin reporting.\n\n**Typical flow:**\n1. After service: ushers count attendees per demographic group\n2. Worker or admin: `POST /v1/service-headcount` with slot ID and counts\n3. If recount differs: `PATCH /v1/service-headcount/:id` with corrected values and updated notes",
+      "description": "Manual headcount recording per service slot \u2014 tracks congregation by demographic group (male adults, female adults, teenagers, children, mobile church, and custom groups).\n\n**Access:** Admin-department workers (primary or secondary department `key: ADMIN`) or AdminGuard.\n\n**Key concepts:**\n- One headcount record per service slot. A second `POST` for the same slot returns 409.\n- Corrections are allowed at any time via `PATCH /v1/service-headcount/:id` (partial update).\n- `customGroups` is a flexible JSON map for additional demographic splits.\n- `GET /v1/service-headcount/trends` returns weekly/monthly aggregates for admin reporting.\n\n**Typical flow:**\n1. After service: ushers count attendees per demographic group\n2. Worker or admin: `POST /v1/service-headcount` with slot ID and counts\n3. If recount differs: `PATCH /v1/service-headcount/:id` with corrected values and updated notes",
       "item": [
         {
           "name": "Record Headcount",
@@ -11365,7 +11365,7 @@
               "mode": "raw",
               "raw": "{\n  \"serviceSlotId\": \"{{service_slot_id}}\",\n  \"maleAdults\": 120,\n  \"femaleAdults\": 150,\n  \"teenagers\": 45,\n  \"children\": 30,\n  \"mobileChurch\": 20,\n  \"customGroups\": {},\n  \"notes\": \"First service count\"\n}"
             },
-            "description": "Record attendance headcount for a service slot. All demographic count fields are optional (default 0). `customGroups` is a flexible JSON object for extra splits (e.g. {\"visitors\": 12}). 409 if a headcount already exists for this slot — use PATCH to correct. Requires Admin-dept worker or AdminGuard."
+            "description": "Record attendance headcount for a service slot. All demographic count fields are optional (default 0). `customGroups` is a flexible JSON object for extra splits (e.g. {\"visitors\": 12}). 409 if a headcount already exists for this slot \u2014 use PATCH to correct. Requires Admin-dept worker or AdminGuard."
           },
           "response": [
             {
@@ -11386,7 +11386,7 @@
           "name": "Correct Headcount",
           "request": {
             "method": "PATCH",
-            "description": "Correct any demographic count or notes on an existing headcount record. All fields are optional — only send the fields that changed. The total is recalculated automatically.",
+            "description": "Correct any demographic count or notes on an existing headcount record. All fields are optional \u2014 only send the fields that changed. The total is recalculated automatically.",
             "header": [
               {
                 "key": "Content-Type",
@@ -11593,6 +11593,838 @@
               "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Headcount not found\"\n}"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Church Settings",
+      "item": [
+        {
+          "name": "List all module settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "settings"
+              ]
+            },
+            "description": "Returns all known modules with their effective enabled status. Any module not in the DB defaults to enabled."
+          },
+          "response": []
+        },
+        {
+          "name": "Get module setting",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/settings/:key",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "settings",
+                ":key"
+              ],
+              "variable": [
+                {
+                  "key": "key",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Get a single module setting by key (e.g. incident_report, asset_management)"
+          },
+          "response": []
+        },
+        {
+          "name": "Enable / Disable module",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/settings/:key",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "settings",
+                ":key"
+              ],
+              "variable": [
+                {
+                  "key": "key",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Enable or disable a module. Returns 400 if the module is marked required. Upserts the row, invalidates cache, and writes CHURCH_SETTING_UPDATED audit log."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Incident Reports (Member)",
+      "item": [
+        {
+          "name": "Submit incident report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/incidents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "incidents"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Broken window\",\n  \"description\": \"Window in hall B is shattered\",\n  \"location\": \"Hall B\",\n  \"isAnonymous\": false,\n  \"images\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Rate-limited to INCIDENT_DAILY_REPORT_LIMIT (default 2) per member per 24 hours. Requires module to be enabled."
+          },
+          "response": []
+        },
+        {
+          "name": "List incident reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/incidents?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Paginated. Reporter identity hidden when isAnonymous=true."
+          },
+          "response": []
+        },
+        {
+          "name": "Get incident report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/incidents/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "incidents",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Reporter masked when anonymous."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Incident Reports (Admin)",
+      "item": [
+        {
+          "name": "List all incident reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/incidents?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Full reporter identity and admin notes visible. Requires INCIDENT_REPORT_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Get incident report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/incidents/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "incidents",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Full details including reporter identity. Requires INCIDENT_REPORT_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Update incident status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/incidents/:id/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "incidents",
+                ":id",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"adminNotes\": \"Under investigation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Valid statuses: OPEN, IN_PROGRESS, RESOLVED. resolvedAt set automatically on RESOLVED. Requires INCIDENT_REPORT_WRITE."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Asset Management (Admin)",
+      "item": [
+        {
+          "name": "Create asset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Church Generator\",\n  \"category\": \"Power Equipment\",\n  \"location\": \"Generator Room\",\n  \"serialNumber\": \"GEN-2026-001\",\n  \"manufacturer\": \"Sumec\",\n  \"model\": \"Firman 10KVA\",\n  \"warrantyExpiry\": \"2028-06-01\",\n  \"vendorName\": \"PowerTech Ltd\",\n  \"vendorContact\": \"+2348012345678\",\n  \"departmentId\": \"{{departmentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create a new asset. Optional: tagNumber (auto-generated if omitted), serialNumber, manufacturer, model, warrantyExpiry (YYYY-MM-DD), vendorName, vendorContact, departmentId."
+          },
+          "response": []
+        },
+        {
+          "name": "List assets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": ""
+                },
+                {
+                  "key": "category",
+                  "value": ""
+                },
+                {
+                  "key": "maintenanceEnabled",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Paginated asset list. Optional filters: status, category, maintenanceEnabled, departmentId."
+          },
+          "response": []
+        },
+        {
+          "name": "Get asset",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Includes maintenanceSchedule and full maintenance record history."
+          },
+          "response": []
+        },
+        {
+          "name": "Update asset",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendorName\": \"Updated Vendor\",\n  \"warrantyExpiry\": \"2029-01-01\",\n  \"departmentId\": \"{{departmentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Partial update. Supports all asset fields including serialNumber, manufacturer, model, warrantyExpiry, vendorName, vendorContact, departmentId."
+          },
+          "response": []
+        },
+        {
+          "name": "Set maintenance schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id/maintenance-schedule",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id",
+                "maintenance-schedule"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"frequencyUnit\": \"MONTHS\",\n  \"frequencyValue\": 3,\n  \"nextDueAt\": \"2026-09-18\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates or updates the maintenance schedule. Enables maintenanceEnabled=true. Resets all notification timestamps. frequencyUnit: DAYS | WEEKS | MONTHS."
+          },
+          "response": []
+        },
+        {
+          "name": "Log maintenance record",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id/maintenance-records",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id",
+                "maintenance-records"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"SCHEDULED\",\n  \"performedAt\": \"2026-06-18\",\n  \"performedBy\": \"External Tech Ltd\",\n  \"cost\": 25000,\n  \"notes\": \"Full service completed\",\n  \"conditionAfter\": \"GOOD\",\n  \"completionStatus\": \"COMPLETED\",\n  \"attachments\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Log scheduled or unplanned maintenance. completionStatus COMPLETED -> asset ACTIVE + recalculates nextDueAt. IN_PROGRESS -> asset UNDER_MAINTENANCE. type: SCHEDULED | UNPLANNED. conditionAfter: GOOD | FAIR | POOR."
+          },
+          "response": []
+        },
+        {
+          "name": "Update asset inventory",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inStorage\": 5,\n  \"inUse\": 3,\n  \"underRepair\": 1,\n  \"writtenOff\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id/inventory",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id",
+                "inventory"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Asset UUID"
+                }
+              ]
+            },
+            "description": "Set inventory breakdown. inStorage + inUse + underRepair + writtenOff = totalUnits."
+          },
+          "response": []
+        },
+        {
+          "name": "Get all active checkouts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/checkouts?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                "checkouts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "All currently active checkouts across all assets (returnedAt IS NULL)."
+          },
+          "response": []
+        },
+        {
+          "name": "Check out asset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkedOutToMemberId\": \"{{memberId}}\",\n  \"expectedReturnAt\": \"2026-07-01T18:00:00.000Z\",\n  \"purpose\": \"Sunday service sound setup\",\n  \"notes\": \"Handle with care\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id/checkouts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id",
+                "checkouts"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Asset UUID"
+                }
+              ]
+            },
+            "description": "Check out an asset to a member or department. At least one of checkedOutToMemberId or checkedOutToDepartmentId is required. Returns 400 if asset already has an active checkout, or if asset status is UNDER_MAINTENANCE, DECOMMISSIONED, or INACTIVE. On success, an email notification is sent to the checked-out member and/or all HOD/D_HOD department leads (fire-and-forget)."
+          },
+          "response": []
+        },
+        {
+          "name": "Return asset",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Returned in good condition\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id/checkouts/:checkoutId/return",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id",
+                "checkouts",
+                ":checkoutId",
+                "return"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Asset UUID"
+                },
+                {
+                  "key": "checkoutId",
+                  "value": "",
+                  "description": "Checkout UUID"
+                }
+              ]
+            },
+            "description": "Mark a checkout as returned. Returns 400 if already returned. On success, a RETURN_CONFIRMED notification is recorded and an email is sent to the original recipient (member or department HOD/D_HOD leads) confirming the return."
+          },
+          "response": []
+        },
+        {
+          "name": "Get checkout history (asset)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id/checkouts?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id",
+                "checkouts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Asset UUID"
+                }
+              ]
+            },
+            "description": "Paginated checkout history for a specific asset, newest first."
+          },
+          "response": []
+        },
+        {
+          "name": "Get maintenance history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/assets/:id/maintenance-records?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "assets",
+                ":id",
+                "maintenance-records"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Paginated maintenance record history for an asset, newest first."
+          },
+          "response": []
         }
       ]
     }

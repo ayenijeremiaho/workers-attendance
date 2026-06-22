@@ -79,7 +79,20 @@ export type AuditAction =
     | 'TITHE_PROOF_SUBMITTED'
     | 'TITHE_PROOF_CONFIRMED'
     | 'TITHE_PROOF_DECLINED'
-    | 'TITHE_PROOF_EXPIRED_PURGED';
+    | 'TITHE_PROOF_EXPIRED_PURGED'
+    // Church settings
+    | 'CHURCH_SETTING_UPDATED'
+    // Incident reports
+    | 'INCIDENT_REPORT_CREATED'
+    | 'INCIDENT_REPORT_STATUS_UPDATED'
+    // Asset management
+    | 'ASSET_CREATED'
+    | 'ASSET_UPDATED'
+    | 'ASSET_MAINTENANCE_SCHEDULED'
+    | 'ASSET_MAINTENANCE_LOGGED'
+    | 'ASSET_INVENTORY_UPDATED'
+    | 'ASSET_CHECKED_OUT'
+    | 'ASSET_RETURNED';
 
 export interface AuditContext {
     actorId?: string;

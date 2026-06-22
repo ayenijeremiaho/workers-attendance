@@ -1,8 +1,8 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateFinanceTables1781568000000 implements MigrationInterface {
-    async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE finance_categories (
                 id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
                 name        character varying NOT NULL UNIQUE,
@@ -12,7 +12,7 @@ export class CreateFinanceTables1781568000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE finance_requests (
                 id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
                 requested_by             uuid NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
@@ -34,16 +34,26 @@ export class CreateFinanceTables1781568000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`CREATE INDEX IDX_finance_requests_requested_by ON finance_requests(requested_by)`);
-        await queryRunner.query(`CREATE INDEX IDX_finance_requests_department ON finance_requests(department_id)`);
-        await queryRunner.query(`CREATE INDEX IDX_finance_requests_status ON finance_requests(status)`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX IDX_finance_requests_requested_by ON finance_requests(requested_by)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IDX_finance_requests_department ON finance_requests(department_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IDX_finance_requests_status ON finance_requests(status)`,
+    );
+  }
 
-    async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP INDEX IF EXISTS IDX_finance_requests_status`);
-        await queryRunner.query(`DROP INDEX IF EXISTS IDX_finance_requests_department`);
-        await queryRunner.query(`DROP INDEX IF EXISTS IDX_finance_requests_requested_by`);
-        await queryRunner.query(`DROP TABLE IF EXISTS finance_requests`);
-        await queryRunner.query(`DROP TABLE IF EXISTS finance_categories`);
-    }
+  async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX IF EXISTS IDX_finance_requests_status`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS IDX_finance_requests_department`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS IDX_finance_requests_requested_by`,
+    );
+    await queryRunner.query(`DROP TABLE IF EXISTS finance_requests`);
+    await queryRunner.query(`DROP TABLE IF EXISTS finance_categories`);
+  }
 }

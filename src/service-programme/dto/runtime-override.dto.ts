@@ -1,20 +1,20 @@
-import {IsInt, IsOptional, IsString, IsUUID, Min} from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class RuntimeOverrideDto {
-    @IsString()
-    @IsOptional()
-    overriddenTopic?: string;
+  @IsString()
+  @IsOptional()
+  overriddenTopic?: string;
 
-    @IsString()
-    @IsOptional()
-    overriddenSpeakerName?: string;
+  @IsString()
+  @IsOptional()
+  overriddenSpeakerName?: string;
 
-    @IsUUID()
-    @IsOptional()
-    overriddenMemberId?: string;
+  @IsUUID()
+  @IsOptional()
+  overriddenMemberId?: string;
 
-    @IsInt()
-    @Min(1)
-    @IsOptional()
-    adjustedAllocatedMinutes?: number;
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  adjustedAllocatedMinutes?: number;
 }

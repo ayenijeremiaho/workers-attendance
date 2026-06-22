@@ -1,8 +1,10 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateBankImportProfiles1785110400000 implements MigrationInterface {
-    async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+export class CreateBankImportProfiles1785110400000
+  implements MigrationInterface
+{
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE finance_bank_import_profiles (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 name VARCHAR NOT NULL,
@@ -31,15 +33,16 @@ export class CreateBankImportProfiles1785110400000 implements MigrationInterface
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE UNIQUE INDEX finance_bank_import_profiles_default_idx
                 ON finance_bank_import_profiles (is_default)
                 WHERE is_default = TRUE
         `);
 
-        const [admin] = await queryRunner.query(`SELECT id FROM admins LIMIT 1`);
-        if (admin) {
-            await queryRunner.query(`
+    const [admin] = await queryRunner.query(`SELECT id FROM admins LIMIT 1`);
+    if (admin) {
+      await queryRunner.query(
+        `
                 INSERT INTO finance_bank_import_profiles (
                     name, is_default, delimiter, skip_header_rows,
                     date_column_index, date_format, date_column_name,
@@ -58,12 +61,18 @@ export class CreateBankImportProfiles1785110400000 implements MigrationInterface
                     'DEBIT', 'CREDIT',
                     $1
                 )
-            `, [admin.id]);
-        }
+            `,
+        [admin.id],
+      );
     }
+  }
 
-    async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP INDEX IF EXISTS finance_bank_import_profiles_default_idx`);
-        await queryRunner.query(`DROP TABLE IF EXISTS finance_bank_import_profiles`);
-    }
+  async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS finance_bank_import_profiles_default_idx`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS finance_bank_import_profiles`,
+    );
+  }
 }

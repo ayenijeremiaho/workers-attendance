@@ -1,8 +1,10 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class RequestLeaveEnsureDateColumns1782086400000 implements MigrationInterface {
-    async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+export class RequestLeaveEnsureDateColumns1782086400000
+  implements MigrationInterface
+{
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             DO $$
             BEGIN
                 IF NOT EXISTS (
@@ -16,10 +18,10 @@ export class RequestLeaveEnsureDateColumns1782086400000 implements MigrationInte
             END
             $$
         `);
-    }
+  }
 
-    async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             DO $$
             BEGIN
                 IF EXISTS (
@@ -33,5 +35,5 @@ export class RequestLeaveEnsureDateColumns1782086400000 implements MigrationInte
             END
             $$
         `);
-    }
+  }
 }

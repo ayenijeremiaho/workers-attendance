@@ -8,472 +8,658 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import {JwtService} from '@nestjs/jwt';
-import {ConfigService, ConfigType} from '@nestjs/config';
-import {InjectRepository} from '@nestjs/typeorm';
-import {IsNull, Repository} from 'typeorm';
-import {randomInt} from 'node:crypto';
-import {UtilityService} from '../../utility/service/utility.service';
-import {AuditLogService} from '../../utility/service/audit-log.service';
-import {Cron} from '@nestjs/schedule';
-import {CacheService} from '../../utility/service/cache.service';
-import {AdminService} from '../../admin/service/admin.service';
-import {MemberService} from '../../member/service/member.service';
-import {MemberSessionService} from '../../member/service/member-session.service';
-import {MemberStatusEnum} from '../../member/enums/member-status.enum';
-import {MemberRoleEnum} from '../../member/enums/member-role.enum';
-import {WorkerStatusEnum} from '../../member/enums/worker-status.enum';
-import {JwtPayload, JwtResponse, MemberAuth} from '../interface/auth.interface';
-import {SessionSurface} from '../enum/session-surface.enum';
-import {PasswordResetOtp} from '../entity/password-reset-otp.entity';
-import {DeviceResetOtp} from '../entity/device-reset-otp.entity';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService, ConfigType } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { randomInt } from 'node:crypto';
+import { UtilityService } from '../../utility/service/utility.service';
+import { AuditLogService } from '../../utility/service/audit-log.service';
+import { Cron } from '@nestjs/schedule';
+import { CacheService } from '../../utility/service/cache.service';
+import { AdminService } from '../../admin/service/admin.service';
+import { MemberService } from '../../member/service/member.service';
+import { MemberSessionService } from '../../member/service/member-session.service';
+import { MemberStatusEnum } from '../../member/enums/member-status.enum';
+import { MemberRoleEnum } from '../../member/enums/member-role.enum';
+import { WorkerStatusEnum } from '../../member/enums/worker-status.enum';
+import {
+  JwtPayload,
+  JwtResponse,
+  MemberAuth,
+} from '../interface/auth.interface';
+import { SessionSurface } from '../enum/session-surface.enum';
+import { PasswordResetOtp } from '../entity/password-reset-otp.entity';
+import { DeviceResetOtp } from '../entity/device-reset-otp.entity';
 import refreshJwtConfig from '../../config/refresh.jwt.config';
-import {ChangePasswordDto} from '../../member/dto/change-password.dto';
-import {SignupDto} from '../../member/dto/signup.dto';
-import {ResetPasswordDto} from '../dto/reset-password.dto';
-import {Member} from '../../member/entity/member.entity';
+import { ChangePasswordDto } from '../../member/dto/change-password.dto';
+import { SignupDto } from '../../member/dto/signup.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { Member } from '../../member/entity/member.entity';
 
 @Injectable()
 export class AuthService {
-    private readonly logger = new Logger(AuthService.name);
-    private readonly otpTtlSeconds: number;
-    private readonly otpMaxAttempts: number;
-    private readonly otpWindowSeconds: number;
-    private readonly loginMaxAttempts: number;
-    private readonly loginWindowSeconds: number;
-    private readonly deviceResetMaxAttempts: number;
-    private readonly deviceResetWindowSeconds: number;
-    private readonly timezone: string;
+  private readonly logger = new Logger(AuthService.name);
+  private readonly otpTtlSeconds: number;
+  private readonly otpMaxAttempts: number;
+  private readonly otpWindowSeconds: number;
+  private readonly loginMaxAttempts: number;
+  private readonly loginWindowSeconds: number;
+  private readonly deviceResetMaxAttempts: number;
+  private readonly deviceResetWindowSeconds: number;
+  private readonly timezone: string;
 
-    constructor(
-        private readonly jwtService: JwtService,
-        private readonly configService: ConfigService,
-        private readonly adminService: AdminService,
-        private readonly memberService: MemberService,
-        private readonly sessionService: MemberSessionService,
-        private readonly utilityService: UtilityService,
-        private readonly auditLogService: AuditLogService,
-        private readonly cacheService: CacheService,
-        @Inject(refreshJwtConfig.KEY)
-        private readonly jwtRefreshConfig: ConfigType<typeof refreshJwtConfig>,
-        @InjectRepository(PasswordResetOtp)
-        private readonly otpRepository: Repository<PasswordResetOtp>,
-        @InjectRepository(DeviceResetOtp)
-        private readonly deviceResetOtpRepository: Repository<DeviceResetOtp>,
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly adminService: AdminService,
+    private readonly memberService: MemberService,
+    private readonly sessionService: MemberSessionService,
+    private readonly utilityService: UtilityService,
+    private readonly auditLogService: AuditLogService,
+    private readonly cacheService: CacheService,
+    @Inject(refreshJwtConfig.KEY)
+    private readonly jwtRefreshConfig: ConfigType<typeof refreshJwtConfig>,
+    @InjectRepository(PasswordResetOtp)
+    private readonly otpRepository: Repository<PasswordResetOtp>,
+    @InjectRepository(DeviceResetOtp)
+    private readonly deviceResetOtpRepository: Repository<DeviceResetOtp>,
+  ) {
+    this.otpTtlSeconds = this.configService.get<number>('OTP_TTL_SECONDS');
+    this.otpMaxAttempts = this.configService.get<number>(
+      'FORGOT_PASSWORD_MAX_ATTEMPTS',
+    );
+    this.otpWindowSeconds = this.configService.get<number>(
+      'FORGOT_PASSWORD_WINDOW_SECONDS',
+    );
+    this.loginMaxAttempts =
+      this.configService.get<number>('LOGIN_MAX_ATTEMPTS');
+    this.loginWindowSeconds = this.configService.get<number>(
+      'LOGIN_WINDOW_SECONDS',
+    );
+    this.deviceResetMaxAttempts = this.configService.get<number>(
+      'DEVICE_RESET_MAX_ATTEMPTS',
+    );
+    this.deviceResetWindowSeconds = this.configService.get<number>(
+      'DEVICE_RESET_WINDOW_SECONDS',
+    );
+    this.timezone = this.configService.get<string>('TIMEZONE');
+  }
+
+  async validateMember(email: string, password: string): Promise<MemberAuth> {
+    await this.checkLoginRateLimit(email);
+
+    const member = await this.memberService.findByEmail(email);
+    if (!member) {
+      await this.recordFailedLogin(email);
+      this.logger.warn(`Failed login — email not registered: ${email}`);
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const passwordMatches = await UtilityService.verifyHashedValue(
+      password,
+      member.password,
+    );
+    if (!passwordMatches) {
+      const isNowLocked = await this.recordFailedLogin(email);
+      if (isNowLocked) {
+        this.logger.warn(
+          `Account locked after max failed login attempts: ${email}`,
+        );
+        const firstName = UtilityService.capitalizeFirstLetter(
+          member.firstname,
+        );
+        const lockoutMinutes = Math.ceil(
+          this.loginWindowSeconds / 60,
+        ).toString();
+        this.utilityService.sendEmailWithTemplate(
+          member.email,
+          `${firstName}, Your Discovery Hub Account Has Been Temporarily Locked`,
+          'login-security-alert',
+          { name: firstName, lockoutMinutes },
+        );
+      }
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    this.clearLoginRateLimit(email);
+
+    if (member.status === MemberStatusEnum.INACTIVE) {
+      throw new UnauthorizedException(
+        'Your account is inactive. Contact admin.',
+      );
+    }
+
+    if (member.role === MemberRoleEnum.WORKER && !member.workerProfile) {
+      throw new UnauthorizedException(
+        'Worker access revoked. Please contact admin.',
+      );
+    }
+
+    if (
+      member.workerProfile &&
+      member.workerProfile.status !== WorkerStatusEnum.ACTIVE
     ) {
-        this.otpTtlSeconds = this.configService.get<number>('OTP_TTL_SECONDS');
-        this.otpMaxAttempts = this.configService.get<number>('FORGOT_PASSWORD_MAX_ATTEMPTS');
-        this.otpWindowSeconds = this.configService.get<number>('FORGOT_PASSWORD_WINDOW_SECONDS');
-        this.loginMaxAttempts = this.configService.get<number>('LOGIN_MAX_ATTEMPTS');
-        this.loginWindowSeconds = this.configService.get<number>('LOGIN_WINDOW_SECONDS');
-        this.deviceResetMaxAttempts = this.configService.get<number>('DEVICE_RESET_MAX_ATTEMPTS');
-        this.deviceResetWindowSeconds = this.configService.get<number>('DEVICE_RESET_WINDOW_SECONDS');
-        this.timezone = this.configService.get<string>('TIMEZONE');
+      throw new UnauthorizedException(
+        'Worker account suspended. Please contact admin.',
+      );
     }
 
-    async validateMember(email: string, password: string): Promise<MemberAuth> {
-        await this.checkLoginRateLimit(email);
+    return {
+      id: member.id,
+      role: member.role,
+      requiresPasswordChange: !member.changedPassword,
+      surface: SessionSurface.MEMBER,
+    };
+  }
 
-        const member = await this.memberService.findByEmail(email);
-        if (!member) {
-            await this.recordFailedLogin(email);
-            this.logger.warn(`Failed login — email not registered: ${email}`);
-            throw new UnauthorizedException('Invalid email or password');
-        }
+  async signup(dto: SignupDto): Promise<Member> {
+    return this.memberService.signup(dto);
+  }
 
-        const passwordMatches = await UtilityService.verifyHashedValue(password, member.password);
-        if (!passwordMatches) {
-            const isNowLocked = await this.recordFailedLogin(email);
-            if (isNowLocked) {
-                this.logger.warn(`Account locked after max failed login attempts: ${email}`);
-                const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
-                const lockoutMinutes = Math.ceil(this.loginWindowSeconds / 60).toString();
-                this.utilityService.sendEmailWithTemplate(
-                    member.email,
-                    `${firstName}, Your Discovery Hub Account Has Been Temporarily Locked`,
-                    'login-security-alert',
-                    {name: firstName, lockoutMinutes},
-                );
-            }
-            throw new UnauthorizedException('Invalid email or password');
-        }
+  async login(user: MemberAuth, deviceId: string): Promise<JwtResponse> {
+    if (!deviceId) throw new BadRequestException('deviceId is required');
 
-        this.clearLoginRateLimit(email);
+    const member = await this.memberService.getById(user.id);
 
-        if (member.status === MemberStatusEnum.INACTIVE) {
-            throw new UnauthorizedException('Your account is inactive. Contact admin.');
-        }
-
-        if (member.role === MemberRoleEnum.WORKER && !member.workerProfile) {
-            throw new UnauthorizedException('Worker access revoked. Please contact admin.');
-        }
-
-        if (member.workerProfile && member.workerProfile.status !== WorkerStatusEnum.ACTIVE) {
-            throw new UnauthorizedException('Worker account suspended. Please contact admin.');
-        }
-
-        return {id: member.id, role: member.role, requiresPasswordChange: !member.changedPassword, surface: SessionSurface.MEMBER};
+    if (member.deviceId && member.deviceId !== deviceId) {
+      this.logger.warn(
+        `Device mismatch for member ${user.id} — login rejected`,
+      );
+      throw new ForbiddenException(
+        'This account is already registered on another device. Contact an admin to reset your device access.',
+      );
     }
 
-    async signup(dto: SignupDto): Promise<Member> {
-        return this.memberService.signup(dto);
+    if (!member.deviceId) {
+      this.logger.log(`First device registered for member ${user.id}`);
+      await this.memberService.setDeviceId(user.id, deviceId);
     }
 
-    async login(user: MemberAuth, deviceId: string): Promise<JwtResponse> {
-        if (!deviceId) throw new BadRequestException('deviceId is required');
+    const tokens = await this.generateTokens(
+      user.id,
+      user.role,
+      user.requiresPasswordChange,
+      SessionSurface.MEMBER,
+    );
+    this.auditLogService.log('MEMBER_LOGIN', { targetId: user.id });
 
-        const member = await this.memberService.getById(user.id);
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    const loginTime = new Date().toLocaleString('en-GB', {
+      timeZone: this.timezone,
+    });
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, New Discovery Hub Login Detected`,
+      'login-notification',
+      { name: firstName, loginTime },
+    );
 
-        if (member.deviceId && member.deviceId !== deviceId) {
-            this.logger.warn(`Device mismatch for member ${user.id} — login rejected`);
-            throw new ForbiddenException(
-                'This account is already registered on another device. Contact an admin to reset your device access.',
-            );
-        }
+    return tokens;
+  }
 
-        if (!member.deviceId) {
-            this.logger.log(`First device registered for member ${user.id}`);
-            await this.memberService.setDeviceId(user.id, deviceId);
-        }
-
-        const tokens = await this.generateTokens(user.id, user.role, user.requiresPasswordChange, SessionSurface.MEMBER);
-        this.auditLogService.log('MEMBER_LOGIN', {targetId: user.id});
-
-        const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
-        const loginTime = new Date().toLocaleString('en-GB', {timeZone: this.timezone});
-        this.utilityService.sendEmailWithTemplate(
-            member.email,
-            `${firstName}, New Discovery Hub Login Detected`,
-            'login-notification',
-            {name: firstName, loginTime},
-        );
-
-        return tokens;
+  async adminLogin(user: MemberAuth): Promise<JwtResponse> {
+    const admin = await this.adminService.findByMemberId(user.id);
+    if (!admin) {
+      this.logger.warn(
+        `Admin login rejected — no admin record for member ${user.id}`,
+      );
+      throw new ForbiddenException('You do not have admin portal access.');
     }
 
-    async adminLogin(user: MemberAuth): Promise<JwtResponse> {
-        const admin = await this.adminService.findByMemberId(user.id);
-        if (!admin) {
-            this.logger.warn(`Admin login rejected — no admin record for member ${user.id}`);
-            throw new ForbiddenException('You do not have admin portal access.');
-        }
+    const tokens = await this.generateTokens(
+      user.id,
+      user.role,
+      user.requiresPasswordChange,
+      SessionSurface.ADMIN,
+    );
+    this.auditLogService.log('ADMIN_LOGIN', { actorId: user.id });
 
-        const tokens = await this.generateTokens(user.id, user.role, user.requiresPasswordChange, SessionSurface.ADMIN);
-        this.auditLogService.log('ADMIN_LOGIN', {actorId: user.id});
+    return tokens;
+  }
 
-        return tokens;
+  async refreshToken(user: MemberAuth): Promise<JwtResponse> {
+    return this.generateTokens(
+      user.id,
+      user.role,
+      user.requiresPasswordChange,
+      user.surface,
+    );
+  }
+
+  async logout(memberId: string, surface: SessionSurface): Promise<void> {
+    await this.sessionService.updateLogout(memberId, surface);
+    this.auditLogService.log('MEMBER_LOGOUT', { targetId: memberId });
+  }
+
+  async validateRefreshToken(
+    memberId: string,
+    refreshToken: string,
+    surface: SessionSurface,
+  ): Promise<MemberAuth> {
+    const hashed = await this.sessionService.getHashedRefreshToken(
+      memberId,
+      surface,
+    );
+    if (!hashed)
+      throw new UnauthorizedException(
+        'Your session has expired. Please log in again.',
+      );
+
+    const isValid = await UtilityService.verifyHashedValue(
+      refreshToken,
+      hashed,
+    );
+    if (!isValid)
+      throw new UnauthorizedException(
+        'Your session is invalid. Please log in again.',
+      );
+
+    const member = await this.memberService.getById(memberId, [
+      'workerProfile',
+    ]);
+
+    if (member.status !== MemberStatusEnum.ACTIVE) {
+      throw new UnauthorizedException(
+        'Account is inactive. Please contact admin.',
+      );
+    }
+    if (member.role === MemberRoleEnum.WORKER && !member.workerProfile) {
+      throw new UnauthorizedException(
+        'Worker access revoked. Please log in again.',
+      );
+    }
+    if (
+      member.workerProfile &&
+      member.workerProfile.status !== WorkerStatusEnum.ACTIVE
+    ) {
+      throw new UnauthorizedException(
+        'Worker account suspended. Please log in again.',
+      );
     }
 
-    async refreshToken(user: MemberAuth): Promise<JwtResponse> {
-        return this.generateTokens(user.id, user.role, user.requiresPasswordChange, user.surface);
+    return {
+      id: member.id,
+      role: member.role,
+      requiresPasswordChange: !member.changedPassword,
+      surface,
+    };
+  }
+
+  async validateAccessToken(
+    memberId: string,
+    surface: SessionSurface,
+  ): Promise<MemberAuth> {
+    const hashed = await this.sessionService.getHashedRefreshToken(
+      memberId,
+      surface,
+    );
+    if (!hashed)
+      throw new UnauthorizedException(
+        'Your session has expired. Please log in again.',
+      );
+
+    const member = await this.memberService.getById(memberId, [
+      'workerProfile',
+    ]);
+
+    if (member.status !== MemberStatusEnum.ACTIVE) {
+      throw new UnauthorizedException(
+        'Account is inactive. Please contact admin.',
+      );
+    }
+    if (member.role === MemberRoleEnum.WORKER && !member.workerProfile) {
+      throw new UnauthorizedException(
+        'Worker access revoked. Please log in again.',
+      );
+    }
+    if (
+      member.workerProfile &&
+      member.workerProfile.status !== WorkerStatusEnum.ACTIVE
+    ) {
+      throw new UnauthorizedException(
+        'Worker account suspended. Please log in again.',
+      );
     }
 
-    async logout(memberId: string, surface: SessionSurface): Promise<void> {
-        await this.sessionService.updateLogout(memberId, surface);
-        this.auditLogService.log('MEMBER_LOGOUT', {targetId: memberId});
+    return {
+      id: member.id,
+      role: member.role,
+      requiresPasswordChange: !member.changedPassword,
+      surface,
+    };
+  }
+
+  async getProfile(memberId: string): Promise<Member> {
+    return this.memberService.getById(memberId, [
+      'workerProfile',
+      'workerProfile.department',
+    ]);
+  }
+
+  async changePassword(
+    memberId: string,
+    dto: ChangePasswordDto,
+  ): Promise<string> {
+    return this.memberService.changePassword(memberId, dto);
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    await this.checkOtpRateLimit(email);
+
+    const member = await this.memberService.findByEmail(email);
+    if (!member) return; // Silent — do not leak account existence
+    this.auditLogService.log('PASSWORD_RESET_REQUESTED', {
+      targetId: member.id,
+      targetEmail: member.email,
+    });
+
+    await this.otpRepository.delete({ memberId: member.id, usedAt: IsNull() });
+
+    const otp = this.generateOtp();
+    const otpHash = await UtilityService.hashValue(otp);
+    const expiresAt = new Date(Date.now() + this.otpTtlSeconds * 1000);
+
+    await this.otpRepository.save(
+      this.otpRepository.create({
+        memberId: member.id,
+        otpHash,
+        expiresAt,
+        usedAt: null,
+      }),
+    );
+
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, Your Discovery Hub Password Reset Code`,
+      'forgot-password-otp',
+      {
+        name: firstName,
+        otp,
+        expiresMinutes: Math.floor(this.otpTtlSeconds / 60).toString(),
+      },
+    );
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<void> {
+    const member = await this.memberService.findByEmail(dto.email);
+    if (!member) throw new BadRequestException('Invalid or expired reset code');
+
+    const otpRecord = await this.otpRepository.findOne({
+      where: { memberId: member.id, usedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!otpRecord || otpRecord.expiresAt < new Date()) {
+      throw new BadRequestException(
+        'This verification code is invalid or has expired. Please request a new one.',
+      );
     }
 
-    async validateRefreshToken(memberId: string, refreshToken: string, surface: SessionSurface): Promise<MemberAuth> {
-        const hashed = await this.sessionService.getHashedRefreshToken(memberId, surface);
-        if (!hashed) throw new UnauthorizedException('Your session has expired. Please log in again.');
+    const isValid = await UtilityService.verifyHashedValue(
+      dto.otp,
+      otpRecord.otpHash,
+    );
+    if (!isValid)
+      throw new BadRequestException(
+        'This verification code is invalid or has expired. Please request a new one.',
+      );
 
-        const isValid = await UtilityService.verifyHashedValue(refreshToken, hashed);
-        if (!isValid) throw new UnauthorizedException('Your session is invalid. Please log in again.');
+    otpRecord.usedAt = new Date();
+    await this.otpRepository.save(otpRecord);
 
-        const member = await this.memberService.getById(memberId, ['workerProfile']);
+    await Promise.all([
+      this.memberService.setPassword(member.id, dto.newPassword, true),
+      this.sessionService.updateLogout(member.id, SessionSurface.MEMBER),
+      this.sessionService.updateLogout(member.id, SessionSurface.ADMIN),
+    ]);
+    this.auditLogService.log('PASSWORD_RESET_COMPLETED', {
+      targetId: member.id,
+      targetEmail: member.email,
+    });
 
-        if (member.status !== MemberStatusEnum.ACTIVE) {
-            throw new UnauthorizedException('Account is inactive. Please contact admin.');
-        }
-        if (member.role === MemberRoleEnum.WORKER && !member.workerProfile) {
-            throw new UnauthorizedException('Worker access revoked. Please log in again.');
-        }
-        if (member.workerProfile && member.workerProfile.status !== WorkerStatusEnum.ACTIVE) {
-            throw new UnauthorizedException('Worker account suspended. Please log in again.');
-        }
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, Your Discovery Hub Password Has Been Changed`,
+      'password-changed',
+      {
+        name: firstName,
+        login_url: this.configService.get<string>('LOGIN_URL'),
+      },
+    );
+  }
 
-        return {id: member.id, role: member.role, requiresPasswordChange: !member.changedPassword, surface};
+  async requestDeviceReset(email: string, newDeviceId: string): Promise<void> {
+    await this.checkDeviceResetRateLimit(email);
+
+    const member = await this.memberService.findByEmail(email);
+    if (!member) return; // Silent — do not leak account existence
+
+    await this.deviceResetOtpRepository.delete({
+      memberId: member.id,
+      usedAt: IsNull(),
+    });
+
+    const otp = this.generateOtp();
+    const otpHash = await UtilityService.hashValue(otp);
+    const expiresAt = new Date(Date.now() + this.otpTtlSeconds * 1000);
+
+    await this.deviceResetOtpRepository.save(
+      this.deviceResetOtpRepository.create({
+        memberId: member.id,
+        otpHash,
+        newDeviceId,
+        expiresAt,
+        usedAt: null,
+      }),
+    );
+
+    await this.incrementDeviceResetAttempts(email);
+    this.logger.log(`Device reset OTP issued for member ${member.id}`);
+    this.auditLogService.log('DEVICE_RESET_REQUESTED', {
+      targetId: member.id,
+      targetEmail: member.email,
+    });
+
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, Your Device Reset Code`,
+      'device-reset-otp',
+      {
+        name: firstName,
+        otp,
+        expiresMinutes: Math.floor(this.otpTtlSeconds / 60).toString(),
+      },
+    );
+  }
+
+  async verifyDeviceReset(email: string, otp: string): Promise<void> {
+    const member = await this.memberService.findByEmail(email);
+    if (!member) throw new BadRequestException('Invalid or expired reset code');
+
+    const record = await this.deviceResetOtpRepository.findOne({
+      where: { memberId: member.id, usedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!record || record.expiresAt < new Date()) {
+      throw new BadRequestException(
+        'This verification code is invalid or has expired. Please request a new one.',
+      );
     }
 
-    async validateAccessToken(memberId: string, surface: SessionSurface): Promise<MemberAuth> {
-        const hashed = await this.sessionService.getHashedRefreshToken(memberId, surface);
-        if (!hashed) throw new UnauthorizedException('Your session has expired. Please log in again.');
-
-        const member = await this.memberService.getById(memberId, ['workerProfile']);
-
-        if (member.status !== MemberStatusEnum.ACTIVE) {
-            throw new UnauthorizedException('Account is inactive. Please contact admin.');
-        }
-        if (member.role === MemberRoleEnum.WORKER && !member.workerProfile) {
-            throw new UnauthorizedException('Worker access revoked. Please log in again.');
-        }
-        if (member.workerProfile && member.workerProfile.status !== WorkerStatusEnum.ACTIVE) {
-            throw new UnauthorizedException('Worker account suspended. Please log in again.');
-        }
-
-        return {id: member.id, role: member.role, requiresPasswordChange: !member.changedPassword, surface};
+    const isValid = await UtilityService.verifyHashedValue(otp, record.otpHash);
+    if (!isValid) {
+      throw new BadRequestException(
+        'This verification code is invalid or has expired. Please request a new one.',
+      );
     }
 
-    async getProfile(memberId: string): Promise<Member> {
-        return this.memberService.getById(memberId, ['workerProfile', 'workerProfile.department']);
+    record.usedAt = new Date();
+    await this.deviceResetOtpRepository.save(record);
+
+    await this.memberService.setDeviceId(member.id, record.newDeviceId);
+    await Promise.all([
+      this.sessionService.updateLogout(member.id, SessionSurface.MEMBER),
+      this.sessionService.updateLogout(member.id, SessionSurface.ADMIN),
+    ]);
+
+    this.clearDeviceResetRateLimit(email);
+    this.logger.log(`Device successfully reset for member ${member.id}`);
+    this.auditLogService.log('DEVICE_RESET_COMPLETED', {
+      targetId: member.id,
+      targetEmail: member.email,
+    });
+
+    const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
+    this.utilityService.sendEmailWithTemplate(
+      member.email,
+      `${firstName}, Your Device Has Been Changed`,
+      'device-reset-confirmation',
+      {
+        name: firstName,
+        login_url: this.configService.get<string>('LOGIN_URL'),
+      },
+    );
+  }
+
+  private async checkDeviceResetRateLimit(email: string): Promise<void> {
+    const key = this.cacheService.key('device_reset', email);
+    const count = (await this.cacheService.get<number>(key)) ?? 0;
+    if (count >= this.deviceResetMaxAttempts) {
+      const windowHours = Math.ceil(this.deviceResetWindowSeconds / 3600);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          error: 'TOO_MANY_REQUESTS',
+          message: `Too many device reset requests. You may only request ${this.deviceResetMaxAttempts} times per ${windowHours}-hour window. Contact an admin if you need immediate access.`,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
+  }
 
-    async changePassword(memberId: string, dto: ChangePasswordDto): Promise<string> {
-        return this.memberService.changePassword(memberId, dto);
+  private async incrementDeviceResetAttempts(email: string): Promise<void> {
+    await this.cacheService.incr(
+      this.cacheService.key('device_reset', email),
+      this.deviceResetWindowSeconds,
+    );
+  }
+
+  private clearDeviceResetRateLimit(email: string): void {
+    this.cacheService.del(this.cacheService.key('device_reset', email));
+  }
+
+  private async checkOtpRateLimit(email: string): Promise<void> {
+    const key = this.cacheService.key('otp_rate', email);
+    const count = await this.cacheService.incr(key, this.otpWindowSeconds);
+    if (count > this.otpMaxAttempts) {
+      const windowMinutes = Math.ceil(this.otpWindowSeconds / 60);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          error: 'TOO_MANY_REQUESTS',
+          message: `Too many password reset requests. Please try again in ${windowMinutes} minutes.`,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
+  }
 
-    async forgotPassword(email: string): Promise<void> {
-        await this.checkOtpRateLimit(email);
+  private async checkLoginRateLimit(email: string): Promise<void> {
+    const key = this.cacheService.key('login_fail', email);
+    const count = (await this.cacheService.get<number>(key)) ?? 0;
 
-        const member = await this.memberService.findByEmail(email);
-        if (!member) return; // Silent — do not leak account existence
-        this.auditLogService.log('PASSWORD_RESET_REQUESTED', {targetId: member.id, targetEmail: member.email});
-
-        await this.otpRepository.delete({memberId: member.id, usedAt: IsNull()});
-
-        const otp = this.generateOtp();
-        const otpHash = await UtilityService.hashValue(otp);
-        const expiresAt = new Date(Date.now() + this.otpTtlSeconds * 1000);
-
-        await this.otpRepository.save(
-            this.otpRepository.create({memberId: member.id, otpHash, expiresAt, usedAt: null}),
-        );
-
-        const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
-        this.utilityService.sendEmailWithTemplate(
-            member.email,
-            `${firstName}, Your Discovery Hub Password Reset Code`,
-            'forgot-password-otp',
-            {name: firstName, otp, expiresMinutes: Math.floor(this.otpTtlSeconds / 60).toString()},
-        );
+    if (count >= this.loginMaxAttempts) {
+      const lockoutMinutes = Math.ceil(this.loginWindowSeconds / 60);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          error: 'TOO_MANY_REQUESTS',
+          message: `Too many failed login attempts. Your account is temporarily locked. Please try again in ${lockoutMinutes} minutes.`,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
+  }
 
-    async resetPassword(dto: ResetPasswordDto): Promise<void> {
-        const member = await this.memberService.findByEmail(dto.email);
-        if (!member) throw new BadRequestException('Invalid or expired reset code');
+  private async recordFailedLogin(email: string): Promise<boolean> {
+    const key = this.cacheService.key('login_fail', email);
+    const newCount = await this.cacheService.incr(key, this.loginWindowSeconds);
+    return newCount >= this.loginMaxAttempts;
+  }
 
-        const otpRecord = await this.otpRepository.findOne({
-            where: {memberId: member.id, usedAt: IsNull()},
-            order: {createdAt: 'DESC'},
-        });
+  private clearLoginRateLimit(email: string): void {
+    this.cacheService.del(this.cacheService.key('login_fail', email));
+  }
 
-        if (!otpRecord || otpRecord.expiresAt < new Date()) {
-            throw new BadRequestException('This verification code is invalid or has expired. Please request a new one.');
-        }
+  private generateOtp(): string {
+    return randomInt(0, 1000000).toString().padStart(6, '0');
+  }
 
-        const isValid = await UtilityService.verifyHashedValue(dto.otp, otpRecord.otpHash);
-        if (!isValid) throw new BadRequestException('This verification code is invalid or has expired. Please request a new one.');
+  private async generateTokens(
+    memberId: string,
+    role: MemberRoleEnum,
+    requiresPasswordChange: boolean,
+    surface: SessionSurface,
+  ): Promise<JwtResponse> {
+    const payload: JwtPayload = { sub: memberId, role, aud: surface };
 
-        otpRecord.usedAt = new Date();
-        await this.otpRepository.save(otpRecord);
+    const [access_token, refresh_token] = await Promise.all([
+      this.jwtService.signAsync(payload),
+      this.jwtService.signAsync(payload, this.jwtRefreshConfig),
+    ]);
 
-        await Promise.all([
-            this.memberService.setPassword(member.id, dto.newPassword, true),
-            this.sessionService.updateLogout(member.id, SessionSurface.MEMBER),
-            this.sessionService.updateLogout(member.id, SessionSurface.ADMIN),
-        ]);
-        this.auditLogService.log('PASSWORD_RESET_COMPLETED', {targetId: member.id, targetEmail: member.email});
+    const hashedRefreshToken = await UtilityService.hashValue(refresh_token);
+    await this.sessionService.updateLogin(
+      memberId,
+      hashedRefreshToken,
+      surface,
+    );
 
-        const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
-        this.utilityService.sendEmailWithTemplate(
-            member.email,
-            `${firstName}, Your Discovery Hub Password Has Been Changed`,
-            'password-changed',
-            {name: firstName, login_url: this.configService.get<string>('LOGIN_URL')},
-        );
+    return {
+      token_type: 'Bearer',
+      expires_in: this.getTokenExpirySeconds(),
+      access_token,
+      refresh_token,
+      requires_password_change: requiresPasswordChange,
+    };
+  }
+
+  private static readonly OTP_PURGE_LOCK = 'lock:otp-purge';
+
+  @Cron('0 2 * * *')
+  async purgeExpiredOtps(): Promise<void> {
+    const acquired = await this.cacheService.acquireLock(
+      AuthService.OTP_PURGE_LOCK,
+      120,
+    );
+    if (!acquired) {
+      this.logger.debug('OTP purge skipped — another instance holds the lock');
+      return;
     }
-
-    async requestDeviceReset(email: string, newDeviceId: string): Promise<void> {
-        await this.checkDeviceResetRateLimit(email);
-
-        const member = await this.memberService.findByEmail(email);
-        if (!member) return; // Silent — do not leak account existence
-
-        await this.deviceResetOtpRepository.delete({memberId: member.id, usedAt: IsNull()});
-
-        const otp = this.generateOtp();
-        const otpHash = await UtilityService.hashValue(otp);
-        const expiresAt = new Date(Date.now() + this.otpTtlSeconds * 1000);
-
-        await this.deviceResetOtpRepository.save(
-            this.deviceResetOtpRepository.create({memberId: member.id, otpHash, newDeviceId, expiresAt, usedAt: null}),
-        );
-
-        await this.incrementDeviceResetAttempts(email);
-        this.logger.log(`Device reset OTP issued for member ${member.id}`);
-        this.auditLogService.log('DEVICE_RESET_REQUESTED', {targetId: member.id, targetEmail: member.email});
-
-        const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
-        this.utilityService.sendEmailWithTemplate(
-            member.email,
-            `${firstName}, Your Device Reset Code`,
-            'device-reset-otp',
-            {name: firstName, otp, expiresMinutes: Math.floor(this.otpTtlSeconds / 60).toString()},
-        );
+    try {
+      this.logger.log('Running scheduled purge of expired OTPs');
+      await this.otpRepository
+        .createQueryBuilder()
+        .delete()
+        .where('used_at IS NOT NULL OR expires_at < :now', { now: new Date() })
+        .execute();
+    } finally {
+      this.cacheService.releaseLock(AuthService.OTP_PURGE_LOCK);
     }
+  }
 
-    async verifyDeviceReset(email: string, otp: string): Promise<void> {
-        const member = await this.memberService.findByEmail(email);
-        if (!member) throw new BadRequestException('Invalid or expired reset code');
-
-        const record = await this.deviceResetOtpRepository.findOne({
-            where: {memberId: member.id, usedAt: IsNull()},
-            order: {createdAt: 'DESC'},
-        });
-
-        if (!record || record.expiresAt < new Date()) {
-            throw new BadRequestException('This verification code is invalid or has expired. Please request a new one.');
-        }
-
-        const isValid = await UtilityService.verifyHashedValue(otp, record.otpHash);
-        if (!isValid) {
-            throw new BadRequestException('This verification code is invalid or has expired. Please request a new one.');
-        }
-
-        record.usedAt = new Date();
-        await this.deviceResetOtpRepository.save(record);
-
-        await this.memberService.setDeviceId(member.id, record.newDeviceId);
-        await Promise.all([
-            this.sessionService.updateLogout(member.id, SessionSurface.MEMBER),
-            this.sessionService.updateLogout(member.id, SessionSurface.ADMIN),
-        ]);
-
-        this.clearDeviceResetRateLimit(email);
-        this.logger.log(`Device successfully reset for member ${member.id}`);
-        this.auditLogService.log('DEVICE_RESET_COMPLETED', {targetId: member.id, targetEmail: member.email});
-
-        const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
-        this.utilityService.sendEmailWithTemplate(
-            member.email,
-            `${firstName}, Your Device Has Been Changed`,
-            'device-reset-confirmation',
-            {name: firstName, login_url: this.configService.get<string>('LOGIN_URL')},
-        );
-    }
-
-    private async checkDeviceResetRateLimit(email: string): Promise<void> {
-        const key = this.cacheService.key('device_reset', email);
-        const count = (await this.cacheService.get<number>(key)) ?? 0;
-        if (count >= this.deviceResetMaxAttempts) {
-            const windowHours = Math.ceil(this.deviceResetWindowSeconds / 3600);
-            throw new HttpException(
-                {
-                    statusCode: HttpStatus.TOO_MANY_REQUESTS,
-                    error: 'TOO_MANY_REQUESTS',
-                    message: `Too many device reset requests. You may only request ${this.deviceResetMaxAttempts} times per ${windowHours}-hour window. Contact an admin if you need immediate access.`,
-                },
-                HttpStatus.TOO_MANY_REQUESTS,
-            );
-        }
-    }
-
-    private async incrementDeviceResetAttempts(email: string): Promise<void> {
-        await this.cacheService.incr(
-            this.cacheService.key('device_reset', email),
-            this.deviceResetWindowSeconds,
-        );
-    }
-
-    private clearDeviceResetRateLimit(email: string): void {
-        this.cacheService.del(this.cacheService.key('device_reset', email));
-    }
-
-    private async checkOtpRateLimit(email: string): Promise<void> {
-        const key = this.cacheService.key('otp_rate', email);
-        const count = await this.cacheService.incr(key, this.otpWindowSeconds);
-        if (count > this.otpMaxAttempts) {
-            const windowMinutes = Math.ceil(this.otpWindowSeconds / 60);
-            throw new HttpException(
-                {
-                    statusCode: HttpStatus.TOO_MANY_REQUESTS,
-                    error: 'TOO_MANY_REQUESTS',
-                    message: `Too many password reset requests. Please try again in ${windowMinutes} minutes.`,
-                },
-                HttpStatus.TOO_MANY_REQUESTS,
-            );
-        }
-    }
-
-    private async checkLoginRateLimit(email: string): Promise<void> {
-        const key = this.cacheService.key('login_fail', email);
-        const count = (await this.cacheService.get<number>(key)) ?? 0;
-
-        if (count >= this.loginMaxAttempts) {
-            const lockoutMinutes = Math.ceil(this.loginWindowSeconds / 60);
-            throw new HttpException(
-                {
-                    statusCode: HttpStatus.TOO_MANY_REQUESTS,
-                    error: 'TOO_MANY_REQUESTS',
-                    message: `Too many failed login attempts. Your account is temporarily locked. Please try again in ${lockoutMinutes} minutes.`,
-                },
-                HttpStatus.TOO_MANY_REQUESTS,
-            );
-        }
-    }
-
-    private async recordFailedLogin(email: string): Promise<boolean> {
-        const key = this.cacheService.key('login_fail', email);
-        const newCount = await this.cacheService.incr(key, this.loginWindowSeconds);
-        return newCount >= this.loginMaxAttempts;
-    }
-
-    private clearLoginRateLimit(email: string): void {
-        this.cacheService.del(this.cacheService.key('login_fail', email));
-    }
-
-    private generateOtp(): string {
-        return randomInt(0, 1000000).toString().padStart(6, '0');
-    }
-
-    private async generateTokens(memberId: string, role: MemberRoleEnum, requiresPasswordChange: boolean, surface: SessionSurface): Promise<JwtResponse> {
-        const payload: JwtPayload = {sub: memberId, role, aud: surface};
-
-        const [access_token, refresh_token] = await Promise.all([
-            this.jwtService.signAsync(payload),
-            this.jwtService.signAsync(payload, this.jwtRefreshConfig),
-        ]);
-
-        const hashedRefreshToken = await UtilityService.hashValue(refresh_token);
-        await this.sessionService.updateLogin(memberId, hashedRefreshToken, surface);
-
-        return {
-            token_type: 'Bearer',
-            expires_in: this.getTokenExpirySeconds(),
-            access_token,
-            refresh_token,
-            requires_password_change: requiresPasswordChange,
-        };
-    }
-
-    private static readonly OTP_PURGE_LOCK = 'lock:otp-purge';
-
-    @Cron('0 2 * * *')
-    async purgeExpiredOtps(): Promise<void> {
-        const acquired = await this.cacheService.acquireLock(AuthService.OTP_PURGE_LOCK, 120);
-        if (!acquired) {
-            this.logger.debug('OTP purge skipped — another instance holds the lock');
-            return;
-        }
-        try {
-            this.logger.log('Running scheduled purge of expired OTPs');
-            await this.otpRepository
-                .createQueryBuilder()
-                .delete()
-                .where('used_at IS NOT NULL OR expires_at < :now', {now: new Date()})
-                .execute();
-        } finally {
-            this.cacheService.releaseLock(AuthService.OTP_PURGE_LOCK);
-        }
-    }
-
-    private getTokenExpirySeconds(): number {
-        const expiry = this.configService.get<string>('JWT_EXPIRY_IN');
-        if (!expiry) return 0;
-        const match = /^(\d+)([smhd])$/i.exec(expiry);
-        if (!match) return 0;
-        const value = Number.parseInt(match[1], 10);
-        const units: Record<string, number> = {s: 1, m: 60, h: 3600, d: 86400};
-        return value * (units[match[2].toLowerCase()] ?? 0);
-    }
+  private getTokenExpirySeconds(): number {
+    const expiry = this.configService.get<string>('JWT_EXPIRY_IN');
+    if (!expiry) return 0;
+    const match = /^(\d+)([smhd])$/i.exec(expiry);
+    if (!match) return 0;
+    const value = Number.parseInt(match[1], 10);
+    const units: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+    return value * (units[match[2].toLowerCase()] ?? 0);
+  }
 }

@@ -1,4 +1,10 @@
-import {Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn} from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 export type EmailLogStatus = 'sent' | 'failed';
 
@@ -7,27 +13,27 @@ export type EmailLogStatus = 'sent' | 'failed';
 @Index('IDX_email_logs_status', ['status'])
 @Index('IDX_email_logs_createdAt', ['createdAt'])
 export class EmailLog {
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Column()
-    recipient: string;
+  @Column()
+  recipient: string;
 
-    @Column({nullable: true})
-    subject: string;
+  @Column({ nullable: true })
+  subject: string;
 
-    @Column({type: 'varchar'})
-    status: EmailLogStatus;
+  @Column({ type: 'varchar' })
+  status: EmailLogStatus;
 
-    @Column({nullable: true})
-    jobId: string;
+  @Column({ nullable: true })
+  jobId: string;
 
-    @Column({nullable: true, type: 'text'})
-    errorMessage: string;
+  @Column({ nullable: true, type: 'text' })
+  errorMessage: string;
 
-    @Column({type: 'int', default: 0})
-    attemptsMade: number;
+  @Column({ type: 'int', default: 0 })
+  attemptsMade: number;
 
-    @CreateDateColumn({type: 'timestamptz'})
-    createdAt: Date;
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date;
 }

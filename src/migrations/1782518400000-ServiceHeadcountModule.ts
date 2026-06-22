@@ -1,8 +1,8 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class ServiceHeadcountModule1782518400000 implements MigrationInterface {
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE "service_headcounts" (
                 "id"              uuid                     NOT NULL DEFAULT uuid_generate_v4(),
                 "created_at"      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -24,11 +24,13 @@ export class ServiceHeadcountModule1782518400000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`CREATE INDEX "idx_headcount_service_slot" ON "service_headcounts" ("service_slot_id")`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX "idx_headcount_service_slot" ON "service_headcounts" ("service_slot_id")`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP INDEX "idx_headcount_service_slot"`);
-        await queryRunner.query(`DROP TABLE "service_headcounts"`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX "idx_headcount_service_slot"`);
+    await queryRunner.query(`DROP TABLE "service_headcounts"`);
+  }
 }

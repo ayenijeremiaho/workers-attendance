@@ -1,8 +1,10 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateFinanceJournalEntries1783987200000 implements MigrationInterface {
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+export class CreateFinanceJournalEntries1783987200000
+  implements MigrationInterface
+{
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS finance_journal_entries (
                 id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 date                DATE NOT NULL,
@@ -24,7 +26,7 @@ export class CreateFinanceJournalEntries1783987200000 implements MigrationInterf
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS finance_journal_entry_lines (
                 id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 journal_entry_id UUID NOT NULL REFERENCES finance_journal_entries(id) ON DELETE CASCADE,
@@ -34,7 +36,7 @@ export class CreateFinanceJournalEntries1783987200000 implements MigrationInterf
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS finance_journal_entry_links (
                 id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 journal_entry_id UUID NOT NULL REFERENCES finance_journal_entries(id) ON DELETE CASCADE,
@@ -47,29 +49,61 @@ export class CreateFinanceJournalEntries1783987200000 implements MigrationInterf
             )
         `);
 
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_je_date ON finance_journal_entries(date)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_je_status ON finance_journal_entries(status)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_je_period ON finance_journal_entries(accounting_period_id)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_je_created_by ON finance_journal_entries(created_by_id)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_je_source ON finance_journal_entries(source)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_je_entry_type ON finance_journal_entries(entry_type)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_je_date_status ON finance_journal_entries(date, status)`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_je_date ON finance_journal_entries(date)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_je_status ON finance_journal_entries(status)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_je_period ON finance_journal_entries(accounting_period_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_je_created_by ON finance_journal_entries(created_by_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_je_source ON finance_journal_entries(source)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_je_entry_type ON finance_journal_entries(entry_type)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_je_date_status ON finance_journal_entries(date, status)`,
+    );
 
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jel_journal_entry ON finance_journal_entry_lines(journal_entry_id)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jel_account ON finance_journal_entry_lines(account_id)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jel_type_account ON finance_journal_entry_lines(entry_type, account_id)`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jel_journal_entry ON finance_journal_entry_lines(journal_entry_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jel_account ON finance_journal_entry_lines(account_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jel_type_account ON finance_journal_entry_lines(entry_type, account_id)`,
+    );
 
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jelk_journal_entry ON finance_journal_entry_links(journal_entry_id)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jelk_member ON finance_journal_entry_links(member_id) WHERE member_id IS NOT NULL`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jelk_department ON finance_journal_entry_links(department_id) WHERE department_id IS NOT NULL`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jelk_service_event ON finance_journal_entry_links(service_event_id) WHERE service_event_id IS NOT NULL`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jelk_payee ON finance_journal_entry_links(external_payee_id) WHERE external_payee_id IS NOT NULL`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_jelk_link_type ON finance_journal_entry_links(link_type)`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jelk_journal_entry ON finance_journal_entry_links(journal_entry_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jelk_member ON finance_journal_entry_links(member_id) WHERE member_id IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jelk_department ON finance_journal_entry_links(department_id) WHERE department_id IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jelk_service_event ON finance_journal_entry_links(service_event_id) WHERE service_event_id IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jelk_payee ON finance_journal_entry_links(external_payee_id) WHERE external_payee_id IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_jelk_link_type ON finance_journal_entry_links(link_type)`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS finance_journal_entry_links`);
-        await queryRunner.query(`DROP TABLE IF EXISTS finance_journal_entry_lines`);
-        await queryRunner.query(`DROP TABLE IF EXISTS finance_journal_entries`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS finance_journal_entry_links`);
+    await queryRunner.query(`DROP TABLE IF EXISTS finance_journal_entry_lines`);
+    await queryRunner.query(`DROP TABLE IF EXISTS finance_journal_entries`);
+  }
 }

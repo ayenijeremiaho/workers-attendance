@@ -1,8 +1,8 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateAssetManagement1783123200000 implements MigrationInterface {
-    async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS assets (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 tag_number VARCHAR NOT NULL,
@@ -20,7 +20,7 @@ export class CreateAssetManagement1783123200000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS asset_maintenance_schedules (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
@@ -39,7 +39,7 @@ export class CreateAssetManagement1783123200000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS asset_maintenance_records (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE RESTRICT,
@@ -57,14 +57,20 @@ export class CreateAssetManagement1783123200000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_assets_status ON assets (status)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_asset_schedules_next_due ON asset_maintenance_schedules (next_due_at)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_maintenance_records_asset ON asset_maintenance_records (asset_id)`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_assets_status ON assets (status)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_asset_schedules_next_due ON asset_maintenance_schedules (next_due_at)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_maintenance_records_asset ON asset_maintenance_records (asset_id)`,
+    );
+  }
 
-    async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS asset_maintenance_records`);
-        await queryRunner.query(`DROP TABLE IF EXISTS asset_maintenance_schedules`);
-        await queryRunner.query(`DROP TABLE IF EXISTS assets`);
-    }
+  async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS asset_maintenance_records`);
+    await queryRunner.query(`DROP TABLE IF EXISTS asset_maintenance_schedules`);
+    await queryRunner.query(`DROP TABLE IF EXISTS assets`);
+  }
 }

@@ -1,8 +1,10 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateTithePaymentProofs1781827200000 implements MigrationInterface {
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+export class CreateTithePaymentProofs1781827200000
+  implements MigrationInterface
+{
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE "tithe_payment_proofs" (
                 "id"            uuid                     NOT NULL DEFAULT uuid_generate_v4(),
                 "member_id"     uuid                     NOT NULL,
@@ -27,9 +29,9 @@ export class CreateTithePaymentProofs1781827200000 implements MigrationInterface
                     FOREIGN KEY ("reviewed_by") REFERENCES "admins"("id") ON DELETE SET NULL
             )
         `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE "tithe_payment_proofs"`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE "tithe_payment_proofs"`);
+  }
 }

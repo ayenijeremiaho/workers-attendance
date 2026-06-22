@@ -1,8 +1,8 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateChurchSettings1782950400000 implements MigrationInterface {
-    async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS church_settings (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 key VARCHAR NOT NULL,
@@ -13,9 +13,9 @@ export class CreateChurchSettings1782950400000 implements MigrationInterface {
                 CONSTRAINT uq_church_settings_key UNIQUE (key)
             )
         `);
-    }
+  }
 
-    async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS church_settings`);
-    }
+  async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS church_settings`);
+  }
 }

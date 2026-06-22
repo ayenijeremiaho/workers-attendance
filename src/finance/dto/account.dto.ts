@@ -1,92 +1,105 @@
-import {IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Min} from 'class-validator';
-import {Type} from 'class-transformer';
-import {AccountSubtype, AccountType, NormalBalance} from '../enum/finance.enum';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  AccountSubtype,
+  AccountType,
+  NormalBalance,
+} from '../enum/finance.enum';
 
 export class CreateAccountDto {
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-    @IsEnum(AccountType)
-    type: AccountType;
+  @IsEnum(AccountType)
+  type: AccountType;
 
-    @IsEnum(AccountSubtype)
-    subtype: AccountSubtype;
+  @IsEnum(AccountSubtype)
+  subtype: AccountSubtype;
 
-    @IsEnum(NormalBalance)
-    normalBalance: NormalBalance;
+  @IsEnum(NormalBalance)
+  normalBalance: NormalBalance;
 
-    @IsOptional()
-    @IsUUID()
-    fundId?: string;
+  @IsOptional()
+  @IsUUID()
+  fundId?: string;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  description?: string;
 
-    @IsOptional()
-    @IsString()
-    bankName?: string;
+  @IsOptional()
+  @IsString()
+  bankName?: string;
 
-    @IsOptional()
-    @IsString()
-    accountNumber?: string;
+  @IsOptional()
+  @IsString()
+  accountNumber?: string;
 
-    @IsOptional()
-    @Type(() => Number)
-    @IsNumber()
-    @Min(0)
-    lowBalanceAlertThreshold?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  lowBalanceAlertThreshold?: number;
 }
 
 export class UpdateAccountDto {
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    name?: string;
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
 
-    @IsOptional()
-    @IsUUID()
-    fundId?: string;
+  @IsOptional()
+  @IsUUID()
+  fundId?: string;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  description?: string;
 
-    @IsOptional()
-    @IsString()
-    bankName?: string;
+  @IsOptional()
+  @IsString()
+  bankName?: string;
 
-    @IsOptional()
-    @IsString()
-    accountNumber?: string;
+  @IsOptional()
+  @IsString()
+  accountNumber?: string;
 
-    @IsOptional()
-    @Type(() => Number)
-    @IsNumber()
-    @Min(0)
-    lowBalanceAlertThreshold?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  lowBalanceAlertThreshold?: number;
 
-    @IsOptional()
-    @IsBoolean()
-    isActive?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class AccountQueryDto {
-    @IsOptional()
-    @IsEnum(AccountType)
-    type?: AccountType;
+  @IsOptional()
+  @IsEnum(AccountType)
+  type?: AccountType;
 
-    @IsOptional()
-    @IsEnum(AccountSubtype)
-    subtype?: AccountSubtype;
+  @IsOptional()
+  @IsEnum(AccountSubtype)
+  subtype?: AccountSubtype;
 
-    @IsOptional()
-    @IsUUID()
-    fundId?: string;
+  @IsOptional()
+  @IsUUID()
+  fundId?: string;
 
-    @IsOptional()
-    @IsBoolean()
-    @Type(() => Boolean)
-    isActive?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isActive?: boolean;
 }

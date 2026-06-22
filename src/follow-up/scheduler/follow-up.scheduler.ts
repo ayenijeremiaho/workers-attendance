@@ -1,130 +1,144 @@
-import {Injectable, Logger} from '@nestjs/common';
-import {Cron} from '@nestjs/schedule';
-import {InjectRepository} from '@nestjs/typeorm';
-import {Repository} from 'typeorm';
-import {ConfigService} from '@nestjs/config';
-import {FollowUpTask} from '../entity/follow-up-task.entity';
-import {Admin} from '../../admin/entity/admin.entity';
-import {FollowUpTaskStatusEnum} from '../enums/follow-up.enum';
-import {AdminPermission} from '../../admin/enum/admin-permission.enum';
-import {EmailQueueService} from '../../utility/service/email-queue.service';
-import {CacheService} from '../../utility/service/cache.service';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { FollowUpTask } from '../entity/follow-up-task.entity';
+import { Admin } from '../../admin/entity/admin.entity';
+import { FollowUpTaskStatusEnum } from '../enums/follow-up.enum';
+import { AdminPermission } from '../../admin/enum/admin-permission.enum';
+import { EmailQueueService } from '../../utility/service/email-queue.service';
+import { CacheService } from '../../utility/service/cache.service';
 
-const OPEN_STATUSES = [FollowUpTaskStatusEnum.PENDING, FollowUpTaskStatusEnum.IN_PROGRESS];
+const OPEN_STATUSES = [
+  FollowUpTaskStatusEnum.PENDING,
+  FollowUpTaskStatusEnum.IN_PROGRESS,
+];
 const ESCALATION_LOCK = 'lock:follow-up-escalation';
 
 @Injectable()
 export class FollowUpScheduler {
-    private readonly logger = new Logger(FollowUpScheduler.name);
-    private readonly churchName: string;
+  private readonly logger = new Logger(FollowUpScheduler.name);
+  private readonly churchName: string;
 
-    constructor(
-        @InjectRepository(FollowUpTask)
-        private readonly taskRepo: Repository<FollowUpTask>,
-        @InjectRepository(Admin)
-        private readonly adminRepo: Repository<Admin>,
-        private readonly emailQueueService: EmailQueueService,
-        private readonly configService: ConfigService,
-        private readonly cacheService: CacheService,
-    ) {
-        this.churchName = this.configService.get<string>('CHURCH_NAME');
+  constructor(
+    @InjectRepository(FollowUpTask)
+    private readonly taskRepo: Repository<FollowUpTask>,
+    @InjectRepository(Admin)
+    private readonly adminRepo: Repository<Admin>,
+    private readonly emailQueueService: EmailQueueService,
+    private readonly configService: ConfigService,
+    private readonly cacheService: CacheService,
+  ) {
+    this.churchName = this.configService.get<string>('CHURCH_NAME');
+  }
+
+  @Cron('0 8 * * *')
+  async escalateOverdueTasks(): Promise<void> {
+    const acquired = await this.cacheService.acquireLock(ESCALATION_LOCK, 270);
+    if (!acquired) {
+      this.logger.debug(
+        'Follow-up escalation skipped — another instance holds the lock',
+      );
+      return;
+    }
+    try {
+      await this.runEscalation();
+    } finally {
+      this.cacheService.releaseLock(ESCALATION_LOCK);
+    }
+  }
+
+  private async runEscalation(): Promise<void> {
+    const overdueTasks = await this.taskRepo
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.firstTimer', 'ft')
+      .leftJoinAndSelect('task.assignedTo', 'wp')
+      .leftJoinAndSelect('wp.member', 'm')
+      .where('task.status IN (:...statuses)', { statuses: OPEN_STATUSES })
+      .andWhere('task.dueDate < :now', { now: new Date() })
+      .andWhere('task.dueDate IS NOT NULL')
+      .getMany();
+
+    if (!overdueTasks.length) {
+      this.logger.log('No overdue follow-up tasks found');
+      return;
     }
 
-    @Cron('0 8 * * *')
-    async escalateOverdueTasks(): Promise<void> {
-        const acquired = await this.cacheService.acquireLock(ESCALATION_LOCK, 270);
-        if (!acquired) {
-            this.logger.debug('Follow-up escalation skipped — another instance holds the lock');
-            return;
-        }
-        try {
-            await this.runEscalation();
-        } finally {
-            this.cacheService.releaseLock(ESCALATION_LOCK);
-        }
+    this.logger.log(`Found ${overdueTasks.length} overdue follow-up task(s)`);
+
+    const tasksByWorker = new Map<
+      string,
+      {
+        workerName: string;
+        workerEmail: string;
+        tasks: { name: string; phone: string; dueDate: string }[];
+      }
+    >();
+
+    for (const task of overdueTasks) {
+      const member = task.assignedTo?.member;
+      if (!member?.email) continue;
+
+      if (!tasksByWorker.has(member.id)) {
+        tasksByWorker.set(member.id, {
+          workerName: member.firstname,
+          workerEmail: member.email,
+          tasks: [],
+        });
+      }
+
+      tasksByWorker.get(member.id)!.tasks.push({
+        name: task.firstTimer
+          ? `${task.firstTimer.firstname} ${task.firstTimer.lastname}`
+          : 'Online non-responder',
+        phone: task.firstTimer?.phone ?? 'N/A',
+        dueDate: task.dueDate ? new Date(task.dueDate).toDateString() : 'N/A',
+      });
     }
 
-    private async runEscalation(): Promise<void> {
-        const overdueTasks = await this.taskRepo
-            .createQueryBuilder('task')
-            .leftJoinAndSelect('task.firstTimer', 'ft')
-            .leftJoinAndSelect('task.assignedTo', 'wp')
-            .leftJoinAndSelect('wp.member', 'm')
-            .where('task.status IN (:...statuses)', {statuses: OPEN_STATUSES})
-            .andWhere('task.dueDate < :now', {now: new Date()})
-            .andWhere('task.dueDate IS NOT NULL')
-            .getMany();
-
-        if (!overdueTasks.length) {
-            this.logger.log('No overdue follow-up tasks found');
-            return;
-        }
-
-        this.logger.log(`Found ${overdueTasks.length} overdue follow-up task(s)`);
-
-        const tasksByWorker = new Map<string, {workerName: string; workerEmail: string; tasks: {name: string; phone: string; dueDate: string}[]}>();
-
-        for (const task of overdueTasks) {
-            const member = task.assignedTo?.member;
-            if (!member?.email) continue;
-
-            if (!tasksByWorker.has(member.id)) {
-                tasksByWorker.set(member.id, {
-                    workerName: member.firstname,
-                    workerEmail: member.email,
-                    tasks: [],
-                });
-            }
-
-            tasksByWorker.get(member.id)!.tasks.push({
-                name: task.firstTimer
-                    ? `${task.firstTimer.firstname} ${task.firstTimer.lastname}`
-                    : 'Online non-responder',
-                phone: task.firstTimer?.phone ?? 'N/A',
-                dueDate: task.dueDate ? new Date(task.dueDate).toDateString() : 'N/A',
-            });
-        }
-
-        for (const [, data] of tasksByWorker) {
-            this.emailQueueService.queueEmailWithTemplate(
-                data.workerEmail,
-                `Action Required: ${data.tasks.length} Overdue Follow-Up Task(s)`,
-                'follow-up-overdue-worker',
-                {
-                    workerName: data.workerName,
-                    count: data.tasks.length,
-                    multiple: data.tasks.length > 1,
-                    tasks: data.tasks,
-                    churchName: this.churchName,
-                },
-            );
-        }
-
-        const followUpAdmins = await this.adminRepo
-            .createQueryBuilder('a')
-            .innerJoinAndSelect('a.member', 'm')
-            .innerJoinAndSelect('a.adminRole', 'r')
-            .where('a.isActive = true')
-            .andWhere(':perm = ANY(r.permissions)', {perm: AdminPermission.FOLLOW_UP_WRITE})
-            .getMany();
-
-        for (const admin of followUpAdmins) {
-            if (!admin.member?.email) continue;
-            this.emailQueueService.queueEmailWithTemplate(
-                admin.member.email,
-                `Follow-Up Alert: ${overdueTasks.length} Overdue Task(s) Need Attention`,
-                'follow-up-overdue-admin',
-                {
-                    adminName: admin.member.firstname,
-                    count: overdueTasks.length,
-                    multiple: overdueTasks.length > 1,
-                    churchName: this.churchName,
-                },
-            );
-        }
-
-        this.logger.log(
-            `Overdue escalation: ${tasksByWorker.size} worker email(s), ${followUpAdmins.length} admin email(s)`,
-        );
+    for (const [, data] of tasksByWorker) {
+      this.emailQueueService.queueEmailWithTemplate(
+        data.workerEmail,
+        `Action Required: ${data.tasks.length} Overdue Follow-Up Task(s)`,
+        'follow-up-overdue-worker',
+        {
+          workerName: data.workerName,
+          count: data.tasks.length,
+          multiple: data.tasks.length > 1,
+          tasks: data.tasks,
+          churchName: this.churchName,
+        },
+      );
     }
+
+    const followUpAdmins = await this.adminRepo
+      .createQueryBuilder('a')
+      .innerJoinAndSelect('a.member', 'm')
+      .innerJoinAndSelect('a.adminRole', 'r')
+      .where('a.isActive = true')
+      .andWhere(':perm = ANY(r.permissions)', {
+        perm: AdminPermission.FOLLOW_UP_WRITE,
+      })
+      .getMany();
+
+    for (const admin of followUpAdmins) {
+      if (!admin.member?.email) continue;
+      this.emailQueueService.queueEmailWithTemplate(
+        admin.member.email,
+        `Follow-Up Alert: ${overdueTasks.length} Overdue Task(s) Need Attention`,
+        'follow-up-overdue-admin',
+        {
+          adminName: admin.member.firstname,
+          count: overdueTasks.length,
+          multiple: overdueTasks.length > 1,
+          churchName: this.churchName,
+        },
+      );
+    }
+
+    this.logger.log(
+      `Overdue escalation: ${tasksByWorker.size} worker email(s), ${followUpAdmins.length} admin email(s)`,
+    );
+  }
 }

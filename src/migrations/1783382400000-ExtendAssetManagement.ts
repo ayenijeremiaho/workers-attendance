@@ -1,8 +1,8 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class ExtendAssetManagement1783382400000 implements MigrationInterface {
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             ALTER TABLE assets
                 DROP COLUMN IF EXISTS total_units,
                 DROP COLUMN IF EXISTS available_units,
@@ -23,15 +23,19 @@ export class ExtendAssetManagement1783382400000 implements MigrationInterface {
                 ADD COLUMN IF NOT EXISTS warranty_notified_1_day_at TIMESTAMPTZ
         `);
 
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_assets_department ON assets(department_id)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_assets_warranty_expiry ON assets(warranty_expiry) WHERE warranty_expiry IS NOT NULL`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_assets_department ON assets(department_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_assets_warranty_expiry ON assets(warranty_expiry) WHERE warranty_expiry IS NOT NULL`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP INDEX IF EXISTS idx_assets_warranty_expiry`);
-        await queryRunner.query(`DROP INDEX IF EXISTS idx_assets_department`);
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX IF EXISTS idx_assets_warranty_expiry`);
+    await queryRunner.query(`DROP INDEX IF EXISTS idx_assets_department`);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             ALTER TABLE assets
                 DROP COLUMN IF EXISTS warranty_notified_1_day_at,
                 DROP COLUMN IF EXISTS warranty_notified_7_days_at,
@@ -51,5 +55,5 @@ export class ExtendAssetManagement1783382400000 implements MigrationInterface {
                 ADD COLUMN IF NOT EXISTS total_units INTEGER,
                 ADD COLUMN IF NOT EXISTS available_units INTEGER
         `);
-    }
+  }
 }

@@ -1,46 +1,56 @@
-import {Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn} from 'typeorm';
-import {BaseEntity} from '../../utility/entity/base.entity';
-import {Member} from '../../member/entity/member.entity';
-import {TitheUploadBatch} from './tithe-upload-batch.entity';
-import {TitheSource} from '../../finance/enum/finance.enum';
-import {MemberVirtualAccount} from '../../finance/entity/member-virtual-account.entity';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { BaseEntity } from '../../utility/entity/base.entity';
+import { Member } from '../../member/entity/member.entity';
+import { TitheUploadBatch } from './tithe-upload-batch.entity';
+import { TitheSource } from '../../finance/enum/finance.enum';
+import { MemberVirtualAccount } from '../../finance/entity/member-virtual-account.entity';
 
-@Entity({name: 'tithe_records'})
+@Entity({ name: 'tithe_records' })
 export class TitheRecord extends BaseEntity {
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Index()
-    @ManyToOne(() => Member, {nullable: false, onDelete: 'RESTRICT'})
-    @JoinColumn({name: 'member_id'})
-    member: Member;
+  @Index()
+  @ManyToOne(() => Member, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'member_id' })
+  member: Member;
 
-    @ManyToOne(() => TitheUploadBatch, {nullable: true, onDelete: 'SET NULL'})
-    @JoinColumn({name: 'batch_id'})
-    batch: TitheUploadBatch | null;
+  @ManyToOne(() => TitheUploadBatch, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'batch_id' })
+  batch: TitheUploadBatch | null;
 
-    @Column({type: 'numeric', precision: 12, scale: 2})
-    amount: number;
+  @Column({ type: 'numeric', precision: 12, scale: 2 })
+  amount: number;
 
-    @Column({type: 'date'})
-    paymentDate: string;
+  @Column({ type: 'date' })
+  paymentDate: string;
 
-    @Column({type: 'character varying', nullable: true})
-    reference: string;
+  @Column({ type: 'character varying', nullable: true })
+  reference: string;
 
-    @Column({type: 'character varying', nullable: true})
-    bankName: string;
+  @Column({ type: 'character varying', nullable: true })
+  bankName: string;
 
-    @Column({type: 'varchar', default: TitheSource.MANUAL_PROOF})
-    source: TitheSource;
+  @Column({ type: 'varchar', default: TitheSource.MANUAL_PROOF })
+  source: TitheSource;
 
-    @Column({type: 'varchar', nullable: true, name: 'external_reference'})
-    externalReference: string | null;
+  @Column({ type: 'varchar', nullable: true, name: 'external_reference' })
+  externalReference: string | null;
 
-    @Column({type: 'varchar', nullable: true, name: 'payment_channel'})
-    paymentChannel: string | null;
+  @Column({ type: 'varchar', nullable: true, name: 'payment_channel' })
+  paymentChannel: string | null;
 
-    @ManyToOne(() => MemberVirtualAccount, {nullable: true, onDelete: 'SET NULL'})
-    @JoinColumn({name: 'virtual_account_id'})
-    virtualAccount: MemberVirtualAccount | null;
+  @ManyToOne(() => MemberVirtualAccount, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'virtual_account_id' })
+  virtualAccount: MemberVirtualAccount | null;
 }

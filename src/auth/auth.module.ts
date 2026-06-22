@@ -1,41 +1,40 @@
-import {Module} from '@nestjs/common';
-import {TypeOrmModule} from '@nestjs/typeorm';
-import {AuthService} from './service/auth.service';
-import {AuthController} from './controller/auth.controller';
-import {JwtModule} from '@nestjs/jwt';
-import {ConfigModule} from '@nestjs/config';
-import {APP_GUARD} from '@nestjs/core';
-import {JwtAuthGuard} from './guard/jwt-auth.guard';
-import {PasswordChangeRequiredGuard} from './guard/password-change-required.guard';
-import {JwtStrategy} from './strategy/jwt.strategy';
-import {RefreshJwtStrategy} from './strategy/refresh.jwt.strategy';
-import {LocalStrategy} from './strategy/local.strategy';
-import {PasswordResetOtp} from './entity/password-reset-otp.entity';
-import {DeviceResetOtp} from './entity/device-reset-otp.entity';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthService } from './service/auth.service';
+import { AuthController } from './controller/auth.controller';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './guard/jwt-auth.guard';
+import { PasswordChangeRequiredGuard } from './guard/password-change-required.guard';
+import { JwtStrategy } from './strategy/jwt.strategy';
+import { RefreshJwtStrategy } from './strategy/refresh.jwt.strategy';
+import { LocalStrategy } from './strategy/local.strategy';
+import { PasswordResetOtp } from './entity/password-reset-otp.entity';
+import { DeviceResetOtp } from './entity/device-reset-otp.entity';
 import jwtConfig from '../config/jwt.config';
 import refreshJwtConfig from '../config/refresh.jwt.config';
-import {MemberModule} from '../member/member.module';
-import {UtilityModule} from '../utility/utility.module';
+import { MemberModule } from '../member/member.module';
+import { UtilityModule } from '../utility/utility.module';
 
 @Module({
-    imports: [
-        MemberModule,
-        UtilityModule,
-        TypeOrmModule.forFeature([PasswordResetOtp, DeviceResetOtp]),
-        JwtModule.registerAsync(jwtConfig.asProvider()),
-        ConfigModule.forFeature(jwtConfig),
-        ConfigModule.forFeature(refreshJwtConfig),
-    ],
-    controllers: [AuthController],
-    providers: [
-        AuthService,
-        LocalStrategy,
-        JwtStrategy,
-        RefreshJwtStrategy,
-        {provide: APP_GUARD, useClass: JwtAuthGuard},
-        {provide: APP_GUARD, useClass: PasswordChangeRequiredGuard},
-    ],
-    exports: [AuthService],
+  imports: [
+    MemberModule,
+    UtilityModule,
+    TypeOrmModule.forFeature([PasswordResetOtp, DeviceResetOtp]),
+    JwtModule.registerAsync(jwtConfig.asProvider()),
+    ConfigModule.forFeature(jwtConfig),
+    ConfigModule.forFeature(refreshJwtConfig),
+  ],
+  controllers: [AuthController],
+  providers: [
+    AuthService,
+    LocalStrategy,
+    JwtStrategy,
+    RefreshJwtStrategy,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: PasswordChangeRequiredGuard },
+  ],
+  exports: [AuthService],
 })
-export class AuthModule {
-}
+export class AuthModule {}

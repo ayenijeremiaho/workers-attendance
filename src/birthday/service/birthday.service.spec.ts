@@ -1,308 +1,336 @@
-import {Test, TestingModule} from '@nestjs/testing';
-import {getRepositoryToken} from '@nestjs/typeorm';
-import {BadRequestException, HttpException, HttpStatus} from '@nestjs/common';
-import {ConfigService} from '@nestjs/config';
-import {BirthdayService} from './birthday.service';
-import {BirthdayWish} from '../entity/birthday-wish.entity';
-import {Member} from '../../member/entity/member.entity';
-import {Announcement} from '../../announcement/entity/announcement.entity';
-import {UtilityService} from '../../utility/service/utility.service';
-import {SanitizationService} from '../../utility/service/sanitization.service';
-import {CacheService} from '../../utility/service/cache.service';
-import {MemberStatusEnum} from '../../member/enums/member-status.enum';
-import {AnnouncementAudienceEnum} from '../../announcement/enum/announcement-audience.enum';
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { BirthdayService } from './birthday.service';
+import { BirthdayWish } from '../entity/birthday-wish.entity';
+import { Member } from '../../member/entity/member.entity';
+import { Announcement } from '../../announcement/entity/announcement.entity';
+import { UtilityService } from '../../utility/service/utility.service';
+import { SanitizationService } from '../../utility/service/sanitization.service';
+import { CacheService } from '../../utility/service/cache.service';
+import { MemberStatusEnum } from '../../member/enums/member-status.enum';
+import { AnnouncementAudienceEnum } from '../../announcement/enum/announcement-audience.enum';
 
 jest.mock('../../utility/service/sanitization.service', () => ({
-    SanitizationService: jest.fn().mockImplementation(() => ({
-        sanitize: jest.fn((html: string) => html),
-        sanitizeText: jest.fn((text: string) => text),
-    })),
+  SanitizationService: jest.fn().mockImplementation(() => ({
+    sanitize: jest.fn((html: string) => html),
+    sanitizeText: jest.fn((text: string) => text),
+  })),
 }));
 
 const makeQb = () => ({
-    where: jest.fn().mockReturnThis(),
-    andWhere: jest.fn().mockReturnThis(),
-    leftJoin: jest.fn().mockReturnThis(),
-    addSelect: jest.fn().mockReturnThis(),
-    orderBy: jest.fn().mockReturnThis(),
-    getMany: jest.fn().mockResolvedValue([]),
+  where: jest.fn().mockReturnThis(),
+  andWhere: jest.fn().mockReturnThis(),
+  leftJoin: jest.fn().mockReturnThis(),
+  addSelect: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  getMany: jest.fn().mockResolvedValue([]),
 });
 
 const mockWishRepo = {
-    findOne: jest.fn(),
-    create: jest.fn(),
-    save: jest.fn(),
-    createQueryBuilder: jest.fn(),
+  findOne: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
+  createQueryBuilder: jest.fn(),
 };
 
 const mockMemberRepo = {
-    createQueryBuilder: jest.fn(),
-    update: jest.fn().mockResolvedValue(undefined),
+  createQueryBuilder: jest.fn(),
+  update: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockAnnouncementRepo = {
-    create: jest.fn(),
-    save: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
 };
 
 const mockUtilityService = {
-    sendEmailWithTemplate: jest.fn(),
+  sendEmailWithTemplate: jest.fn(),
 };
 
 const mockSanitizationService = {
-    sanitizeText: jest.fn((text: string) => text),
+  sanitizeText: jest.fn((text: string) => text),
 };
 
 const mockCacheService = {
-    key: jest.fn((ns: string, id: string) => `${ns}:${id}`),
-    get: jest.fn().mockResolvedValue(0),
-    set: jest.fn().mockResolvedValue(undefined),
-    incr: jest.fn().mockResolvedValue(1),
-    acquireLock: jest.fn().mockResolvedValue(true),
-    releaseLock: jest.fn(),
+  key: jest.fn((ns: string, id: string) => `${ns}:${id}`),
+  get: jest.fn().mockResolvedValue(0),
+  set: jest.fn().mockResolvedValue(undefined),
+  incr: jest.fn().mockResolvedValue(1),
+  acquireLock: jest.fn().mockResolvedValue(true),
+  releaseLock: jest.fn(),
 };
 
 const mockConfigService = {
-    get: jest.fn(),
+  get: jest.fn(),
 };
 
-const makeMember = (overrides: Partial<Member> = {}): Member => ({
+const makeMember = (overrides: Partial<Member> = {}): Member =>
+  ({
     id: 'member-1',
     firstname: 'John',
     lastname: 'Doe',
     email: 'john@example.com',
     status: MemberStatusEnum.ACTIVE,
     ...overrides,
-} as Member);
+  }) as Member;
 
 describe('BirthdayService', () => {
-    let service: BirthdayService;
+  let service: BirthdayService;
 
-    beforeEach(async () => {
-        jest.clearAllMocks();
-        mockCacheService.acquireLock.mockResolvedValue(true);
-        mockConfigService.get.mockReturnValue(20);
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockCacheService.acquireLock.mockResolvedValue(true);
+    mockConfigService.get.mockReturnValue(20);
 
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                BirthdayService,
-                {provide: getRepositoryToken(BirthdayWish), useValue: mockWishRepo},
-                {provide: getRepositoryToken(Member), useValue: mockMemberRepo},
-                {provide: getRepositoryToken(Announcement), useValue: mockAnnouncementRepo},
-                {provide: UtilityService, useValue: mockUtilityService},
-                {provide: SanitizationService, useValue: mockSanitizationService},
-                {provide: CacheService, useValue: mockCacheService},
-                {provide: ConfigService, useValue: mockConfigService},
-            ],
-        }).compile();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BirthdayService,
+        { provide: getRepositoryToken(BirthdayWish), useValue: mockWishRepo },
+        { provide: getRepositoryToken(Member), useValue: mockMemberRepo },
+        {
+          provide: getRepositoryToken(Announcement),
+          useValue: mockAnnouncementRepo,
+        },
+        { provide: UtilityService, useValue: mockUtilityService },
+        { provide: SanitizationService, useValue: mockSanitizationService },
+        { provide: CacheService, useValue: mockCacheService },
+        { provide: ConfigService, useValue: mockConfigService },
+      ],
+    }).compile();
 
-        service = module.get<BirthdayService>(BirthdayService);
+    service = module.get<BirthdayService>(BirthdayService);
+  });
+
+  describe('triggerBirthdayGreetings', () => {
+    it('does nothing when no members have a birthday today', async () => {
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue([]);
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.triggerBirthdayGreetings();
+
+      expect(mockAnnouncementRepo.save).not.toHaveBeenCalled();
+      expect(mockUtilityService.sendEmailWithTemplate).not.toHaveBeenCalled();
     });
 
-    describe('triggerBirthdayGreetings', () => {
-        it('does nothing when no members have a birthday today', async () => {
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue([]);
-            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+    it('creates an announcement and sends email for each birthday member', async () => {
+      const members = [
+        makeMember({ id: 'm1' }),
+        makeMember({ id: 'm2', firstname: 'Jane' }),
+      ];
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue(members);
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
 
-            await service.triggerBirthdayGreetings();
+      const fakeAnnouncement = { id: 'ann-1' };
+      mockAnnouncementRepo.create.mockReturnValue(fakeAnnouncement);
+      mockAnnouncementRepo.save.mockResolvedValue(fakeAnnouncement);
 
-            expect(mockAnnouncementRepo.save).not.toHaveBeenCalled();
-            expect(mockUtilityService.sendEmailWithTemplate).not.toHaveBeenCalled();
-        });
+      await service.triggerBirthdayGreetings();
 
-        it('creates an announcement and sends email for each birthday member', async () => {
-            const members = [makeMember({id: 'm1'}), makeMember({id: 'm2', firstname: 'Jane'})];
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue(members);
-            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
-
-            const fakeAnnouncement = {id: 'ann-1'};
-            mockAnnouncementRepo.create.mockReturnValue(fakeAnnouncement);
-            mockAnnouncementRepo.save.mockResolvedValue(fakeAnnouncement);
-
-            await service.triggerBirthdayGreetings();
-
-            expect(mockAnnouncementRepo.create).toHaveBeenCalledTimes(2);
-            expect(mockAnnouncementRepo.save).toHaveBeenCalledTimes(2);
-            expect(mockUtilityService.sendEmailWithTemplate).toHaveBeenCalledTimes(2);
-        });
-
-        it('creates an ALL-audience announcement with an expiresAt', async () => {
-            const member = makeMember();
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue([member]);
-            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
-            mockAnnouncementRepo.create.mockReturnValue({});
-            mockAnnouncementRepo.save.mockResolvedValue({});
-
-            await service.triggerBirthdayGreetings();
-
-            const createCall = mockAnnouncementRepo.create.mock.calls[0][0];
-            expect(createCall.audience).toBe(AnnouncementAudienceEnum.ALL);
-            expect(createCall.expiresAt).toBeInstanceOf(Date);
-            expect(createCall.expiresAt.getHours()).toBe(23);
-        });
-
-        it('queries only ACTIVE members not yet greeted this year', async () => {
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue([]);
-            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
-
-            await service.triggerBirthdayGreetings();
-
-            expect(qb.andWhere).toHaveBeenCalledWith('m.status = :status', {
-                status: MemberStatusEnum.ACTIVE,
-            });
-            expect(qb.andWhere).toHaveBeenCalledWith(
-                '(m.birthdayGreetedYear IS NULL OR m.birthdayGreetedYear != :year)',
-                {year: new Date().getFullYear()},
-            );
-        });
-
-        it('sets birthdayGreetedYear after announcement saves successfully', async () => {
-            const member = makeMember({id: 'm1'});
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue([member]);
-            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
-            mockAnnouncementRepo.create.mockReturnValue({});
-            mockAnnouncementRepo.save.mockResolvedValue({});
-
-            await service.triggerBirthdayGreetings();
-
-            expect(mockMemberRepo.update).toHaveBeenCalledWith('m1', {
-                birthdayGreetedYear: new Date().getFullYear(),
-            });
-        });
-
-        it('continues to next member when one fails and does not set birthdayGreetedYear for the failed member', async () => {
-            const members = [makeMember({id: 'm1'}), makeMember({id: 'm2', firstname: 'Jane'})];
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue(members);
-            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
-            mockAnnouncementRepo.create.mockReturnValue({});
-            mockAnnouncementRepo.save
-                .mockRejectedValueOnce(new Error('DB timeout'))
-                .mockResolvedValue({});
-
-            await service.triggerBirthdayGreetings();
-
-            expect(mockMemberRepo.update).toHaveBeenCalledTimes(1);
-            expect(mockMemberRepo.update).toHaveBeenCalledWith('m2', expect.any(Object));
-            expect(mockMemberRepo.update).not.toHaveBeenCalledWith('m1', expect.any(Object));
-        });
-
-        it('skips when another instance holds the lock', async () => {
-            mockCacheService.acquireLock.mockResolvedValue(false);
-
-            await service.triggerBirthdayGreetings();
-
-            expect(mockMemberRepo.createQueryBuilder).not.toHaveBeenCalled();
-        });
-
-        it('releases the lock even when the run completes with no members', async () => {
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue([]);
-            mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
-
-            await service.triggerBirthdayGreetings();
-
-            expect(mockCacheService.releaseLock).toHaveBeenCalledWith('lock:birthday-greetings');
-        });
+      expect(mockAnnouncementRepo.create).toHaveBeenCalledTimes(2);
+      expect(mockAnnouncementRepo.save).toHaveBeenCalledTimes(2);
+      expect(mockUtilityService.sendEmailWithTemplate).toHaveBeenCalledTimes(2);
     });
 
-    describe('sendWish', () => {
-        it('throws BadRequestException when sender and recipient are the same', async () => {
-            mockCacheService.get.mockResolvedValue(0);
+    it('creates an ALL-audience announcement with an expiresAt', async () => {
+      const member = makeMember();
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue([member]);
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+      mockAnnouncementRepo.create.mockReturnValue({});
+      mockAnnouncementRepo.save.mockResolvedValue({});
 
-            await expect(service.sendWish('same-id', 'same-id', 'Happy birthday!')).rejects.toThrow(
-                new BadRequestException('You cannot send a wish to yourself'),
-            );
-        });
+      await service.triggerBirthdayGreetings();
 
-        it('throws 429 when the daily rate limit is reached', async () => {
-            mockConfigService.get.mockReturnValue(20);
-            mockCacheService.get.mockResolvedValue(20);
-
-            await expect(service.sendWish('recipient-id', 'sender-id', 'HB!')).rejects.toThrow(
-                new HttpException(
-                    'You have reached your daily limit for birthday wishes. Please try again tomorrow.',
-                    HttpStatus.TOO_MANY_REQUESTS,
-                ),
-            );
-            expect(mockWishRepo.findOne).not.toHaveBeenCalled();
-        });
-
-        it('throws BadRequestException when a wish was already sent this year', async () => {
-            mockCacheService.get.mockResolvedValue(0);
-            mockWishRepo.findOne.mockResolvedValue({id: 'existing-wish'});
-
-            await expect(service.sendWish('recipient-id', 'sender-id', 'HB!')).rejects.toThrow(
-                BadRequestException,
-            );
-            expect(mockWishRepo.save).not.toHaveBeenCalled();
-        });
-
-        it('sanitizes the message before saving', async () => {
-            mockCacheService.get.mockResolvedValue(0);
-            mockWishRepo.findOne.mockResolvedValue(null);
-            mockSanitizationService.sanitizeText.mockReturnValue('Happy Birthday!');
-            const saved = {id: 'wish-1', message: 'Happy Birthday!'};
-            mockWishRepo.create.mockReturnValue(saved);
-            mockWishRepo.save.mockResolvedValue(saved);
-
-            await service.sendWish('recipient-id', 'sender-id', '<script>xss</script>Happy Birthday!');
-
-            expect(mockSanitizationService.sanitizeText).toHaveBeenCalledWith(
-                '<script>xss</script>Happy Birthday!',
-            );
-            expect(mockWishRepo.create).toHaveBeenCalledWith(
-                expect.objectContaining({message: 'Happy Birthday!'}),
-            );
-        });
-
-        it('saves the wish and increments the rate counter on success', async () => {
-            mockCacheService.get.mockResolvedValue(3);
-            mockConfigService.get.mockReturnValue(20);
-            mockWishRepo.findOne.mockResolvedValue(null);
-            const saved = {id: 'wish-1', message: 'HB!'};
-            mockWishRepo.create.mockReturnValue(saved);
-            mockWishRepo.save.mockResolvedValue(saved);
-
-            const result = await service.sendWish('recipient-id', 'sender-id', 'HB!');
-
-            expect(result).toEqual(saved);
-            expect(mockCacheService.incr).toHaveBeenCalledWith(
-                expect.stringContaining('sender-id'),
-                expect.any(Number),
-            );
-        });
+      const createCall = mockAnnouncementRepo.create.mock.calls[0][0];
+      expect(createCall.audience).toBe(AnnouncementAudienceEnum.ALL);
+      expect(createCall.expiresAt).toBeInstanceOf(Date);
+      expect(createCall.expiresAt.getHours()).toBe(23);
     });
 
-    describe('getWishesForMember', () => {
-        it('returns wishes without year filter', async () => {
-            const wishes = [{id: 'w1', message: 'HB!'}];
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue(wishes);
-            mockWishRepo.createQueryBuilder.mockReturnValue(qb);
+    it('queries only ACTIVE members not yet greeted this year', async () => {
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue([]);
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
 
-            const result = await service.getWishesForMember('member-id');
+      await service.triggerBirthdayGreetings();
 
-            expect(result).toEqual(wishes);
-            expect(qb.andWhere).not.toHaveBeenCalledWith(
-                expect.stringContaining('year'),
-                expect.anything(),
-            );
-        });
-
-        it('adds a year filter when year is provided', async () => {
-            const qb = makeQb();
-            qb.getMany.mockResolvedValue([]);
-            mockWishRepo.createQueryBuilder.mockReturnValue(qb);
-
-            await service.getWishesForMember('member-id', 2026);
-
-            expect(qb.andWhere).toHaveBeenCalledWith('w.year = :year', {year: 2026});
-        });
+      expect(qb.andWhere).toHaveBeenCalledWith('m.status = :status', {
+        status: MemberStatusEnum.ACTIVE,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(m.birthdayGreetedYear IS NULL OR m.birthdayGreetedYear != :year)',
+        { year: new Date().getFullYear() },
+      );
     });
+
+    it('sets birthdayGreetedYear after announcement saves successfully', async () => {
+      const member = makeMember({ id: 'm1' });
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue([member]);
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+      mockAnnouncementRepo.create.mockReturnValue({});
+      mockAnnouncementRepo.save.mockResolvedValue({});
+
+      await service.triggerBirthdayGreetings();
+
+      expect(mockMemberRepo.update).toHaveBeenCalledWith('m1', {
+        birthdayGreetedYear: new Date().getFullYear(),
+      });
+    });
+
+    it('continues to next member when one fails and does not set birthdayGreetedYear for the failed member', async () => {
+      const members = [
+        makeMember({ id: 'm1' }),
+        makeMember({ id: 'm2', firstname: 'Jane' }),
+      ];
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue(members);
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+      mockAnnouncementRepo.create.mockReturnValue({});
+      mockAnnouncementRepo.save
+        .mockRejectedValueOnce(new Error('DB timeout'))
+        .mockResolvedValue({});
+
+      await service.triggerBirthdayGreetings();
+
+      expect(mockMemberRepo.update).toHaveBeenCalledTimes(1);
+      expect(mockMemberRepo.update).toHaveBeenCalledWith(
+        'm2',
+        expect.any(Object),
+      );
+      expect(mockMemberRepo.update).not.toHaveBeenCalledWith(
+        'm1',
+        expect.any(Object),
+      );
+    });
+
+    it('skips when another instance holds the lock', async () => {
+      mockCacheService.acquireLock.mockResolvedValue(false);
+
+      await service.triggerBirthdayGreetings();
+
+      expect(mockMemberRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('releases the lock even when the run completes with no members', async () => {
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue([]);
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.triggerBirthdayGreetings();
+
+      expect(mockCacheService.releaseLock).toHaveBeenCalledWith(
+        'lock:birthday-greetings',
+      );
+    });
+  });
+
+  describe('sendWish', () => {
+    it('throws BadRequestException when sender and recipient are the same', async () => {
+      mockCacheService.get.mockResolvedValue(0);
+
+      await expect(
+        service.sendWish('same-id', 'same-id', 'Happy birthday!'),
+      ).rejects.toThrow(
+        new BadRequestException('You cannot send a wish to yourself'),
+      );
+    });
+
+    it('throws 429 when the daily rate limit is reached', async () => {
+      mockConfigService.get.mockReturnValue(20);
+      mockCacheService.get.mockResolvedValue(20);
+
+      await expect(
+        service.sendWish('recipient-id', 'sender-id', 'HB!'),
+      ).rejects.toThrow(
+        new HttpException(
+          'You have reached your daily limit for birthday wishes. Please try again tomorrow.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        ),
+      );
+      expect(mockWishRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when a wish was already sent this year', async () => {
+      mockCacheService.get.mockResolvedValue(0);
+      mockWishRepo.findOne.mockResolvedValue({ id: 'existing-wish' });
+
+      await expect(
+        service.sendWish('recipient-id', 'sender-id', 'HB!'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockWishRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('sanitizes the message before saving', async () => {
+      mockCacheService.get.mockResolvedValue(0);
+      mockWishRepo.findOne.mockResolvedValue(null);
+      mockSanitizationService.sanitizeText.mockReturnValue('Happy Birthday!');
+      const saved = { id: 'wish-1', message: 'Happy Birthday!' };
+      mockWishRepo.create.mockReturnValue(saved);
+      mockWishRepo.save.mockResolvedValue(saved);
+
+      await service.sendWish(
+        'recipient-id',
+        'sender-id',
+        '<script>xss</script>Happy Birthday!',
+      );
+
+      expect(mockSanitizationService.sanitizeText).toHaveBeenCalledWith(
+        '<script>xss</script>Happy Birthday!',
+      );
+      expect(mockWishRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Happy Birthday!' }),
+      );
+    });
+
+    it('saves the wish and increments the rate counter on success', async () => {
+      mockCacheService.get.mockResolvedValue(3);
+      mockConfigService.get.mockReturnValue(20);
+      mockWishRepo.findOne.mockResolvedValue(null);
+      const saved = { id: 'wish-1', message: 'HB!' };
+      mockWishRepo.create.mockReturnValue(saved);
+      mockWishRepo.save.mockResolvedValue(saved);
+
+      const result = await service.sendWish('recipient-id', 'sender-id', 'HB!');
+
+      expect(result).toEqual(saved);
+      expect(mockCacheService.incr).toHaveBeenCalledWith(
+        expect.stringContaining('sender-id'),
+        expect.any(Number),
+      );
+    });
+  });
+
+  describe('getWishesForMember', () => {
+    it('returns wishes without year filter', async () => {
+      const wishes = [{ id: 'w1', message: 'HB!' }];
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue(wishes);
+      mockWishRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.getWishesForMember('member-id');
+
+      expect(result).toEqual(wishes);
+      expect(qb.andWhere).not.toHaveBeenCalledWith(
+        expect.stringContaining('year'),
+        expect.anything(),
+      );
+    });
+
+    it('adds a year filter when year is provided', async () => {
+      const qb = makeQb();
+      qb.getMany.mockResolvedValue([]);
+      mockWishRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getWishesForMember('member-id', 2026);
+
+      expect(qb.andWhere).toHaveBeenCalledWith('w.year = :year', {
+        year: 2026,
+      });
+    });
+  });
 });

@@ -1,35 +1,43 @@
-import {IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl} from 'class-validator';
-import {IncidentStatus} from '../enum/incident-status.enum';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+} from 'class-validator';
+import { IncidentStatus } from '../enum/incident-status.enum';
 
 export class CreateIncidentReportDto {
-    @IsString()
-    @IsNotEmpty()
-    title: string;
+  @IsString()
+  @IsNotEmpty()
+  title: string;
 
-    @IsString()
-    @IsNotEmpty()
-    description: string;
+  @IsString()
+  @IsNotEmpty()
+  description: string;
 
-    @IsOptional()
-    @IsArray()
-    @IsUrl({}, {each: true})
-    images?: string[];
+  @IsOptional()
+  @IsArray()
+  @IsUrl({}, { each: true })
+  images?: string[];
 
-    @IsOptional()
-    @IsString()
-    location?: string;
+  @IsOptional()
+  @IsString()
+  location?: string;
 
-    @IsOptional()
-    @IsBoolean()
-    isAnonymous?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  isAnonymous?: boolean;
 }
 
 export class UpdateIncidentStatusDto {
-    @IsEnum(IncidentStatus)
-    @IsNotEmpty()
-    status: IncidentStatus;
+  @IsEnum(IncidentStatus)
+  @IsNotEmpty()
+  status: IncidentStatus;
 
-    @IsOptional()
-    @IsString()
-    adminNotes?: string;
+  @IsOptional()
+  @IsString()
+  adminNotes?: string;
 }

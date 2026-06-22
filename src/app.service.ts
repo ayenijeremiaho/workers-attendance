@@ -1,174 +1,23 @@
-import {Injectable} from '@nestjs/common';
-import {ConfigService} from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as Handlebars from 'handlebars';
 
 @Injectable()
 export class AppService {
-    constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) {}
 
-    getWelcomePage(): string {
-        const postmanUrl = this.config.get<string>('POSTMAN_URL');
-        const productName = this.config.get<string>('PRODUCT_NAME');
-        const churchName = this.config.get<string>('CHURCH_NAME');
-        const churchAddress = this.config.get<string>('CHURCH_ADDRESS');
-
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>${productName} API</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{background:#F4F1EA;color:#121212;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh}
-
-    /* ── Header ── */
-    header{background:#121212;padding:32px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-    .header-left{}
-    .header-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#8A817C;margin-bottom:6px}
-    .header-title{font-size:22px;font-weight:600;color:#EADCC9;letter-spacing:-0.01em}
-    .header-tagline{font-size:11px;color:#8A817C;margin-top:3px}
-    .live-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(46,125,50,0.15);border:1px solid rgba(76,175,80,0.4);color:#81c784;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 12px;border-radius:20px}
-    .dot{width:6px;height:6px;background:#4caf50;border-radius:50%;animation:pulse 1.8s infinite}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
-
-    /* ── Layout ── */
-    main{max-width:900px;margin:0 auto;padding:48px 32px 64px}
-
-    /* ── Intro ── */
-    .intro-card{background:#FFFFFF;border:1px solid rgba(18,18,18,0.07);border-top:3px solid #121212;padding:32px 36px;margin-bottom:36px}
-    .intro-card p{font-size:14px;line-height:1.85;color:#3a3a3a;font-weight:300}
-    .intro-card strong{color:#121212;font-weight:600}
-    .intro-card .stack-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:20px}
-    .stack-chip{background:#F4F1EA;border:1px solid #EADCC9;color:#121212;font-size:10px;font-weight:600;letter-spacing:.5px;padding:3px 10px}
-
-    /* ── Section labels ── */
-    .section-label{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#8A817C;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #E0D9D0}
-
-    /* ── Module grid ── */
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:40px}
-    .card{background:#FFFFFF;border:1px solid rgba(18,18,18,0.07);border-left:3px solid #EADCC9;padding:14px 16px}
-    .card-title{font-size:11px;font-weight:700;color:#121212;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-    .card-desc{font-size:11px;color:#8A817C;line-height:1.55}
-
-    /* ── Endpoints ── */
-    .endpoints{background:#FFFFFF;border:1px solid rgba(18,18,18,0.07);margin-bottom:40px}
-    .ep{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #F4F1EA;font-size:12px}
-    .ep:last-child{border-bottom:none}
-    .method{font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;min-width:40px;text-align:center}
-    .get{background:#e8f5e9;color:#2E7D32;border:1px solid #c8e6c9}
-    .post{background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb}
-    .ep-path{color:#121212;font-family:'SF Mono',Consolas,monospace;font-size:12px}
-    .ep-note{color:#8A817C;margin-left:auto;font-size:11px}
-
-    /* ── CTA ── */
-    .cta-row{margin-bottom:40px}
-    .cta{display:inline-flex;align-items:center;gap:8px;background:#121212;color:#FFFFFF;padding:13px 28px;text-decoration:none;font-weight:600;font-size:12px;letter-spacing:.05em;text-transform:uppercase}
-    .cta:hover{background:#2a2a2a}
-    .cta svg{width:14px;height:14px;flex-shrink:0}
-
-    /* ── Joy note ── */
-    .joy{background:#EADCC9;padding:28px 32px;margin-bottom:40px}
-    .joy-label{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#8A817C;margin-bottom:14px}
-    .joy p{font-size:13px;line-height:1.9;color:#3a3a3a;font-weight:300;margin-bottom:12px}
-    .joy p:last-child{margin-bottom:0}
-    .joy strong{color:#121212;font-weight:600}
-
-    /* ── Footer ── */
-    footer{border-top:1px solid #E0D9D0;padding:20px 40px;text-align:center;font-size:10px;color:#8A817C;letter-spacing:.5px}
-
-    @media(max-width:600px){header{padding:24px 20px}main{padding:32px 20px}}
-  </style>
-</head>
-<body>
-
-<header>
-  <div class="header-left">
-    <div class="header-eyebrow">Church Management System</div>
-    <div class="header-title">${productName} API</div>
-    <div class="header-tagline">REST API &middot; All routes prefixed <code style="font-size:10px;color:#EADCC9">/v1/</code> &middot; JWT authenticated</div>
-  </div>
-  <div class="live-pill"><span class="dot"></span>Live</div>
-</header>
-
-<main>
-
-  <div class="intro-card">
-    <p>
-      <strong>${productName}</strong> is a full-featured church management backend built for modern, growing congregations.
-      It handles everything from Sunday check-ins and live service programme running to tithe statements,
-      first-timer follow-up pipelines, finance requests, and children's church pickup codes —
-      all through a single, secure REST API.<br/><br/>
-      Built to scale with your church. Deployable anywhere. Configurable for any congregation.
-    </p>
-    <div class="stack-row">
-      <span class="stack-chip">NestJS</span>
-      <span class="stack-chip">TypeScript</span>
-      <span class="stack-chip">PostgreSQL</span>
-      <span class="stack-chip">TypeORM</span>
-      <span class="stack-chip">Redis</span>
-      <span class="stack-chip">Bull Queue</span>
-      <span class="stack-chip">Argon2</span>
-      <span class="stack-chip">JWT</span>
-      <span class="stack-chip">Socket.IO</span>
-      <span class="stack-chip">jsPDF</span>
-    </div>
-  </div>
-
-  <div class="section-label">Core Modules</div>
-  <div class="grid">
-    <div class="card"><div class="card-title">Members &amp; Auth</div><div class="card-desc">JWT login, refresh tokens, device sessions, roles, worker profiles</div></div>
-    <div class="card"><div class="card-title">Attendance</div><div class="card-desc">Geo-fenced check-in, QR codes, online attendance, absence auto-marking</div></div>
-    <div class="card"><div class="card-title">Service Programme</div><div class="card-desc">Live session runner, slot timing, real-time WebSocket broadcast, PDF reports</div></div>
-    <div class="card"><div class="card-title">Headcount</div><div class="card-desc">Per-slot attendance figures, trend analytics (weekly / monthly / quarterly)</div></div>
-    <div class="card"><div class="card-title">Events</div><div class="card-desc">One-off &amp; recurring events, service slots, venue overrides</div></div>
-    <div class="card"><div class="card-title">Follow-Up</div><div class="card-desc">First-timer capture, task assignment, online non-responder pipeline</div></div>
-    <div class="card"><div class="card-title">Tithe &amp; Finance</div><div class="card-desc">Tithe records, member PDF statements, finance request approvals</div></div>
-    <div class="card"><div class="card-title">Notes</div><div class="card-desc">Marriage, child naming &amp; dedication notes with analytics</div></div>
-    <div class="card"><div class="card-title">Classes</div><div class="card-desc">Enrolment tracking, completion rates, class breakdown analytics</div></div>
-    <div class="card"><div class="card-title">Announcements</div><div class="card-desc">Audience-targeted broadcasts (all members, workers, or everyone)</div></div>
-    <div class="card"><div class="card-title">Sunday School &amp; Children</div><div class="card-desc">Children's church, Sunday school registers, secure pickup codes</div></div>
-    <div class="card"><div class="card-title">Departments &amp; Admin</div><div class="card-desc">Departments, admin roles, granular permissions, full audit trail</div></div>
-  </div>
-
-  <div class="section-label">Public Endpoints</div>
-  <div class="endpoints">
-    <div class="ep"><span class="method get">GET</span><span class="ep-path">/</span><span class="ep-note">This page</span></div>
-    <div class="ep"><span class="method get">GET</span><span class="ep-path">/v1/health</span><span class="ep-note">DB + Redis liveness check</span></div>
-    <div class="ep"><span class="method post">POST</span><span class="ep-path">/v1/auth/login</span><span class="ep-note">Member login</span></div>
-    <div class="ep"><span class="method post">POST</span><span class="ep-path">/v1/auth/admin/login</span><span class="ep-note">Admin login</span></div>
-    <div class="ep"><span class="method post">POST</span><span class="ep-path">/v1/auth/refresh</span><span class="ep-note">Refresh access token</span></div>
-  </div>
-
-  <div class="section-label">API Documentation</div>
-  <div class="cta-row">
-    <a class="cta" href="${postmanUrl}" target="_blank" rel="noopener">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      Open Postman Collection
-    </a>
-  </div>
-
-  <div class="joy">
-    <div class="joy-label">A word to the engineers</div>
-    <p>
-      Every Sunday, people walk through the doors of a church. They register, they check in, they give, they grow.
-      Behind every one of those moments — if that church runs ${productName} — there is a request hitting this server.
-    </p>
-    <p>
-      <strong>You are not just writing endpoints.</strong> You are building the infrastructure that lets a congregation
-      run smoothly, that lets a pastor know who showed up, that lets a worker follow up with a first-timer before the
-      week is out. That is not a small thing.
-    </p>
-    <p>
-      Write clean migrations. Cache intentionally. Log what matters. Every line of code you write here
-      has a person on the other end of it. <strong>Build accordingly.</strong>
-    </p>
-  </div>
-
-</main>
-
-<footer>${churchName}${churchAddress ? ` &middot; ${churchAddress}` : ''} &nbsp;&middot;&nbsp; ${productName} API</footer>
-
-</body>
-</html>`;
-    }
+  getWelcomePage(): string {
+    const template = fs.readFileSync(
+      path.resolve(__dirname, 'utility', 'templates', 'welcome-page.html'),
+      'utf-8',
+    );
+    return Handlebars.compile(template)({
+      product_name: this.config.get<string>('PRODUCT_NAME'),
+      church_name: this.config.get<string>('CHURCH_NAME'),
+      church_address: this.config.get<string>('CHURCH_ADDRESS'),
+      postman_url: this.config.get<string>('POSTMAN_URL'),
+    });
+  }
 }

@@ -1,35 +1,42 @@
-import {IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min} from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
 
 export class CreateChildClassGroupDto {
-    @IsUUID('4')
-    ageGroupId: string;
+  @IsUUID('4')
+  ageGroupId: string;
 
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-    @IsInt()
-    @Min(1)
-    @IsOptional()
-    capacity?: number;
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  capacity?: number;
 
-    @IsString()
-    @IsOptional()
-    teacherNote?: string;
+  @IsString()
+  @IsOptional()
+  teacherNote?: string;
 }
 
 export class UpdateChildClassGroupDto {
-    @IsString()
-    @IsNotEmpty()
-    @IsOptional()
-    name?: string;
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  name?: string;
 
-    @IsInt()
-    @Min(1)
-    @IsOptional()
-    capacity?: number;
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  capacity?: number;
 
-    @IsString()
-    @IsOptional()
-    teacherNote?: string;
+  @IsString()
+  @IsOptional()
+  teacherNote?: string;
 }

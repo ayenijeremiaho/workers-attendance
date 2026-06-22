@@ -1,4 +1,4 @@
-import {Transform} from 'class-transformer';
+import { Transform } from 'class-transformer';
 
 /**
  * Trims and lowercases an email field.
@@ -7,7 +7,7 @@ import {Transform} from 'class-transformer';
  * Apply on every @IsEmail() property in your DTOs.
  */
 export function NormalizeEmail() {
-    return Transform(({value}) =>
-        typeof value === 'string' ? value.trim().toLowerCase() : value,
-    );
+  return Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  );
 }

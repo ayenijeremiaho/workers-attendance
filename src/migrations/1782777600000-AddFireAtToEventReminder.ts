@@ -1,13 +1,15 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddFireAtToEventReminder1782777600000 implements MigrationInterface {
-    async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+export class AddFireAtToEventReminder1782777600000
+  implements MigrationInterface
+{
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             ALTER TABLE event_reminders
             ADD COLUMN IF NOT EXISTS fire_at TIMESTAMPTZ
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             UPDATE event_reminders r
             SET fire_at = s.start_time - (
                 CASE r.interval_preset
@@ -24,15 +26,19 @@ export class AddFireAtToEventReminder1782777600000 implements MigrationInterface
             WHERE r.service_slot_id = s.id
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE INDEX IF NOT EXISTS idx_event_reminders_dispatch
             ON event_reminders (fire_at)
             WHERE enabled = true AND last_sent_at IS NULL
         `);
-    }
+  }
 
-    async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP INDEX IF EXISTS idx_event_reminders_dispatch`);
-        await queryRunner.query(`ALTER TABLE event_reminders DROP COLUMN IF EXISTS fire_at`);
-    }
+  async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS idx_event_reminders_dispatch`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE event_reminders DROP COLUMN IF EXISTS fire_at`,
+    );
+  }
 }

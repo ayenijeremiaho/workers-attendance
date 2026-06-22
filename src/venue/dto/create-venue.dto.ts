@@ -1,21 +1,26 @@
-import {IsLatitude, IsLongitude, IsNotEmpty, IsOptional, IsString} from 'class-validator';
-import {PartialType} from '@nestjs/mapped-types';
+import {
+  IsLatitude,
+  IsLongitude,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateVenueDto {
-    @IsNotEmpty()
-    @IsString()
-    name: string;
+  @IsNotEmpty()
+  @IsString()
+  name: string;
 
-    @IsOptional()
-    @IsString()
-    address?: string;
+  @IsOptional()
+  @IsString()
+  address?: string;
 
-    @IsLatitude()
-    latitude: number;
+  @IsLatitude()
+  latitude: number;
 
-    @IsLongitude()
-    longitude: number;
+  @IsLongitude()
+  longitude: number;
 }
 
-export class UpdateVenueDto extends PartialType(CreateVenueDto) {
-}
+export class UpdateVenueDto extends PartialType(CreateVenueDto) {}

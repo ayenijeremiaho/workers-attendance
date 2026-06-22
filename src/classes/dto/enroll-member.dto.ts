@@ -1,15 +1,15 @@
-import {IsEnum, IsUUID} from 'class-validator';
-import {EnrollmentStatusEnum} from '../enum/enrollment-status.enum';
+import { IsEnum, IsUUID } from 'class-validator';
+import { EnrollmentStatusEnum } from '../enum/enrollment-status.enum';
 
 export class EnrollMemberDto {
-    @IsUUID()
-    memberId: string;
+  @IsUUID()
+  memberId: string;
 
-    @IsUUID()
-    classId: string;
+  @IsUUID()
+  classId: string;
 }
 
 export class UpdateEnrollmentStatusDto {
-    @IsEnum(EnrollmentStatusEnum)
-    status: EnrollmentStatusEnum;
+  @IsEnum(EnrollmentStatusEnum)
+  status: EnrollmentStatusEnum;
 }

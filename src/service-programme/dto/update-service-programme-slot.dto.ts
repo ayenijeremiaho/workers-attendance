@@ -1,33 +1,40 @@
-import {IsEnum, IsInt, IsOptional, IsString, IsUUID, Min} from 'class-validator';
-import {ServiceSlotTypeEnum} from '../enum/service-slot-type.enum';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
+import { ServiceSlotTypeEnum } from '../enum/service-slot-type.enum';
 
 export class UpdateServiceProgrammeSlotDto {
-    @IsEnum(ServiceSlotTypeEnum)
-    @IsOptional()
-    type?: ServiceSlotTypeEnum;
+  @IsEnum(ServiceSlotTypeEnum)
+  @IsOptional()
+  type?: ServiceSlotTypeEnum;
 
-    @IsString()
-    @IsOptional()
-    topic?: string;
+  @IsString()
+  @IsOptional()
+  topic?: string;
 
-    @IsUUID()
-    @IsOptional()
-    memberId?: string;
+  @IsUUID()
+  @IsOptional()
+  memberId?: string;
 
-    @IsString()
-    @IsOptional()
-    guestName?: string;
+  @IsString()
+  @IsOptional()
+  guestName?: string;
 
-    @IsUUID()
-    @IsOptional()
-    backupMemberId?: string;
+  @IsUUID()
+  @IsOptional()
+  backupMemberId?: string;
 
-    @IsString()
-    @IsOptional()
-    backupGuestName?: string;
+  @IsString()
+  @IsOptional()
+  backupGuestName?: string;
 
-    @IsInt()
-    @Min(1)
-    @IsOptional()
-    allocatedMinutes?: number;
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  allocatedMinutes?: number;
 }

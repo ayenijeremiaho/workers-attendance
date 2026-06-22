@@ -1,4 +1,4 @@
-import {CreateDateColumn, UpdateDateColumn,} from 'typeorm';
+import { CreateDateColumn, UpdateDateColumn, } from 'typeorm';
 
 /**
  * Base entity class that provides common fields (createdAt, updatedAt)
@@ -6,9 +6,9 @@ import {CreateDateColumn, UpdateDateColumn,} from 'typeorm';
  * This reduces code duplication and ensures consistency.
  */
 export abstract class BaseEntity {
-    @CreateDateColumn({type: 'timestamptz'})
-    createdAt: Date;
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date;
 
-    @UpdateDateColumn({type: 'timestamptz'})
-    updatedAt: Date;
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt: Date;
 }

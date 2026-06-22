@@ -1,8 +1,8 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateIncidentReports1783036800000 implements MigrationInterface {
-    async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS incident_reports (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 title VARCHAR NOT NULL,
@@ -18,11 +18,15 @@ export class CreateIncidentReports1783036800000 implements MigrationInterface {
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )
         `);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_incident_reports_status ON incident_reports (status)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_incident_reports_reporter ON incident_reports (reporter_id)`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_incident_reports_status ON incident_reports (status)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_incident_reports_reporter ON incident_reports (reporter_id)`,
+    );
+  }
 
-    async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS incident_reports`);
-    }
+  async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS incident_reports`);
+  }
 }

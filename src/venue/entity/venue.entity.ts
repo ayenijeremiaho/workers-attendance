@@ -1,21 +1,21 @@
-import {Column, Entity, Index, PrimaryGeneratedColumn,} from 'typeorm';
-import {BaseEntity} from '../../utility/entity/base.entity';
+import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { BaseEntity } from '../../utility/entity/base.entity';
 
-@Entity({name: 'venues'})
+@Entity({ name: 'venues' })
 export class Venue extends BaseEntity {
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Index()
-    @Column({unique: true})
-    name: string;
+  @Index()
+  @Column({ unique: true })
+  name: string;
 
-    @Column({nullable: true})
-    address: string;
+  @Column({ nullable: true })
+  address: string;
 
-    @Column({type: 'float'})
-    latitude: number;
+  @Column({ type: 'float' })
+  latitude: number;
 
-    @Column({type: 'float'})
-    longitude: number;
+  @Column({ type: 'float' })
+  longitude: number;
 }

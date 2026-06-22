@@ -1,16 +1,21 @@
-import {ArgumentMetadata, Injectable, ValidationPipe, ValidationPipeOptions} from '@nestjs/common';
+import {
+  ArgumentMetadata,
+  Injectable,
+  ValidationPipe,
+  ValidationPipeOptions,
+} from '@nestjs/common';
 
 function trimStrings(value: unknown): unknown {
-    if (typeof value === 'string') return value.trim();
-    if (Array.isArray(value)) return value.map(trimStrings);
-    if (value !== null && typeof value === 'object') {
-        const result: Record<string, unknown> = {};
-        for (const [k, v] of Object.entries(value)) {
-            result[k] = trimStrings(v);
-        }
-        return result;
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) return value.map(trimStrings);
+  if (value !== null && typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = trimStrings(v);
     }
-    return value;
+    return result;
+  }
+  return value;
 }
 
 /**
@@ -22,14 +27,17 @@ function trimStrings(value: unknown): unknown {
  */
 @Injectable()
 export class TrimValidationPipe extends ValidationPipe {
-    constructor(options?: ValidationPipeOptions) {
-        super(options);
-    }
+  constructor(options?: ValidationPipeOptions) {
+    super(options);
+  }
 
-    async transform(value: unknown, metadata: ArgumentMetadata): Promise<unknown> {
-        if (metadata.type === 'body') {
-            value = trimStrings(value);
-        }
-        return super.transform(value, metadata);
+  async transform(
+    value: unknown,
+    metadata: ArgumentMetadata,
+  ): Promise<unknown> {
+    if (metadata.type === 'body') {
+      value = trimStrings(value);
     }
+    return super.transform(value, metadata);
+  }
 }

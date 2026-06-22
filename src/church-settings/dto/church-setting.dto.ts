@@ -1,14 +1,14 @@
-import {IsBoolean, IsNotEmpty} from 'class-validator';
+import { IsBoolean, IsNotEmpty } from 'class-validator';
 
 export class UpdateChurchSettingDto {
-    @IsBoolean()
-    @IsNotEmpty()
-    enabled: boolean;
+  @IsBoolean()
+  @IsNotEmpty()
+  enabled: boolean;
 }
 
 export class ChurchSettingResponseDto {
-    key: string;
-    moduleName: string;
-    enabled: boolean;
-    required: boolean;
+  key: string;
+  moduleName: string;
+  enabled: boolean;
+  required: boolean;
 }

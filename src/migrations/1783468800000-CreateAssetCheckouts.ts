@@ -1,8 +1,8 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateAssetCheckouts1783468800000 implements MigrationInterface {
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS asset_checkouts (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE RESTRICT,
@@ -19,13 +19,19 @@ export class CreateAssetCheckouts1783468800000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_asset_checkouts_asset ON asset_checkouts(asset_id)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_asset_checkouts_returned_at ON asset_checkouts(returned_at) WHERE returned_at IS NULL`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_asset_checkouts_asset ON asset_checkouts(asset_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_asset_checkouts_returned_at ON asset_checkouts(returned_at) WHERE returned_at IS NULL`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP INDEX IF EXISTS idx_asset_checkouts_returned_at`);
-        await queryRunner.query(`DROP INDEX IF EXISTS idx_asset_checkouts_asset`);
-        await queryRunner.query(`DROP TABLE IF EXISTS asset_checkouts`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS idx_asset_checkouts_returned_at`,
+    );
+    await queryRunner.query(`DROP INDEX IF EXISTS idx_asset_checkouts_asset`);
+    await queryRunner.query(`DROP TABLE IF EXISTS asset_checkouts`);
+  }
 }

@@ -1,244 +1,262 @@
-import {IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, IsUUID, IsUrl, Min} from 'class-validator';
-import {Type} from 'class-transformer';
-import {AssetCondition, AssetStatus, MaintenanceCompletionStatus, MaintenanceFrequencyUnit, MaintenanceRecordType} from '../enum/asset.enum';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUrl,
+  IsUUID,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  AssetCondition,
+  AssetStatus,
+  MaintenanceCompletionStatus,
+  MaintenanceFrequencyUnit,
+  MaintenanceRecordType,
+} from '../enum/asset.enum';
 
 export class CreateAssetDto {
-    @IsOptional()
-    @IsString()
-    tagNumber?: string;
+  @IsOptional()
+  @IsString()
+  tagNumber?: string;
 
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  description?: string;
 
-    @IsString()
-    @IsNotEmpty()
-    category: string;
+  @IsString()
+  @IsNotEmpty()
+  category: string;
 
-    @IsOptional()
-    @IsString()
-    location?: string;
+  @IsOptional()
+  @IsString()
+  location?: string;
 
-    @IsOptional()
-    @IsString()
-    serialNumber?: string;
+  @IsOptional()
+  @IsString()
+  serialNumber?: string;
 
-    @IsOptional()
-    @IsString()
-    manufacturer?: string;
+  @IsOptional()
+  @IsString()
+  manufacturer?: string;
 
-    @IsOptional()
-    @IsString()
-    model?: string;
+  @IsOptional()
+  @IsString()
+  model?: string;
 
-    @IsOptional()
-    @IsDateString()
-    purchaseDate?: string;
+  @IsOptional()
+  @IsDateString()
+  purchaseDate?: string;
 
-    @IsOptional()
-    @Type(() => Number)
-    @IsPositive()
-    purchaseValue?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsPositive()
+  purchaseValue?: number;
 
-    @IsOptional()
-    @IsDateString()
-    warrantyExpiry?: string;
+  @IsOptional()
+  @IsDateString()
+  warrantyExpiry?: string;
 
-    @IsOptional()
-    @IsString()
-    vendorName?: string;
+  @IsOptional()
+  @IsString()
+  vendorName?: string;
 
-    @IsOptional()
-    @IsString()
-    vendorContact?: string;
+  @IsOptional()
+  @IsString()
+  vendorContact?: string;
 
-    @IsOptional()
-    @IsUUID()
-    departmentId?: string;
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
 }
 
 export class UpdateAssetDto {
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    name?: string;
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  description?: string;
 
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    category?: string;
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  category?: string;
 
-    @IsOptional()
-    @IsString()
-    location?: string;
+  @IsOptional()
+  @IsString()
+  location?: string;
 
-    @IsOptional()
-    @IsEnum(AssetStatus)
-    status?: AssetStatus;
+  @IsOptional()
+  @IsEnum(AssetStatus)
+  status?: AssetStatus;
 
-    @IsOptional()
-    @IsString()
-    serialNumber?: string;
+  @IsOptional()
+  @IsString()
+  serialNumber?: string;
 
-    @IsOptional()
-    @IsString()
-    manufacturer?: string;
+  @IsOptional()
+  @IsString()
+  manufacturer?: string;
 
-    @IsOptional()
-    @IsString()
-    model?: string;
+  @IsOptional()
+  @IsString()
+  model?: string;
 
-    @IsOptional()
-    @IsDateString()
-    purchaseDate?: string;
+  @IsOptional()
+  @IsDateString()
+  purchaseDate?: string;
 
-    @IsOptional()
-    @Type(() => Number)
-    @IsPositive()
-    purchaseValue?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsPositive()
+  purchaseValue?: number;
 
-    @IsOptional()
-    @IsDateString()
-    warrantyExpiry?: string;
+  @IsOptional()
+  @IsDateString()
+  warrantyExpiry?: string;
 
-    @IsOptional()
-    @IsString()
-    vendorName?: string;
+  @IsOptional()
+  @IsString()
+  vendorName?: string;
 
-    @IsOptional()
-    @IsString()
-    vendorContact?: string;
+  @IsOptional()
+  @IsString()
+  vendorContact?: string;
 
-    @IsOptional()
-    @IsUUID()
-    departmentId?: string;
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
 }
 
 export class SetMaintenanceScheduleDto {
-    @IsEnum(MaintenanceFrequencyUnit)
-    frequencyUnit: MaintenanceFrequencyUnit;
+  @IsEnum(MaintenanceFrequencyUnit)
+  frequencyUnit: MaintenanceFrequencyUnit;
 
-    @IsInt()
-    @Min(1)
-    frequencyValue: number;
+  @IsInt()
+  @Min(1)
+  frequencyValue: number;
 
-    @IsDateString()
-    nextDueAt: string;
+  @IsDateString()
+  nextDueAt: string;
 }
 
 export class LogMaintenanceRecordDto {
-    @IsEnum(MaintenanceRecordType)
-    type: MaintenanceRecordType;
+  @IsEnum(MaintenanceRecordType)
+  type: MaintenanceRecordType;
 
-    @IsDateString()
-    performedAt: string;
+  @IsDateString()
+  performedAt: string;
 
-    @IsString()
-    @IsNotEmpty()
-    performedBy: string;
+  @IsString()
+  @IsNotEmpty()
+  performedBy: string;
 
-    @IsOptional()
-    @Type(() => Number)
-    @IsPositive()
-    cost?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsPositive()
+  cost?: number;
 
-    @IsString()
-    @IsNotEmpty()
-    notes: string;
+  @IsString()
+  @IsNotEmpty()
+  notes: string;
 
-    @IsOptional()
-    @IsUrl({}, {each: true})
-    attachments?: string[];
+  @IsOptional()
+  @IsUrl({}, { each: true })
+  attachments?: string[];
 
-    @IsEnum(AssetCondition)
-    conditionAfter: AssetCondition;
+  @IsEnum(AssetCondition)
+  conditionAfter: AssetCondition;
 
-    @IsEnum(MaintenanceCompletionStatus)
-    completionStatus: MaintenanceCompletionStatus;
+  @IsEnum(MaintenanceCompletionStatus)
+  completionStatus: MaintenanceCompletionStatus;
 }
 
 export class UpdateInventoryDto {
-    @IsInt()
-    @Min(0)
-    inStorage: number;
+  @IsInt()
+  @Min(0)
+  inStorage: number;
 
-    @IsInt()
-    @Min(0)
-    inUse: number;
+  @IsInt()
+  @Min(0)
+  inUse: number;
 
-    @IsInt()
-    @Min(0)
-    underRepair: number;
+  @IsInt()
+  @Min(0)
+  underRepair: number;
 
-    @IsInt()
-    @Min(0)
-    writtenOff: number;
+  @IsInt()
+  @Min(0)
+  writtenOff: number;
 }
 
 export class CreateCheckoutDto {
-    @IsOptional()
-    @IsUUID()
-    checkedOutToMemberId?: string;
+  @IsOptional()
+  @IsUUID()
+  checkedOutToMemberId?: string;
 
-    @IsOptional()
-    @IsUUID()
-    checkedOutToDepartmentId?: string;
+  @IsOptional()
+  @IsUUID()
+  checkedOutToDepartmentId?: string;
 
-    @IsOptional()
-    @IsDateString()
-    expectedReturnAt?: string;
+  @IsOptional()
+  @IsDateString()
+  expectedReturnAt?: string;
 
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    purpose?: string;
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  purpose?: string;
 
-    @IsOptional()
-    @IsString()
-    notes?: string;
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class ReturnAssetDto {
-    @IsOptional()
-    @IsString()
-    notes?: string;
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class AssetQueryDto {
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    page?: number = 1;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
 
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    limit?: number = 20;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
 
-    @IsOptional()
-    @IsEnum(AssetStatus)
-    status?: AssetStatus;
+  @IsOptional()
+  @IsEnum(AssetStatus)
+  status?: AssetStatus;
 
-    @IsOptional()
-    @IsString()
-    category?: string;
+  @IsOptional()
+  @IsString()
+  category?: string;
 
-    @IsOptional()
-    @IsBoolean()
-    @Type(() => Boolean)
-    maintenanceEnabled?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  maintenanceEnabled?: boolean;
 
-    @IsOptional()
-    @IsUUID()
-    departmentId?: string;
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
 }

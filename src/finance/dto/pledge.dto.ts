@@ -1,101 +1,112 @@
-import {IsDateString, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Min} from 'class-validator';
-import {Type} from 'class-transformer';
-import {PledgeFrequency, PledgeStatus} from '../enum/finance.enum';
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { PledgeFrequency, PledgeStatus } from '../enum/finance.enum';
 
 export class CreatePledgeCampaignDto {
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-    @IsUUID()
-    fundId: string;
+  @IsUUID()
+  fundId: string;
 
-    @Type(() => Number)
-    @IsNumber()
-    @IsPositive()
-    targetAmount: number;
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  targetAmount: number;
 
-    @IsDateString()
-    startDate: string;
+  @IsDateString()
+  startDate: string;
 
-    @IsDateString()
-    endDate: string;
+  @IsDateString()
+  endDate: string;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  description?: string;
 }
 
 export class CreatePledgeDto {
-    @IsUUID()
-    memberId: string;
+  @IsUUID()
+  memberId: string;
 
-    @IsUUID()
-    campaignId: string;
+  @IsUUID()
+  campaignId: string;
 
-    @Type(() => Number)
-    @IsNumber()
-    @IsPositive()
-    totalAmount: number;
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  totalAmount: number;
 
-    @IsEnum(PledgeFrequency)
-    frequency: PledgeFrequency;
+  @IsEnum(PledgeFrequency)
+  frequency: PledgeFrequency;
 
-    @IsDateString()
-    startDate: string;
+  @IsDateString()
+  startDate: string;
 
-    @IsOptional()
-    @IsString()
-    notes?: string;
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class UpdatePledgeStatusDto {
-    @IsEnum(PledgeStatus)
-    status: PledgeStatus;
+  @IsEnum(PledgeStatus)
+  status: PledgeStatus;
 }
 
 export class MakePledgeDto {
-    @IsUUID()
-    campaignId: string;
+  @IsUUID()
+  campaignId: string;
 
-    @Type(() => Number)
-    @IsNumber()
-    @IsPositive()
-    totalAmount: number;
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  totalAmount: number;
 
-    @IsEnum(PledgeFrequency)
-    frequency: PledgeFrequency;
+  @IsEnum(PledgeFrequency)
+  frequency: PledgeFrequency;
 
-    @IsDateString()
-    startDate: string;
+  @IsDateString()
+  startDate: string;
 
-    @IsOptional()
-    @IsString()
-    notes?: string;
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class PledgeQueryDto {
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    page?: number = 1;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
 
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    limit?: number = 20;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
 
-    @IsOptional()
-    @IsUUID()
-    campaignId?: string;
+  @IsOptional()
+  @IsUUID()
+  campaignId?: string;
 
-    @IsOptional()
-    @IsUUID()
-    memberId?: string;
+  @IsOptional()
+  @IsUUID()
+  memberId?: string;
 
-    @IsOptional()
-    @IsEnum(PledgeStatus)
-    status?: PledgeStatus;
+  @IsOptional()
+  @IsEnum(PledgeStatus)
+  status?: PledgeStatus;
 }

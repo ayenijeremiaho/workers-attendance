@@ -1,9 +1,8 @@
-import {Module} from '@nestjs/common';
-import {EnumsController} from './enums.controller';
-import {AdminEnumsController} from './admin-enums.controller';
+import { Module } from '@nestjs/common';
+import { EnumsController } from './enums.controller';
+import { AdminEnumsController } from './admin-enums.controller';
 
 @Module({
-    controllers: [EnumsController, AdminEnumsController],
+  controllers: [EnumsController, AdminEnumsController],
 })
-export class EnumsModule {
-}
+export class EnumsModule {}

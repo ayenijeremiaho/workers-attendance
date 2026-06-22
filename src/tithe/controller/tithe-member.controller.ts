@@ -1,71 +1,87 @@
-import {Body, Controller, Get, HttpCode, HttpStatus, ParseIntPipe, Post, Query, Request, UploadedFile, UseGuards, UseInterceptors} from '@nestjs/common';
-import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
-import {TitheService} from '../service/tithe.service';
-import {SubmitTitheProofDto} from '../dto/tithe.dto';
-import {LimitedFileInterceptor} from '../../utility/interceptors/limited-file.interceptor';
-import {VirtualAccountService} from '../../finance/service/virtual-account.service';
-import {RequestVirtualAccountDto} from '../../finance/dto/virtual-account.dto';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  ParseIntPipe,
+  Post,
+  Query,
+  Request,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guard/jwt-auth.guard';
+import { TitheService } from '../service/tithe.service';
+import { SubmitTitheProofDto } from '../dto/tithe.dto';
+import { LimitedFileInterceptor } from '../../utility/interceptors/limited-file.interceptor';
+import { VirtualAccountService } from '../../finance/service/virtual-account.service';
+import { RequestVirtualAccountDto } from '../../finance/dto/virtual-account.dto';
 
 const TITHE_PROOF_MAX_BYTES = 2 * 1024 * 1024;
 
 @UseGuards(JwtAuthGuard)
 @Controller('tithes')
 export class TitheMemberController {
-    constructor(
-        private readonly titheService: TitheService,
-        private readonly virtualAccountService: VirtualAccountService,
-    ) {}
+  constructor(
+    private readonly titheService: TitheService,
+    private readonly virtualAccountService: VirtualAccountService,
+  ) {}
 
-    @Get('accounts')
-    getAccounts() {
-        return this.titheService.getAccounts(true);
-    }
+  @Get('accounts')
+  getAccounts() {
+    return this.titheService.getAccounts(true);
+  }
 
-    @Get('me')
-    getMyTithes(
-        @Request() req: any,
-        @Query('page', new ParseIntPipe({optional: true})) page = 1,
-        @Query('limit', new ParseIntPipe({optional: true})) limit = 20,
-    ) {
-        return this.titheService.getMyTithes(req.user, page, limit);
-    }
+  @Get('me')
+  getMyTithes(
+    @Request() req: any,
+    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
+  ) {
+    return this.titheService.getMyTithes(req.user, page, limit);
+  }
 
-    @Post('me/download')
-    @HttpCode(HttpStatus.NO_CONTENT)
-    emailStatement(
-        @Request() req: any,
-        @Query('fromMonth') fromMonth?: string,
-        @Query('toMonth') toMonth?: string,
-    ): Promise<void> {
-        return this.titheService.emailTitheStatement(req.user, fromMonth, toMonth);
-    }
+  @Post('me/download')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  emailStatement(
+    @Request() req: any,
+    @Query('fromMonth') fromMonth?: string,
+    @Query('toMonth') toMonth?: string,
+  ): Promise<void> {
+    return this.titheService.emailTitheStatement(req.user, fromMonth, toMonth);
+  }
 
-    @Post('proof')
-    @UseInterceptors(LimitedFileInterceptor('file', TITHE_PROOF_MAX_BYTES))
-    submitProof(
-        @Request() req: any,
-        @Body() dto: SubmitTitheProofDto,
-        @UploadedFile() file: Express.Multer.File,
-    ) {
-        return this.titheService.submitProof(req.user, dto, file);
-    }
+  @Post('proof')
+  @UseInterceptors(LimitedFileInterceptor('file', TITHE_PROOF_MAX_BYTES))
+  submitProof(
+    @Request() req: any,
+    @Body() dto: SubmitTitheProofDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.titheService.submitProof(req.user, dto, file);
+  }
 
-    @Get('proof')
-    getMyProofs(
-        @Request() req: any,
-        @Query('page', new ParseIntPipe({optional: true})) page = 1,
-        @Query('limit', new ParseIntPipe({optional: true})) limit = 20,
-    ) {
-        return this.titheService.getMyProofs(req.user, page, limit);
-    }
+  @Get('proof')
+  getMyProofs(
+    @Request() req: any,
+    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
+  ) {
+    return this.titheService.getMyProofs(req.user, page, limit);
+  }
 
-    @Post('me/virtual-account')
-    requestVirtualAccount(@Request() req: any, @Body() dto: RequestVirtualAccountDto) {
-        return this.virtualAccountService.requestAccount(req.user.id, dto);
-    }
+  @Post('me/virtual-account')
+  requestVirtualAccount(
+    @Request() req: any,
+    @Body() dto: RequestVirtualAccountDto,
+  ) {
+    return this.virtualAccountService.requestAccount(req.user.id, dto);
+  }
 
-    @Get('me/virtual-accounts')
-    getMyVirtualAccounts(@Request() req: any) {
-        return this.virtualAccountService.getMyAccounts(req.user.id);
-    }
+  @Get('me/virtual-accounts')
+  getMyVirtualAccounts(@Request() req: any) {
+    return this.virtualAccountService.getMyAccounts(req.user.id);
+  }
 }

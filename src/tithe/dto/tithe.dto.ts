@@ -1,87 +1,98 @@
-import {IsBoolean, IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, IsUUID, MaxLength} from 'class-validator';
-import {Type} from 'class-transformer';
-import {CurrencyCode} from '../enum/tithe.enum';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { CurrencyCode } from '../enum/tithe.enum';
 
 export class CreateTitheAccountDto {
-    @IsString()
-    @IsNotEmpty()
-    bankName: string;
+  @IsString()
+  @IsNotEmpty()
+  bankName: string;
 
-    @IsString()
-    @IsNotEmpty()
-    accountNumber: string;
+  @IsString()
+  @IsNotEmpty()
+  accountNumber: string;
 
-    @IsString()
-    @IsNotEmpty()
-    accountName: string;
+  @IsString()
+  @IsNotEmpty()
+  accountName: string;
 
-    @IsEnum(CurrencyCode)
-    currency: CurrencyCode;
+  @IsEnum(CurrencyCode)
+  currency: CurrencyCode;
 
-    @IsString()
-    @IsOptional()
-    description?: string;
+  @IsString()
+  @IsOptional()
+  description?: string;
 }
 
 export class UpdateTitheAccountDto {
-    @IsString()
-    @IsOptional()
-    bankName?: string;
+  @IsString()
+  @IsOptional()
+  bankName?: string;
 
-    @IsString()
-    @IsOptional()
-    accountNumber?: string;
+  @IsString()
+  @IsOptional()
+  accountNumber?: string;
 
-    @IsString()
-    @IsOptional()
-    accountName?: string;
+  @IsString()
+  @IsOptional()
+  accountName?: string;
 
-    @IsEnum(CurrencyCode)
-    @IsOptional()
-    currency?: CurrencyCode;
+  @IsEnum(CurrencyCode)
+  @IsOptional()
+  currency?: CurrencyCode;
 
-    @IsString()
-    @IsOptional()
-    description?: string;
+  @IsString()
+  @IsOptional()
+  description?: string;
 
-    @IsBoolean()
-    @IsOptional()
-    isActive?: boolean;
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class MatchUnmatchedDto {
-    @IsUUID()
-    @IsNotEmpty()
-    memberId: string;
+  @IsUUID()
+  @IsNotEmpty()
+  memberId: string;
 }
 
 export class DownloadTitheDto {
-    @IsNotEmpty()
-    @IsUUID()
-    memberId: string;
+  @IsNotEmpty()
+  @IsUUID()
+  memberId: string;
 }
 
 export class SubmitTitheProofDto {
-    @IsUUID()
-    @IsNotEmpty()
-    titheAccountId: string;
+  @IsUUID()
+  @IsNotEmpty()
+  titheAccountId: string;
 
-    @Type(() => Number)
-    @IsNumber()
-    @IsPositive()
-    amount: number;
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  amount: number;
 
-    @IsDateString()
-    paymentDate: string;
+  @IsDateString()
+  paymentDate: string;
 
-    @IsString()
-    @IsOptional()
-    reference?: string;
+  @IsString()
+  @IsOptional()
+  reference?: string;
 }
 
 export class DeclineTitheProofDto {
-    @IsString()
-    @IsNotEmpty()
-    @MaxLength(500)
-    financeNote: string;
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  financeNote: string;
 }

@@ -1,210 +1,285 @@
 export enum AdminPermission {
-    MEMBERS_READ = 'members:read',
-    MEMBERS_WRITE = 'members:write',
-    EVENTS_READ = 'events:read',
-    EVENTS_WRITE = 'events:write',
-    VENUES_READ = 'venues:read',
-    VENUES_WRITE = 'venues:write',
-    DEPARTMENTS_READ = 'departments:read',
-    DEPARTMENTS_WRITE = 'departments:write',
-    ATTENDANCE_READ = 'attendance:read',
-    ATTENDANCE_WRITE = 'attendance:write',
-    LEAVE_READ = 'leave:read',
-    LEAVE_WRITE = 'leave:write',
-    CLASSES_READ = 'classes:read',
-    CLASSES_WRITE = 'classes:write',
-    ANNOUNCEMENTS_READ = 'announcements:read',
-    ANNOUNCEMENTS_WRITE = 'announcements:write',
-    NOTES_READ = 'notes:read',
-    NOTES_WRITE = 'notes:write',
-    DASHBOARD_READ = 'dashboard:read',
-    SUNDAY_SCHOOL_READ = 'sunday_school:read',
-    SUNDAY_SCHOOL_WRITE = 'sunday_school:write',
-    CHILDREN_CHURCH_READ = 'children_church:read',
-    CHILDREN_CHURCH_WRITE = 'children_church:write',
-    ADMIN_READ = 'admin:read',
-    ADMIN_WRITE = 'admin:write',
-    AUDIT_READ = 'audit:read',
-    FINANCE_READ = 'finance:read',
-    FINANCE_WRITE = 'finance:write',
-    FOLLOW_UP_READ = 'follow_up:read',
-    FOLLOW_UP_WRITE = 'follow_up:write',
-    SERVICE_PROGRAMME_READ = 'service_programme:read',
-    SERVICE_PROGRAMME_WRITE = 'service_programme:write',
-    HEADCOUNT_READ = 'headcount:read',
-    HEADCOUNT_WRITE = 'headcount:write',
-    INCIDENT_REPORT_READ = 'incident_report:read',
-    INCIDENT_REPORT_WRITE = 'incident_report:write',
-    ASSET_MANAGEMENT_READ = 'asset_management:read',
-    ASSET_MANAGEMENT_WRITE = 'asset_management:write',
-    ASSET_MAINTENANCE_ALERT = 'asset_management:alert',
-    FINANCE_APPROVE = 'finance:approve',
-    FINANCE_RECONCILE = 'finance:reconcile',
-    FINANCE_REPORT = 'finance:report',
-    TITHE_READ = 'tithe:read',
-    TITHE_WRITE = 'tithe:write',
+  MEMBERS_READ = 'members:read',
+  MEMBERS_WRITE = 'members:write',
+  EVENTS_READ = 'events:read',
+  EVENTS_WRITE = 'events:write',
+  VENUES_READ = 'venues:read',
+  VENUES_WRITE = 'venues:write',
+  DEPARTMENTS_READ = 'departments:read',
+  DEPARTMENTS_WRITE = 'departments:write',
+  ATTENDANCE_READ = 'attendance:read',
+  ATTENDANCE_WRITE = 'attendance:write',
+  LEAVE_READ = 'leave:read',
+  LEAVE_WRITE = 'leave:write',
+  CLASSES_READ = 'classes:read',
+  CLASSES_WRITE = 'classes:write',
+  ANNOUNCEMENTS_READ = 'announcements:read',
+  ANNOUNCEMENTS_WRITE = 'announcements:write',
+  NOTES_READ = 'notes:read',
+  NOTES_WRITE = 'notes:write',
+  DASHBOARD_READ = 'dashboard:read',
+  SUNDAY_SCHOOL_READ = 'sunday_school:read',
+  SUNDAY_SCHOOL_WRITE = 'sunday_school:write',
+  CHILDREN_CHURCH_READ = 'children_church:read',
+  CHILDREN_CHURCH_WRITE = 'children_church:write',
+  ADMIN_READ = 'admin:read',
+  ADMIN_WRITE = 'admin:write',
+  AUDIT_READ = 'audit:read',
+  FINANCE_READ = 'finance:read',
+  FINANCE_WRITE = 'finance:write',
+  FOLLOW_UP_READ = 'follow_up:read',
+  FOLLOW_UP_WRITE = 'follow_up:write',
+  SERVICE_PROGRAMME_READ = 'service_programme:read',
+  SERVICE_PROGRAMME_WRITE = 'service_programme:write',
+  HEADCOUNT_READ = 'headcount:read',
+  HEADCOUNT_WRITE = 'headcount:write',
+  INCIDENT_REPORT_READ = 'incident_report:read',
+  INCIDENT_REPORT_WRITE = 'incident_report:write',
+  ASSET_MANAGEMENT_READ = 'asset_management:read',
+  ASSET_MANAGEMENT_WRITE = 'asset_management:write',
+  ASSET_MAINTENANCE_ALERT = 'asset_management:alert',
+  FINANCE_APPROVE = 'finance:approve',
+  FINANCE_RECONCILE = 'finance:reconcile',
+  FINANCE_REPORT = 'finance:report',
+  TITHE_READ = 'tithe:read',
+  TITHE_WRITE = 'tithe:write',
 }
 
 export const AdminPermissionLabels: Record<AdminPermission, string> = {
-    [AdminPermission.MEMBERS_READ]: 'View Members',
-    [AdminPermission.MEMBERS_WRITE]: 'Manage Members',
-    [AdminPermission.EVENTS_READ]: 'View Events',
-    [AdminPermission.EVENTS_WRITE]: 'Manage Events',
-    [AdminPermission.VENUES_READ]: 'View Venues',
-    [AdminPermission.VENUES_WRITE]: 'Manage Venues',
-    [AdminPermission.DEPARTMENTS_READ]: 'View Departments',
-    [AdminPermission.DEPARTMENTS_WRITE]: 'Manage Departments',
-    [AdminPermission.ATTENDANCE_READ]: 'View Attendance',
-    [AdminPermission.ATTENDANCE_WRITE]: 'Manage Attendance',
-    [AdminPermission.LEAVE_READ]: 'View Leave Requests',
-    [AdminPermission.LEAVE_WRITE]: 'Manage Leave Requests',
-    [AdminPermission.CLASSES_READ]: 'View Church Classes',
-    [AdminPermission.CLASSES_WRITE]: 'Manage Church Classes',
-    [AdminPermission.ANNOUNCEMENTS_READ]: 'View Announcements',
-    [AdminPermission.ANNOUNCEMENTS_WRITE]: 'Manage Announcements',
-    [AdminPermission.NOTES_READ]: 'View Notes',
-    [AdminPermission.NOTES_WRITE]: 'Manage Notes',
-    [AdminPermission.DASHBOARD_READ]: 'View Dashboard',
-    [AdminPermission.SUNDAY_SCHOOL_READ]: 'View Sunday School',
-    [AdminPermission.SUNDAY_SCHOOL_WRITE]: 'Manage Sunday School',
-    [AdminPermission.CHILDREN_CHURCH_READ]: "View Children's Church",
-    [AdminPermission.CHILDREN_CHURCH_WRITE]: "Manage Children's Church",
-    [AdminPermission.ADMIN_READ]: 'View Admin Users & Roles',
-    [AdminPermission.ADMIN_WRITE]: 'Manage Admin Users & Roles',
-    [AdminPermission.AUDIT_READ]: 'View Audit Logs',
-    [AdminPermission.FINANCE_READ]: 'View Finance Records',
-    [AdminPermission.FINANCE_WRITE]: 'Manage Finance Records',
-    [AdminPermission.FINANCE_APPROVE]: 'Approve Finance Transactions',
-    [AdminPermission.FINANCE_RECONCILE]: 'Reconcile Bank Statements',
-    [AdminPermission.FINANCE_REPORT]: 'View & Receive Finance Reports',
-    [AdminPermission.TITHE_READ]: 'View Tithe & Giving Records',
-    [AdminPermission.TITHE_WRITE]: 'Manage Tithe Records',
-    [AdminPermission.FOLLOW_UP_READ]: 'View Follow-Up',
-    [AdminPermission.FOLLOW_UP_WRITE]: 'Manage Follow-Up',
-    [AdminPermission.SERVICE_PROGRAMME_READ]: 'View Service Programme',
-    [AdminPermission.SERVICE_PROGRAMME_WRITE]: 'Manage Service Programme',
-    [AdminPermission.HEADCOUNT_READ]: 'View Service Headcount',
-    [AdminPermission.HEADCOUNT_WRITE]: 'Record Service Headcount',
-    [AdminPermission.INCIDENT_REPORT_READ]: 'View Incident Reports',
-    [AdminPermission.INCIDENT_REPORT_WRITE]: 'Manage Incident Reports',
-    [AdminPermission.ASSET_MANAGEMENT_READ]: 'View Assets',
-    [AdminPermission.ASSET_MANAGEMENT_WRITE]: 'Manage Assets',
-    [AdminPermission.ASSET_MAINTENANCE_ALERT]: 'Receive Maintenance Reminders',
+  [AdminPermission.MEMBERS_READ]: 'View Members',
+  [AdminPermission.MEMBERS_WRITE]: 'Manage Members',
+  [AdminPermission.EVENTS_READ]: 'View Events',
+  [AdminPermission.EVENTS_WRITE]: 'Manage Events',
+  [AdminPermission.VENUES_READ]: 'View Venues',
+  [AdminPermission.VENUES_WRITE]: 'Manage Venues',
+  [AdminPermission.DEPARTMENTS_READ]: 'View Departments',
+  [AdminPermission.DEPARTMENTS_WRITE]: 'Manage Departments',
+  [AdminPermission.ATTENDANCE_READ]: 'View Attendance',
+  [AdminPermission.ATTENDANCE_WRITE]: 'Manage Attendance',
+  [AdminPermission.LEAVE_READ]: 'View Leave Requests',
+  [AdminPermission.LEAVE_WRITE]: 'Manage Leave Requests',
+  [AdminPermission.CLASSES_READ]: 'View Church Classes',
+  [AdminPermission.CLASSES_WRITE]: 'Manage Church Classes',
+  [AdminPermission.ANNOUNCEMENTS_READ]: 'View Announcements',
+  [AdminPermission.ANNOUNCEMENTS_WRITE]: 'Manage Announcements',
+  [AdminPermission.NOTES_READ]: 'View Notes',
+  [AdminPermission.NOTES_WRITE]: 'Manage Notes',
+  [AdminPermission.DASHBOARD_READ]: 'View Dashboard',
+  [AdminPermission.SUNDAY_SCHOOL_READ]: 'View Sunday School',
+  [AdminPermission.SUNDAY_SCHOOL_WRITE]: 'Manage Sunday School',
+  [AdminPermission.CHILDREN_CHURCH_READ]: "View Children's Church",
+  [AdminPermission.CHILDREN_CHURCH_WRITE]: "Manage Children's Church",
+  [AdminPermission.ADMIN_READ]: 'View Admin Users & Roles',
+  [AdminPermission.ADMIN_WRITE]: 'Manage Admin Users & Roles',
+  [AdminPermission.AUDIT_READ]: 'View Audit Logs',
+  [AdminPermission.FINANCE_READ]: 'View Finance Records',
+  [AdminPermission.FINANCE_WRITE]: 'Manage Finance Records',
+  [AdminPermission.FINANCE_APPROVE]: 'Approve Finance Transactions',
+  [AdminPermission.FINANCE_RECONCILE]: 'Reconcile Bank Statements',
+  [AdminPermission.FINANCE_REPORT]: 'View & Receive Finance Reports',
+  [AdminPermission.TITHE_READ]: 'View Tithe & Giving Records',
+  [AdminPermission.TITHE_WRITE]: 'Manage Tithe Records',
+  [AdminPermission.FOLLOW_UP_READ]: 'View Follow-Up',
+  [AdminPermission.FOLLOW_UP_WRITE]: 'Manage Follow-Up',
+  [AdminPermission.SERVICE_PROGRAMME_READ]: 'View Service Programme',
+  [AdminPermission.SERVICE_PROGRAMME_WRITE]: 'Manage Service Programme',
+  [AdminPermission.HEADCOUNT_READ]: 'View Service Headcount',
+  [AdminPermission.HEADCOUNT_WRITE]: 'Record Service Headcount',
+  [AdminPermission.INCIDENT_REPORT_READ]: 'View Incident Reports',
+  [AdminPermission.INCIDENT_REPORT_WRITE]: 'Manage Incident Reports',
+  [AdminPermission.ASSET_MANAGEMENT_READ]: 'View Assets',
+  [AdminPermission.ASSET_MANAGEMENT_WRITE]: 'Manage Assets',
+  [AdminPermission.ASSET_MAINTENANCE_ALERT]: 'Receive Maintenance Reminders',
 };
 
 export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
-    [AdminPermission.MEMBERS_READ]: 'View member profiles, contact details, and membership status',
-    [AdminPermission.MEMBERS_WRITE]: 'Create, update, and deactivate member accounts',
-    [AdminPermission.EVENTS_READ]: 'View events, service slots, and event configuration',
-    [AdminPermission.EVENTS_WRITE]: 'Create and manage events, service slots, and schedules',
-    [AdminPermission.VENUES_READ]: 'View venue details and capacity information',
-    [AdminPermission.VENUES_WRITE]: 'Add and update venue records',
-    [AdminPermission.DEPARTMENTS_READ]: 'View departments, their leads, and assigned workers',
-    [AdminPermission.DEPARTMENTS_WRITE]: 'Create and manage departments and department leads',
-    [AdminPermission.ATTENDANCE_READ]: 'View attendance records and check-in history across all services',
-    [AdminPermission.ATTENDANCE_WRITE]: 'Mark attendance manually and manage check-in overrides',
-    [AdminPermission.LEAVE_READ]: 'View worker leave requests and their current statuses',
-    [AdminPermission.LEAVE_WRITE]: 'Approve or reject worker leave requests',
-    [AdminPermission.CLASSES_READ]: 'View church classes, topics, and enrollment records',
-    [AdminPermission.CLASSES_WRITE]: 'Create and manage church classes and member enrollments',
-    [AdminPermission.ANNOUNCEMENTS_READ]: 'View all announcements sent to members or workers',
-    [AdminPermission.ANNOUNCEMENTS_WRITE]: 'Create and publish announcements to members or workers',
-    [AdminPermission.NOTES_READ]: 'View pastoral notes and member interaction records',
-    [AdminPermission.NOTES_WRITE]: 'Create and assign pastoral notes to members',
-    [AdminPermission.DASHBOARD_READ]: 'Access the admin overview dashboard and summary statistics',
-    [AdminPermission.SUNDAY_SCHOOL_READ]: 'View Sunday School classes, sessions, and attendance records',
-    [AdminPermission.SUNDAY_SCHOOL_WRITE]: 'Manage Sunday School sessions and mark member attendance',
-    [AdminPermission.CHILDREN_CHURCH_READ]: "View children's church records, check-in history, and guardian info",
-    [AdminPermission.CHILDREN_CHURCH_WRITE]: "Manage children's church check-ins and guardian records",
-    [AdminPermission.ADMIN_READ]: 'View admin accounts, roles, and their assigned permission sets',
-    [AdminPermission.ADMIN_WRITE]: 'Create admin accounts, define roles, and assign permissions to roles',
-    [AdminPermission.AUDIT_READ]: 'View audit logs and system-wide activity history',
-    [AdminPermission.FINANCE_READ]: 'View ledger entries, accounts, budgets, offerings, and reconciliation records — excludes individual member tithe and giving data',
-    [AdminPermission.FINANCE_WRITE]: 'Post journal entries, record offerings, manage chart of accounts, and process petty cash',
-    [AdminPermission.FINANCE_APPROVE]: 'Approve journal entries above the configured threshold and approve finance requests',
-    [AdminPermission.FINANCE_RECONCILE]: 'Upload and confirm bank statement CSV files, categorise imported transactions',
-    [AdminPermission.FINANCE_REPORT]: 'Generate and receive scheduled financial reports including income & expenditure, cash flow, and trial balance',
-    [AdminPermission.TITHE_READ]: 'View individual member tithe records, giving history, and annual giving statements',
-    [AdminPermission.TITHE_WRITE]: 'Confirm tithe records, manage tithe accounts, deactivate member virtual accounts, and manage virtual account providers',
-    [AdminPermission.FOLLOW_UP_READ]: 'View follow-up tasks and their progress',
-    [AdminPermission.FOLLOW_UP_WRITE]: 'Create and assign follow-up tasks to workers',
-    [AdminPermission.SERVICE_PROGRAMME_READ]: 'View service programmes, session history, reports, and analytics',
-    [AdminPermission.SERVICE_PROGRAMME_WRITE]: 'Create and manage service programmes, slots, and reusable templates',
-    [AdminPermission.HEADCOUNT_READ]: 'View service attendance headcounts and trends across all services',
-    [AdminPermission.HEADCOUNT_WRITE]: 'Record and correct physical attendance headcounts after each service',
-    [AdminPermission.INCIDENT_REPORT_READ]: 'View all incident reports, reporter identity, and admin notes',
-    [AdminPermission.INCIDENT_REPORT_WRITE]: 'Update incident status, add admin notes, and receive new-incident notifications',
-    [AdminPermission.ASSET_MANAGEMENT_READ]: 'View asset registry, maintenance schedules, and maintenance history',
-    [AdminPermission.ASSET_MANAGEMENT_WRITE]: 'Create and manage assets, log scheduled and unplanned maintenance records',
-    [AdminPermission.ASSET_MAINTENANCE_ALERT]: 'Receive email reminders for upcoming and overdue asset maintenance',
+  [AdminPermission.MEMBERS_READ]:
+    'View member profiles, contact details, and membership status',
+  [AdminPermission.MEMBERS_WRITE]:
+    'Create, update, and deactivate member accounts',
+  [AdminPermission.EVENTS_READ]:
+    'View events, service slots, and event configuration',
+  [AdminPermission.EVENTS_WRITE]:
+    'Create and manage events, service slots, and schedules',
+  [AdminPermission.VENUES_READ]: 'View venue details and capacity information',
+  [AdminPermission.VENUES_WRITE]: 'Add and update venue records',
+  [AdminPermission.DEPARTMENTS_READ]:
+    'View departments, their leads, and assigned workers',
+  [AdminPermission.DEPARTMENTS_WRITE]:
+    'Create and manage departments and department leads',
+  [AdminPermission.ATTENDANCE_READ]:
+    'View attendance records and check-in history across all services',
+  [AdminPermission.ATTENDANCE_WRITE]:
+    'Mark attendance manually and manage check-in overrides',
+  [AdminPermission.LEAVE_READ]:
+    'View worker leave requests and their current statuses',
+  [AdminPermission.LEAVE_WRITE]: 'Approve or reject worker leave requests',
+  [AdminPermission.CLASSES_READ]:
+    'View church classes, topics, and enrollment records',
+  [AdminPermission.CLASSES_WRITE]:
+    'Create and manage church classes and member enrollments',
+  [AdminPermission.ANNOUNCEMENTS_READ]:
+    'View all announcements sent to members or workers',
+  [AdminPermission.ANNOUNCEMENTS_WRITE]:
+    'Create and publish announcements to members or workers',
+  [AdminPermission.NOTES_READ]:
+    'View pastoral notes and member interaction records',
+  [AdminPermission.NOTES_WRITE]: 'Create and assign pastoral notes to members',
+  [AdminPermission.DASHBOARD_READ]:
+    'Access the admin overview dashboard and summary statistics',
+  [AdminPermission.SUNDAY_SCHOOL_READ]:
+    'View Sunday School classes, sessions, and attendance records',
+  [AdminPermission.SUNDAY_SCHOOL_WRITE]:
+    'Manage Sunday School sessions and mark member attendance',
+  [AdminPermission.CHILDREN_CHURCH_READ]:
+    "View children's church records, check-in history, and guardian info",
+  [AdminPermission.CHILDREN_CHURCH_WRITE]:
+    "Manage children's church check-ins and guardian records",
+  [AdminPermission.ADMIN_READ]:
+    'View admin accounts, roles, and their assigned permission sets',
+  [AdminPermission.ADMIN_WRITE]:
+    'Create admin accounts, define roles, and assign permissions to roles',
+  [AdminPermission.AUDIT_READ]:
+    'View audit logs and system-wide activity history',
+  [AdminPermission.FINANCE_READ]:
+    'View ledger entries, accounts, budgets, offerings, and reconciliation records — excludes individual member tithe and giving data',
+  [AdminPermission.FINANCE_WRITE]:
+    'Post journal entries, record offerings, manage chart of accounts, and process petty cash',
+  [AdminPermission.FINANCE_APPROVE]:
+    'Approve journal entries above the configured threshold and approve finance requests',
+  [AdminPermission.FINANCE_RECONCILE]:
+    'Upload and confirm bank statement CSV files, categorise imported transactions',
+  [AdminPermission.FINANCE_REPORT]:
+    'Generate and receive scheduled financial reports including income & expenditure, cash flow, and trial balance',
+  [AdminPermission.TITHE_READ]:
+    'View individual member tithe records, giving history, and annual giving statements',
+  [AdminPermission.TITHE_WRITE]:
+    'Confirm tithe records, manage tithe accounts, deactivate member virtual accounts, and manage virtual account providers',
+  [AdminPermission.FOLLOW_UP_READ]: 'View follow-up tasks and their progress',
+  [AdminPermission.FOLLOW_UP_WRITE]:
+    'Create and assign follow-up tasks to workers',
+  [AdminPermission.SERVICE_PROGRAMME_READ]:
+    'View service programmes, session history, reports, and analytics',
+  [AdminPermission.SERVICE_PROGRAMME_WRITE]:
+    'Create and manage service programmes, slots, and reusable templates',
+  [AdminPermission.HEADCOUNT_READ]:
+    'View service attendance headcounts and trends across all services',
+  [AdminPermission.HEADCOUNT_WRITE]:
+    'Record and correct physical attendance headcounts after each service',
+  [AdminPermission.INCIDENT_REPORT_READ]:
+    'View all incident reports, reporter identity, and admin notes',
+  [AdminPermission.INCIDENT_REPORT_WRITE]:
+    'Update incident status, add admin notes, and receive new-incident notifications',
+  [AdminPermission.ASSET_MANAGEMENT_READ]:
+    'View asset registry, maintenance schedules, and maintenance history',
+  [AdminPermission.ASSET_MANAGEMENT_WRITE]:
+    'Create and manage assets, log scheduled and unplanned maintenance records',
+  [AdminPermission.ASSET_MAINTENANCE_ALERT]:
+    'Receive email reminders for upcoming and overdue asset maintenance',
 };
 
 export interface AdminPermissionGroupItem {
-    value: AdminPermission;
-    label: string;
-    description: string;
+  value: AdminPermission;
+  label: string;
+  description: string;
 }
 
 export interface AdminPermissionGroup {
-    group: string;
-    permissions: AdminPermissionGroupItem[];
+  group: string;
+  permissions: AdminPermissionGroupItem[];
 }
 
-function buildGroup(group: string, keys: AdminPermission[]): AdminPermissionGroup {
-    return {
-        group,
-        permissions: keys.map((value) => ({
-            value,
-            label: AdminPermissionLabels[value],
-            description: AdminPermissionDescriptions[value],
-        })),
-    };
+function buildGroup(
+  group: string,
+  keys: AdminPermission[],
+): AdminPermissionGroup {
+  return {
+    group,
+    permissions: keys.map((value) => ({
+      value,
+      label: AdminPermissionLabels[value],
+      description: AdminPermissionDescriptions[value],
+    })),
+  };
 }
 
 export const AdminPermissionGroups: AdminPermissionGroup[] = [
-    buildGroup('Members', [AdminPermission.MEMBERS_READ, AdminPermission.MEMBERS_WRITE]),
-    buildGroup('Events & Venues', [
-        AdminPermission.EVENTS_READ,
-        AdminPermission.EVENTS_WRITE,
-        AdminPermission.VENUES_READ,
-        AdminPermission.VENUES_WRITE,
-    ]),
-    buildGroup('Departments', [AdminPermission.DEPARTMENTS_READ, AdminPermission.DEPARTMENTS_WRITE]),
-    buildGroup('Attendance', [AdminPermission.ATTENDANCE_READ, AdminPermission.ATTENDANCE_WRITE]),
-    buildGroup('Service Programme', [AdminPermission.SERVICE_PROGRAMME_READ, AdminPermission.SERVICE_PROGRAMME_WRITE]),
-    buildGroup('Service Headcount', [AdminPermission.HEADCOUNT_READ, AdminPermission.HEADCOUNT_WRITE]),
-    buildGroup('Sunday School', [AdminPermission.SUNDAY_SCHOOL_READ, AdminPermission.SUNDAY_SCHOOL_WRITE]),
-    buildGroup("Children's Church", [AdminPermission.CHILDREN_CHURCH_READ, AdminPermission.CHILDREN_CHURCH_WRITE]),
-    buildGroup('Church Classes', [AdminPermission.CLASSES_READ, AdminPermission.CLASSES_WRITE]),
-    buildGroup('Leave Requests', [AdminPermission.LEAVE_READ, AdminPermission.LEAVE_WRITE]),
-    buildGroup('Finance', [
-        AdminPermission.FINANCE_READ,
-        AdminPermission.FINANCE_WRITE,
-        AdminPermission.FINANCE_APPROVE,
-        AdminPermission.FINANCE_RECONCILE,
-        AdminPermission.FINANCE_REPORT,
-    ]),
-    buildGroup('Tithe & Giving', [
-        AdminPermission.TITHE_READ,
-        AdminPermission.TITHE_WRITE,
-    ]),
-    buildGroup('Announcements', [AdminPermission.ANNOUNCEMENTS_READ, AdminPermission.ANNOUNCEMENTS_WRITE]),
-    buildGroup('Notes & Follow-Up', [
-        AdminPermission.NOTES_READ,
-        AdminPermission.NOTES_WRITE,
-        AdminPermission.FOLLOW_UP_READ,
-        AdminPermission.FOLLOW_UP_WRITE,
-    ]),
-    buildGroup('Incident Reports', [AdminPermission.INCIDENT_REPORT_READ, AdminPermission.INCIDENT_REPORT_WRITE]),
-    buildGroup('Asset Management', [
-        AdminPermission.ASSET_MANAGEMENT_READ,
-        AdminPermission.ASSET_MANAGEMENT_WRITE,
-        AdminPermission.ASSET_MAINTENANCE_ALERT,
-    ]),
-    buildGroup('Administration', [
-        AdminPermission.DASHBOARD_READ,
-        AdminPermission.ADMIN_READ,
-        AdminPermission.ADMIN_WRITE,
-        AdminPermission.AUDIT_READ,
-    ]),
+  buildGroup('Members', [
+    AdminPermission.MEMBERS_READ,
+    AdminPermission.MEMBERS_WRITE,
+  ]),
+  buildGroup('Events & Venues', [
+    AdminPermission.EVENTS_READ,
+    AdminPermission.EVENTS_WRITE,
+    AdminPermission.VENUES_READ,
+    AdminPermission.VENUES_WRITE,
+  ]),
+  buildGroup('Departments', [
+    AdminPermission.DEPARTMENTS_READ,
+    AdminPermission.DEPARTMENTS_WRITE,
+  ]),
+  buildGroup('Attendance', [
+    AdminPermission.ATTENDANCE_READ,
+    AdminPermission.ATTENDANCE_WRITE,
+  ]),
+  buildGroup('Service Programme', [
+    AdminPermission.SERVICE_PROGRAMME_READ,
+    AdminPermission.SERVICE_PROGRAMME_WRITE,
+  ]),
+  buildGroup('Service Headcount', [
+    AdminPermission.HEADCOUNT_READ,
+    AdminPermission.HEADCOUNT_WRITE,
+  ]),
+  buildGroup('Sunday School', [
+    AdminPermission.SUNDAY_SCHOOL_READ,
+    AdminPermission.SUNDAY_SCHOOL_WRITE,
+  ]),
+  buildGroup("Children's Church", [
+    AdminPermission.CHILDREN_CHURCH_READ,
+    AdminPermission.CHILDREN_CHURCH_WRITE,
+  ]),
+  buildGroup('Church Classes', [
+    AdminPermission.CLASSES_READ,
+    AdminPermission.CLASSES_WRITE,
+  ]),
+  buildGroup('Leave Requests', [
+    AdminPermission.LEAVE_READ,
+    AdminPermission.LEAVE_WRITE,
+  ]),
+  buildGroup('Finance', [
+    AdminPermission.FINANCE_READ,
+    AdminPermission.FINANCE_WRITE,
+    AdminPermission.FINANCE_APPROVE,
+    AdminPermission.FINANCE_RECONCILE,
+    AdminPermission.FINANCE_REPORT,
+  ]),
+  buildGroup('Tithe & Giving', [
+    AdminPermission.TITHE_READ,
+    AdminPermission.TITHE_WRITE,
+  ]),
+  buildGroup('Announcements', [
+    AdminPermission.ANNOUNCEMENTS_READ,
+    AdminPermission.ANNOUNCEMENTS_WRITE,
+  ]),
+  buildGroup('Notes & Follow-Up', [
+    AdminPermission.NOTES_READ,
+    AdminPermission.NOTES_WRITE,
+    AdminPermission.FOLLOW_UP_READ,
+    AdminPermission.FOLLOW_UP_WRITE,
+  ]),
+  buildGroup('Incident Reports', [
+    AdminPermission.INCIDENT_REPORT_READ,
+    AdminPermission.INCIDENT_REPORT_WRITE,
+  ]),
+  buildGroup('Asset Management', [
+    AdminPermission.ASSET_MANAGEMENT_READ,
+    AdminPermission.ASSET_MANAGEMENT_WRITE,
+    AdminPermission.ASSET_MAINTENANCE_ALERT,
+  ]),
+  buildGroup('Administration', [
+    AdminPermission.DASHBOARD_READ,
+    AdminPermission.ADMIN_READ,
+    AdminPermission.ADMIN_WRITE,
+    AdminPermission.AUDIT_READ,
+  ]),
 ];

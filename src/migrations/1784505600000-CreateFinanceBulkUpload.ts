@@ -1,8 +1,10 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateFinanceBulkUpload1784505600000 implements MigrationInterface {
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+export class CreateFinanceBulkUpload1784505600000
+  implements MigrationInterface
+{
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS finance_bulk_upload_jobs (
                 id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 upload_type       VARCHAR NOT NULL,
@@ -18,7 +20,7 @@ export class CreateFinanceBulkUpload1784505600000 implements MigrationInterface 
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS finance_reconciliation_rows (
                 id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 job_id                   UUID NOT NULL REFERENCES finance_bulk_upload_jobs(id) ON DELETE CASCADE,
@@ -37,20 +39,38 @@ export class CreateFinanceBulkUpload1784505600000 implements MigrationInterface 
             )
         `);
 
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_bulk_jobs_status ON finance_bulk_upload_jobs(status)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_bulk_jobs_type ON finance_bulk_upload_jobs(upload_type)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_bulk_jobs_created_by ON finance_bulk_upload_jobs(created_by_id)`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_bulk_jobs_status ON finance_bulk_upload_jobs(status)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_bulk_jobs_type ON finance_bulk_upload_jobs(upload_type)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_bulk_jobs_created_by ON finance_bulk_upload_jobs(created_by_id)`,
+    );
 
-        await queryRunner.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_recon_row_fingerprint ON finance_reconciliation_rows(job_id, row_fingerprint)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_recon_transaction_fingerprint ON finance_reconciliation_rows(transaction_fingerprint)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_recon_job_status ON finance_reconciliation_rows(job_id, status)`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_recon_suggested_account ON finance_reconciliation_rows(suggested_account_id) WHERE suggested_account_id IS NOT NULL`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_recon_confirmed_account ON finance_reconciliation_rows(confirmed_account_id) WHERE confirmed_account_id IS NOT NULL`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_recon_date ON finance_reconciliation_rows(transaction_date)`);
-    }
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_recon_row_fingerprint ON finance_reconciliation_rows(job_id, row_fingerprint)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_recon_transaction_fingerprint ON finance_reconciliation_rows(transaction_fingerprint)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_recon_job_status ON finance_reconciliation_rows(job_id, status)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_recon_suggested_account ON finance_reconciliation_rows(suggested_account_id) WHERE suggested_account_id IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_recon_confirmed_account ON finance_reconciliation_rows(confirmed_account_id) WHERE confirmed_account_id IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_recon_date ON finance_reconciliation_rows(transaction_date)`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS finance_reconciliation_rows`);
-        await queryRunner.query(`DROP TABLE IF EXISTS finance_bulk_upload_jobs`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS finance_reconciliation_rows`);
+    await queryRunner.query(`DROP TABLE IF EXISTS finance_bulk_upload_jobs`);
+  }
 }

@@ -1,8 +1,8 @@
-import {MigrationInterface, QueryRunner} from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class ServiceProgrammeModule1782432000000 implements MigrationInterface {
-    async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE service_programmes (
                 id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
                 service_slot_id UUID NOT NULL UNIQUE,
@@ -18,7 +18,7 @@ export class ServiceProgrammeModule1782432000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE service_programme_slots (
                 id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
                 programme_id UUID NOT NULL,
@@ -41,7 +41,7 @@ export class ServiceProgrammeModule1782432000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE service_sessions (
                 id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
                 programme_id UUID NOT NULL UNIQUE,
@@ -56,7 +56,7 @@ export class ServiceProgrammeModule1782432000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE service_session_slots (
                 id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
                 session_id UUID NOT NULL,
@@ -81,7 +81,7 @@ export class ServiceProgrammeModule1782432000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE service_pause_entries (
                 id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
                 session_id UUID NOT NULL,
@@ -96,7 +96,7 @@ export class ServiceProgrammeModule1782432000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE service_action_entries (
                 id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
                 session_id UUID NOT NULL,
@@ -113,7 +113,7 @@ export class ServiceProgrammeModule1782432000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE service_programme_templates (
                 id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
                 name CHARACTER VARYING NOT NULL,
@@ -127,22 +127,36 @@ export class ServiceProgrammeModule1782432000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`CREATE INDEX idx_service_programmes_slot ON service_programmes(service_slot_id)`);
-        await queryRunner.query(`CREATE INDEX idx_service_programme_slots_programme ON service_programme_slots(programme_id)`);
-        await queryRunner.query(`CREATE INDEX idx_service_sessions_programme ON service_sessions(programme_id)`);
-        await queryRunner.query(`CREATE INDEX idx_service_sessions_code ON service_sessions(session_code)`);
-        await queryRunner.query(`CREATE INDEX idx_service_session_slots_session ON service_session_slots(session_id)`);
-        await queryRunner.query(`CREATE INDEX idx_service_pause_entries_session ON service_pause_entries(session_id)`);
-        await queryRunner.query(`CREATE INDEX idx_service_action_entries_session ON service_action_entries(session_id)`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX idx_service_programmes_slot ON service_programmes(service_slot_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX idx_service_programme_slots_programme ON service_programme_slots(programme_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX idx_service_sessions_programme ON service_sessions(programme_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX idx_service_sessions_code ON service_sessions(session_code)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX idx_service_session_slots_session ON service_session_slots(session_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX idx_service_pause_entries_session ON service_pause_entries(session_id)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX idx_service_action_entries_session ON service_action_entries(session_id)`,
+    );
+  }
 
-    async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS service_programme_templates`);
-        await queryRunner.query(`DROP TABLE IF EXISTS service_action_entries`);
-        await queryRunner.query(`DROP TABLE IF EXISTS service_pause_entries`);
-        await queryRunner.query(`DROP TABLE IF EXISTS service_session_slots`);
-        await queryRunner.query(`DROP TABLE IF EXISTS service_sessions`);
-        await queryRunner.query(`DROP TABLE IF EXISTS service_programme_slots`);
-        await queryRunner.query(`DROP TABLE IF EXISTS service_programmes`);
-    }
+  async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS service_programme_templates`);
+    await queryRunner.query(`DROP TABLE IF EXISTS service_action_entries`);
+    await queryRunner.query(`DROP TABLE IF EXISTS service_pause_entries`);
+    await queryRunner.query(`DROP TABLE IF EXISTS service_session_slots`);
+    await queryRunner.query(`DROP TABLE IF EXISTS service_sessions`);
+    await queryRunner.query(`DROP TABLE IF EXISTS service_programme_slots`);
+    await queryRunner.query(`DROP TABLE IF EXISTS service_programmes`);
+  }
 }

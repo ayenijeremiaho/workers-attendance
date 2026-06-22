@@ -8474,6 +8474,59 @@
               "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Payment proof not found\"\n}"
             }
           ]
+        },
+        {
+          "name": "Deactivate Member Virtual Account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tithes/virtual-accounts/:id/deactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tithes",
+                "virtual-accounts",
+                ":id",
+                "deactivate"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "UUID of the MemberVirtualAccount to deactivate"
+                }
+              ]
+            },
+            "description": "AdminGuard (TITHE_WRITE). Marks the virtual account as inactive and records who deactivated it and when. The member can request a new account for the same provider afterwards."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"3f8a1b2c-...\",\n  \"isActive\": false,\n  \"deactivatedAt\": \"2026-06-22T09:00:00.000Z\"\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Virtual account not found.\"\n}"
+            },
+            {
+              "name": "400 Bad Request \u2014 already inactive",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Virtual account is already inactive.\"\n}"
+            }
+          ]
         }
       ]
     },
@@ -8730,6 +8783,136 @@
               "status": "Unauthorized",
               "code": 401,
               "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Unauthorized\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Request Virtual Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"PAYSTACK\",\n  \"bvn\": \"22222222222\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tithes/me/virtual-account",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tithes",
+                "me",
+                "virtual-account"
+              ]
+            },
+            "description": "JwtAuthGuard. Creates a dedicated virtual bank account with the chosen provider (PAYSTACK or FLUTTERWAVE). BVN/NIN are forwarded to the provider API and never stored. One active account per provider per member \u2014 returns 409 if one already exists."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"3f8a1b2c-...\",\n  \"provider\": \"PAYSTACK\",\n  \"bankName\": \"Wema Bank\",\n  \"accountNumber\": \"9912345678\",\n  \"accountName\": \"ADA LOVELACE\",\n  \"isActive\": true,\n  \"createdAt\": \"2026-06-22T08:00:00.000Z\"\n}"
+            },
+            {
+              "name": "409 Conflict \u2014 active account exists",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"An active PAYSTACK virtual account already exists for this member.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List My Virtual Accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tithes/me/virtual-accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tithes",
+                "me",
+                "virtual-accounts"
+              ]
+            },
+            "description": "JwtAuthGuard. Returns all virtual accounts (active and inactive) belonging to the authenticated member, ordered newest first."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  {\n    \"id\": \"3f8a1b2c-...\",\n    \"provider\": \"PAYSTACK\",\n    \"bankName\": \"Wema Bank\",\n    \"accountNumber\": \"9912345678\",\n    \"accountName\": \"ADA LOVELACE\",\n    \"isActive\": true,\n    \"createdAt\": \"2026-06-22T08:00:00.000Z\"\n  }\n]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "description": "Provider webhook receivers. These endpoints have no JWT guard \u2014 they are verified by HMAC signature.\n\n**Virtual account credit:** Paystack sends `x-paystack-signature` (HMAC-SHA512); Flutterwave sends `verif-hash`. Both use the `VIRTUAL_ACCOUNT_WEBHOOK_SECRET` env var. Duplicate credits (same `external_reference`) are silently ignored.",
+      "item": [
+        {
+          "name": "Virtual Account Credit (Provider Webhook)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-paystack-signature",
+                "value": "<hmac-sha512-hex>",
+                "description": "Paystack HMAC signature. Use verif-hash header instead for Flutterwave."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"dedicatedaccount.assign.success\",\n  \"data\": {\n    \"virtual_account\": { \"account_ref\": \"<providerRef>\" },\n    \"amount\": 5000,\n    \"transaction_ref\": \"txn_abc123\",\n    \"payment_channel\": \"BANK_TRANSFER\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/webhooks/virtual-account-credit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhooks",
+                "virtual-account-credit"
+              ]
+            },
+            "description": "No auth guard \u2014 HMAC-SHA512 verified. Looks up the virtual account by providerRef, creates a TitheRecord with source=VIRTUAL_ACCOUNT, and returns 200. Idempotent on external_reference."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": ""
+            },
+            {
+              "name": "403 Forbidden \u2014 bad signature",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"statusCode\": 403,\n  \"message\": \"Invalid webhook signature.\"\n}"
             }
           ]
         }
@@ -12423,6 +12606,2192 @@
               ]
             },
             "description": "Paginated maintenance record history for an asset, newest first."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finance Module (Admin)",
+      "item": [
+        {
+          "name": "Create fund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/funds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "funds"
+              ]
+            },
+            "description": "FINANCE_WRITE. type: RESTRICTED | UNRESTRICTED",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"General Fund\",\n  \"type\": \"UNRESTRICTED\",\n  \"description\": \"Main church operating fund\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List funds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/funds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "funds"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Get fund",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/funds/{{fundId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "funds",
+                "{{fundId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Update fund",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/funds/{{fundId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "funds",
+                "{{fundId}}"
+              ]
+            },
+            "description": "FINANCE_WRITE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"General Operating Fund\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create accounting period",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounting-periods",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounting-periods"
+              ]
+            },
+            "description": "FINANCE_WRITE. Creates a new OPEN period.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"year\": 2026,\n  \"month\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List accounting periods",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounting-periods",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounting-periods"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Get accounting period",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounting-periods/{{periodId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounting-periods",
+                "{{periodId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Close accounting period",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounting-periods/{{periodId}}/close",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounting-periods",
+                "{{periodId}}",
+                "close"
+              ]
+            },
+            "description": "FINANCE_RECONCILE. Blocks all future posts to this period."
+          },
+          "response": []
+        },
+        {
+          "name": "Reopen accounting period",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounting-periods/{{periodId}}/reopen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounting-periods",
+                "{{periodId}}",
+                "reopen"
+              ]
+            },
+            "description": "FINANCE_RECONCILE."
+          },
+          "response": []
+        },
+        {
+          "name": "Create account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounts"
+              ]
+            },
+            "description": "FINANCE_WRITE. type: ASSET|LIABILITY|INCOME|EXPENSE. subtype: BANK|CASH|PETTY_CASH|OFFERING|TITHE|SALARY|UTILITIES|REMITTANCE|EQUIPMENT|OTHER. normalBalance: DEBIT|CREDIT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Bank Account\",\n  \"type\": \"ASSET\",\n  \"subtype\": \"BANK\",\n  \"normalBalance\": \"DEBIT\",\n  \"fundId\": \"{{fundId}}\",\n  \"bankName\": \"GTBank\",\n  \"accountNumber\": \"0123456789\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounts"
+              ]
+            },
+            "description": "FINANCE_READ. Query: type, subtype, fundId, isActive."
+          },
+          "response": []
+        },
+        {
+          "name": "Get account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounts/{{accountId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounts",
+                "{{accountId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Update account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/accounts/{{accountId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "accounts",
+                "{{accountId}}"
+              ]
+            },
+            "description": "FINANCE_WRITE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Primary Bank Account\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create external payee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/external-payees",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "external-payees"
+              ]
+            },
+            "description": "FINANCE_WRITE. type: REMITTANCE|VENDOR|UTILITY|CONTRACTOR|GOVERNMENT|MISSION|BENEVOLENCE|OTHER.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Global Mission Network\",\n  \"type\": \"REMITTANCE\",\n  \"contactEmail\": \"finance@gmn.org\",\n  \"bankName\": \"Zenith Bank\",\n  \"accountNumber\": \"1234567890\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List external payees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/external-payees",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "external-payees"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Get external payee",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/external-payees/{{payeeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "external-payees",
+                "{{payeeId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Update external payee",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/external-payees/{{payeeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "external-payees",
+                "{{payeeId}}"
+              ]
+            },
+            "description": "FINANCE_WRITE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create journal entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/journal-entries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "journal-entries"
+              ]
+            },
+            "description": "FINANCE_WRITE. Creates a PENDING_APPROVAL entry. Debits must equal credits (within 0.01). source: MANUAL|CSV_IMPORT|VIRTUAL_ACCOUNT|PAYMENT_GATEWAY. entryType: STANDARD|OPENING_BALANCE|REVERSAL|RECURRING.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-06-01\",\n  \"description\": \"Sunday offering June 1\",\n  \"source\": \"MANUAL\",\n  \"entryType\": \"STANDARD\",\n  \"accountingPeriodId\": \"{{periodId}}\",\n  \"idempotencyKey\": \"{{$guid}}\",\n  \"lines\": [\n    {\n      \"accountId\": \"{{accountId}}\",\n      \"entryType\": \"DEBIT\",\n      \"amount\": 50000\n    },\n    {\n      \"accountId\": \"{{incomeAccountId}}\",\n      \"entryType\": \"CREDIT\",\n      \"amount\": 50000\n    }\n  ],\n  \"links\": [\n    {\n      \"linkType\": \"SERVICE\",\n      \"role\": \"FOR_SERVICE\",\n      \"serviceEventId\": \"{{serviceEventId}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List journal entries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/journal-entries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "journal-entries"
+              ]
+            },
+            "description": "FINANCE_READ. Query: accountingPeriodId, source, entryType, fromDate, toDate, page, limit."
+          },
+          "response": []
+        },
+        {
+          "name": "Get journal entry",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/journal-entries/{{journalEntryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "journal-entries",
+                "{{journalEntryId}}"
+              ]
+            },
+            "description": "FINANCE_READ. Returns entry with all lines and links."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve journal entry",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/journal-entries/{{journalEntryId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "journal-entries",
+                "{{journalEntryId}}",
+                "approve"
+              ]
+            },
+            "description": "FINANCE_APPROVE. Approver must differ from creator (segregation of duties). Posts the entry and updates account balances."
+          },
+          "response": []
+        },
+        {
+          "name": "Void journal entry",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/journal-entries/{{journalEntryId}}/void",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "journal-entries",
+                "{{journalEntryId}}",
+                "void"
+              ]
+            },
+            "description": "FINANCE_APPROVE. Creates a reversing entry and marks original as VOIDED. Never deletes."
+          },
+          "response": []
+        },
+        {
+          "name": "Record offering",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/offerings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "offerings"
+              ]
+            },
+            "description": "FINANCE_WRITE. type: GENERAL|TITHE_SUNDAY|PLEDGE|SEED.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fundId\": \"{{fundId}}\",\n  \"type\": \"GENERAL\",\n  \"cashAmount\": 45000,\n  \"expectedTransferAmount\": 12000,\n  \"serviceEventId\": \"{{serviceEventId}}\",\n  \"notes\": \"Sunday 1st June morning service\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List offerings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/offerings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "offerings"
+              ]
+            },
+            "description": "FINANCE_READ. Query: fundId, type, fromDate, toDate, page, limit."
+          },
+          "response": []
+        },
+        {
+          "name": "Get offering",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/offerings/{{offeringId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "offerings",
+                "{{offeringId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Reconcile offering",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/offerings/{{offeringId}}/reconcile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "offerings",
+                "{{offeringId}}",
+                "reconcile"
+              ]
+            },
+            "description": "Mark offering as reconciled. Optional: set autoJournal=true with debitAccountId, creditAccountId, accountingPeriodId to auto-create a posted journal entry.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Verified on 2026-06-22\",\n  \"autoJournal\": true,\n  \"debitAccountId\": \"{{accountId}}\",\n  \"creditAccountId\": \"{{accountId}}\",\n  \"accountingPeriodId\": \"{{periodId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create budget",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/budgets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "budgets"
+              ]
+            },
+            "description": "FINANCE_WRITE. period: MONTHLY|ANNUAL|CUSTOM.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Outreach 2026\",\n  \"fundId\": \"{{fundId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"period\": \"ANNUAL\",\n  \"amount\": 500000,\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2026-12-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List budgets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/budgets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "budgets"
+              ]
+            },
+            "description": "FINANCE_READ. Query: fundId, period, isActive, page, limit."
+          },
+          "response": []
+        },
+        {
+          "name": "Get budget",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/budgets/{{budgetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "budgets",
+                "{{budgetId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate budget",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/budgets/{{budgetId}}/deactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "budgets",
+                "{{budgetId}}",
+                "deactivate"
+              ]
+            },
+            "description": "FINANCE_WRITE."
+          },
+          "response": []
+        },
+        {
+          "name": "Create pledge campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/pledges/campaigns",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "pledges",
+                "campaigns"
+              ]
+            },
+            "description": "FINANCE_WRITE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Building Fund Drive 2026\",\n  \"fundId\": \"{{fundId}}\",\n  \"targetAmount\": 10000000,\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2026-12-31\",\n  \"description\": \"Capital campaign for new auditorium\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List pledge campaigns",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/pledges/campaigns",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "pledges",
+                "campaigns"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Get pledge campaign",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/pledges/campaigns/{{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "pledges",
+                "campaigns",
+                "{{campaignId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Create pledge",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/pledges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "pledges"
+              ]
+            },
+            "description": "FINANCE_WRITE. frequency: ONE_OFF|MONTHLY|QUARTERLY.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"campaignId\": \"{{campaignId}}\",\n  \"totalAmount\": 100000,\n  \"frequency\": \"MONTHLY\",\n  \"startDate\": \"2026-02-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List pledges",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/pledges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "pledges"
+              ]
+            },
+            "description": "FINANCE_READ. Query: campaignId, memberId, status, page, limit."
+          },
+          "response": []
+        },
+        {
+          "name": "Update pledge status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/pledges/{{pledgeId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "pledges",
+                "{{pledgeId}}",
+                "status"
+              ]
+            },
+            "description": "FINANCE_WRITE. status: ACTIVE|COMPLETED|CANCELLED.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create recurring entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/recurring-entries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "recurring-entries"
+              ]
+            },
+            "description": "FINANCE_WRITE. frequency: WEEKLY|MONTHLY|QUARTERLY.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Monthly utility bill\",\n  \"debitAccountId\": \"{{accountId}}\",\n  \"creditAccountId\": \"{{accountId}}\",\n  \"amount\": 15000,\n  \"frequency\": \"MONTHLY\",\n  \"fundId\": \"{{fundId}}\",\n  \"nextDueAt\": \"2026-07-01T08:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List recurring entries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/recurring-entries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "recurring-entries"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Get recurring entry",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/recurring-entries/{{recurringId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "recurring-entries",
+                "{{recurringId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Update recurring entry",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/recurring-entries/{{recurringId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "recurring-entries",
+                "{{recurringId}}"
+              ]
+            },
+            "description": "FINANCE_WRITE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 18000,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request petty cash replenishment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/petty-cash",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "petty-cash"
+              ]
+            },
+            "description": "FINANCE_WRITE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{accountId}}\",\n  \"toCashAccountId\": \"{{cashAccountId}}\",\n  \"amount\": 20000,\n  \"notes\": \"Kitchen supplies replenishment\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List petty cash replenishments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/petty-cash",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "petty-cash"
+              ]
+            },
+            "description": "FINANCE_READ. Query: page, limit."
+          },
+          "response": []
+        },
+        {
+          "name": "Get petty cash replenishment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/petty-cash/{{replenishmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "petty-cash",
+                "{{replenishmentId}}"
+              ]
+            },
+            "description": "FINANCE_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve petty cash replenishment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/petty-cash/{{replenishmentId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "petty-cash",
+                "{{replenishmentId}}",
+                "approve"
+              ]
+            },
+            "description": "FINANCE_APPROVE. Cannot approve own request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Approved for kitchen supplies\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create bank import profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/admin/finance/bank-import-profiles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "bank-import-profiles"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Bank \\u2014 Date/Narration/Debit/Credit\",\n  \"isDefault\": false,\n  \"delimiter\": \",\",\n  \"skipHeaderRows\": 1,\n  \"dateColumnIndex\": 0,\n  \"dateFormat\": \"DD/MM/YYYY\",\n  \"dateColumnName\": \"Date\",\n  \"narrationColumnIndex\": 1,\n  \"narrationColumnName\": \"Narration\",\n  \"amountConvention\": \"SEPARATE_COLUMNS\",\n  \"debitColumnIndex\": 2,\n  \"debitColumnName\": \"Debit\",\n  \"creditColumnIndex\": 3,\n  \"creditColumnName\": \"Credit\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List bank import profiles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/admin/finance/bank-import-profiles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "bank-import-profiles"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get bank import profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/admin/finance/bank-import-profiles/{{profile_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "bank-import-profiles",
+                "{{profile_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update bank import profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/admin/finance/bank-import-profiles/{{profile_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "bank-import-profiles",
+                "{{profile_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isDefault\": true\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Download bank import profile template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/admin/finance/bank-import-profiles/{{profile_id}}/template",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "bank-import-profiles",
+                "{{profile_id}}",
+                "template"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List reconciliation jobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reconciliation/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reconciliation",
+                "jobs"
+              ]
+            },
+            "description": "FINANCE_RECONCILE. Query: page, limit."
+          },
+          "response": []
+        },
+        {
+          "name": "Get reconciliation job",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reconciliation/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reconciliation",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "FINANCE_RECONCILE."
+          },
+          "response": []
+        },
+        {
+          "name": "Get reconciliation rows",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reconciliation/jobs/{{jobId}}/rows",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reconciliation",
+                "jobs",
+                "{{jobId}}",
+                "rows"
+              ]
+            },
+            "description": "FINANCE_RECONCILE. Query: status (PENDING|CONFIRMED|SKIPPED)."
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm reconciliation row",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reconciliation/jobs/{{jobId}}/rows/{{rowId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reconciliation",
+                "jobs",
+                "{{jobId}}",
+                "rows",
+                "{{rowId}}",
+                "confirm"
+              ]
+            },
+            "description": "FINANCE_RECONCILE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"matchNote\": \"Matches Sunday offering transfer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk confirm reconciliation rows",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reconciliation/jobs/{{jobId}}/bulk-confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reconciliation",
+                "jobs",
+                "{{jobId}}",
+                "bulk-confirm"
+              ]
+            },
+            "description": "FINANCE_RECONCILE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rows\": [\n    {\n      \"rowId\": \"{{rowId}}\",\n      \"accountId\": \"{{accountId}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Skip reconciliation row",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reconciliation/jobs/{{jobId}}/rows/{{rowId}}/skip",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reconciliation",
+                "jobs",
+                "{{jobId}}",
+                "rows",
+                "{{rowId}}",
+                "skip"
+              ]
+            },
+            "description": "FINANCE_RECONCILE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"matchNote\": \"Bank charge \\u2014 not a revenue entry\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload bank statement CSV (with profile)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/admin/finance/reconciliation/upload?profileId={{profile_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reconciliation",
+                "upload?profileId={{profile_id}}"
+              ],
+              "query": [
+                {
+                  "key": "profileId",
+                  "value": "{{profile_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Post confirmed reconciliation rows",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/admin/finance/reconciliation/jobs/{{job_id}}/post-confirmed",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reconciliation",
+                "jobs",
+                "{{job_id}}",
+                "post-confirmed"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankAccountId\": \"{{account_id}}\",\n  \"accountingPeriodId\": \"{{period_id}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Income & expense report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/income-expense",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "income-expense"
+              ]
+            },
+            "description": "FINANCE_REPORT. Query: periodId, fundId."
+          },
+          "response": []
+        },
+        {
+          "name": "Cash flow report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/cash-flow",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "cash-flow"
+              ]
+            },
+            "description": "FINANCE_REPORT. Query: accountId (required), fromDate, toDate."
+          },
+          "response": []
+        },
+        {
+          "name": "Trial balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/trial-balance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "trial-balance"
+              ]
+            },
+            "description": "FINANCE_REPORT. Query: periodId."
+          },
+          "response": []
+        },
+        {
+          "name": "Fund balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/fund-balance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "fund-balance"
+              ]
+            },
+            "description": "FINANCE_REPORT. Total balance per fund."
+          },
+          "response": []
+        },
+        {
+          "name": "Account ledger",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/account-ledger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "account-ledger"
+              ]
+            },
+            "description": "FINANCE_REPORT. Query: accountId (required), fromDate, toDate."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget actuals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/budget-actuals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "budget-actuals"
+              ]
+            },
+            "description": "FINANCE_REPORT. Query: budgetId (required)."
+          },
+          "response": []
+        },
+        {
+          "name": "Pledge summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/pledge-summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "pledge-summary"
+              ]
+            },
+            "description": "FINANCE_REPORT. Query: campaignId (required)."
+          },
+          "response": []
+        },
+        {
+          "name": "Member giving report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/member-giving",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "member-giving"
+              ]
+            },
+            "description": "TITHE_READ. Query: memberId (required), periodId."
+          },
+          "response": []
+        },
+        {
+          "name": "Finance Dashboard Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/finance/reports/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "finance",
+                "reports",
+                "dashboard"
+              ]
+            },
+            "description": "MTD income/expenses, pending journal entries, pending petty cash, budgets near limit, outstanding pledges"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finance Module (Member)",
+      "item": [
+        {
+          "name": "Make Pledge (Self-Service)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/finance/me/pledges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "finance",
+                "me",
+                "pledges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"totalAmount\": 50000,\n  \"frequency\": \"MONTHLY\",\n  \"startDate\": \"2026-07-01\",\n  \"notes\": \"I commit to this campaign\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Member self-service pledge commitment to a campaign"
+          },
+          "response": []
+        },
+        {
+          "name": "List My Pledges",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/finance/me/pledges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "finance",
+                "me",
+                "pledges"
+              ]
+            },
+            "description": "List all pledges for the authenticated member"
+          },
+          "response": []
+        },
+        {
+          "name": "Giving Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/finance/me/giving-summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "finance",
+                "me",
+                "giving-summary"
+              ]
+            },
+            "description": "YTD tithe totals, active pledges, last tithe \u2014 cross-type giving view"
+          },
+          "response": []
+        },
+        {
+          "name": "Request Annual Giving Statement (On-Demand)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/finance/me/giving-statement/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "finance",
+                "me",
+                "giving-statement",
+                "send"
+              ]
+            },
+            "description": "Triggers the annual giving statement email for the previous year. Available regardless of ANNUAL_GIVING_STATEMENT_ENABLED flag."
           },
           "response": []
         }

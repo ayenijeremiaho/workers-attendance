@@ -87,6 +87,36 @@ export class Asset extends BaseEntity {
     @Column({type: 'timestamptz', nullable: true, name: 'warranty_notified_1_day_at'})
     warrantyNotified1DayAt: Date | null;
 
+    @Column({type: 'date', nullable: true, name: 'insurance_expiry'})
+    insuranceExpiry: string | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'insurance_notified_30_days_at'})
+    insuranceNotified30DaysAt: Date | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'insurance_notified_14_days_at'})
+    insuranceNotified14DaysAt: Date | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'insurance_notified_7_days_at'})
+    insuranceNotified7DaysAt: Date | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'insurance_notified_1_day_at'})
+    insuranceNotified1DayAt: Date | null;
+
+    @Column({type: 'date', nullable: true, name: 'roadworthiness_expiry'})
+    roadworthinessExpiry: string | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'roadworthiness_notified_30_days_at'})
+    roadworthinessNotified30DaysAt: Date | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'roadworthiness_notified_14_days_at'})
+    roadworthinessNotified14DaysAt: Date | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'roadworthiness_notified_7_days_at'})
+    roadworthinessNotified7DaysAt: Date | null;
+
+    @Column({type: 'timestamptz', nullable: true, name: 'roadworthiness_notified_1_day_at'})
+    roadworthinessNotified1DayAt: Date | null;
+
     @OneToOne(() => MaintenanceSchedule, schedule => schedule.asset, {cascade: true, nullable: true})
     maintenanceSchedule: MaintenanceSchedule | null;
 

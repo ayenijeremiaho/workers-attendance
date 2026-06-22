@@ -1289,6 +1289,194 @@ Enables the finance team to manage bank accounts, upload Excel tithe payment she
 **Routes prefix (admin):** `/admin/tithes`  
 **Routes prefix (member):** `/tithes`
 
+### Finance Module
+
+Full double-entry accounting system for the church. All financial data is fund-scoped (RESTRICTED / UNRESTRICTED). Every posted entry has balanced debit and credit lines; the balance is enforced at the service layer before posting, and a DB-level `CHECK (current_balance >= -0.01)` on `finance_accounts` is a last-resort safety net.
+
+**Core concepts:**
+
+| Concept | Description |
+|---|---|
+| **Fund** | RESTRICTED or UNRESTRICTED pool of money. Every account, offering, budget, and pledge belongs to a fund. |
+| **AccountingPeriod** | A calendar month (year + month). Entries can only be posted to OPEN periods. Closing a period is irreversible by design (only admins with `FINANCE_RECONCILE` can close or reopen). |
+| **Chart of Accounts** | `finance_accounts` table. Each account has a type (ASSET / LIABILITY / INCOME / EXPENSE), subtype, normal balance (DEBIT or CREDIT), and an optional fund assignment. |
+| **JournalEntry** | The root transaction record. Must be BALANCED (sum of debits = sum of credits) before posting. Created as `PENDING_APPROVAL`; a separate admin with `FINANCE_APPROVE` (who is not the creator — segregation of duties) approves and posts it. |
+| **JournalEntryLine** | One debit or credit line on a journal entry. Linked to an account. |
+| **JournalEntryLink** | Polymorphic association table attaching a journal entry to members, departments, service events, or external payees. Stored as a separate table to preserve FK integrity and allow multiple associations per transaction. |
+| **ExternalPayee** | Tracks global church remittances, vendors, utilities, contractors, government bodies. |
+| **Offering** | Records Sunday cash + expected transfer amounts. Reconciled separately by finance team. |
+| **Budget** | Scoped to an account + fund. Actuals computed at query time from posted entries. |
+| **PledgeCampaign / Pledge** | Campaign-level targets and per-member pledge commitments. |
+| **RecurringEntry** | Template for entries that repeat weekly / monthly / quarterly. A daily scheduler generates draft entries for due recurring templates. |
+| **PettyCashReplenishment** | Request/approve flow for topping up petty cash accounts. Self-approve is blocked. Approving creates a `PENDING_APPROVAL` journal entry (debit `toCashAccount`, credit `fromAccount`) with idempotency key `petty-cash-replenishment:{id}`. |
+| **BankImportProfile** | Configurable CSV parsing profile. Stores column indices, date format, delimiter, and amount convention (SIGNED, SEPARATE_COLUMNS, or AMOUNT_WITH_TYPE). One profile can be flagged `isDefault`. |
+
+**Race condition protection:**
+
+- `SELECT FOR UPDATE` (pessimistic locking) on `finance_accounts` rows during approval and void operations — prevents concurrent writes from losing updates.
+- Unique `idempotency_key` column on `finance_journal_entries` — duplicate submissions return `409 Conflict`.
+- `CHECK (current_balance >= -0.01)` DB constraint — last-resort guard.
+
+**Void / reversal pattern:** Voiding a posted entry does NOT delete it. A new reversing entry (equal and opposite lines) is created with `entryType = REVERSAL` and both entries remain in the ledger. The original entry status becomes `VOIDED`. Voiding an entry in a CLOSED accounting period throws `400 Bad Request`.
+
+**Tithe virtual accounts:** Members can request a dedicated bank account from a supported provider (Paystack / Flutterwave). BVN / NIN details are forwarded to the provider API and never stored in this database. One active account per provider per member. Admin-only deactivation. A new account for the same provider can only be created after the previous one is deactivated. Provider webhooks auto-create `TitheRecord` with `source = VIRTUAL_ACCOUNT` and link to the `MemberVirtualAccount` row.
+
+**CSV reconciliation (bank statement import):**
+
+Bank Import Profiles (`finance_bank_import_profiles`) make CSV parsing bank-agnostic. A profile stores the delimiter, number of header rows to skip, column indices for date/narration/amount, the date format (`YYYY-MM-DD`, `DD/MM/YYYY`, `DD-MM-YYYY`, `MM/DD/YYYY`), and the amount convention:
+
+| Convention | Description |
+|---|---|
+| `SIGNED` | Single column; negative value = debit, positive = credit |
+| `SEPARATE_COLUMNS` | Separate debit and credit columns; whichever is non-zero wins |
+| `AMOUNT_WITH_TYPE` | Amount column + type indicator column (e.g. `DR`/`CR`) configurable per profile |
+
+One profile can be flagged `isDefault`. Upload accepts optional `?profileId` query param; if omitted the default profile is used. A 400 error with `{firstFailure: {row, column, expected, found}}` is returned synchronously (before any job is created) if the file cannot be parsed by the selected profile — books are never affected by an unrecognisable file.
+
+`PATCH /admin/finance/reconciliation/jobs/:jobId/rows/:rowId/confirm` stages a row by linking it to a ledger account (`confirmedAccount`). `POST /admin/finance/reconciliation/jobs/:id/post-confirmed` creates one `PENDING_APPROVAL` journal entry per confirmed row using `bankAccountId` + `accountingPeriodId` from the request body. Each row gets idempotency key `reconciliation-row:{rowId}`; re-calling the endpoint is safe.
+
+A row fingerprint (`sha256` of date+narration+amount+creditDebit) prevents duplicate rows within the same job. A transaction fingerprint (`sha256` of date+amount+creditDebit) prevents the same transaction appearing across different upload jobs.
+
+Admin-configurable profile endpoints (`FINANCE_RECONCILE` permission):
+- `POST /admin/finance/bank-import-profiles` — create profile
+- `GET /admin/finance/bank-import-profiles` — list all profiles
+- `GET /admin/finance/bank-import-profiles/:id` — get one profile
+- `PATCH /admin/finance/bank-import-profiles/:id` — update profile
+- `GET /admin/finance/bank-import-profiles/:id/template` — download a pre-filled CSV template with correct column headers and two sample rows for the profile
+
+**Annual giving statements:** Gated by `ANNUAL_GIVING_STATEMENT_ENABLED` (default `false`). When enabled, a cron fires on January 1st at 08:00 (with distributed Redis lock) and emails each active member a summary of their total giving for the previous year, using the `annual-giving-statement.html` template. The batch query is a single grouped SQL join across `finance_journal_entry_lines` → `finance_journal_entries` → `finance_journal_entry_links` — one round-trip for all members, not per-member. Members can also trigger their own statement on demand via `POST /finance/me/giving-statement/send` regardless of the env var flag.
+
+**Recurring entry scheduler:** Runs daily at 08:00 (Redis lock). For each active `RecurringEntry` where `nextDueAt ≤ now`, generates a `PENDING_APPROVAL` journal entry in the current month's open accounting period and advances `nextDueAt` to the next due date. The journal entry creation, line saves, and `nextDueAt` update all run inside a single `dataSource.transaction()` — a crash mid-write cannot leave a journal entry with no lines.
+
+**Vehicle-specific asset fields:** Two new optional fields added to `assets` table:
+- `insurance_expiry` (date) — insurance policy expiry date
+- `roadworthiness_expiry` (date) — roadworthiness certificate expiry date
+
+Eight notification-timestamp columns track when each alert was last sent (to prevent repeat alerts on re-runs):
+`insurance_notified_30_days_at`, `insurance_notified_14_days_at`, `insurance_notified_7_days_at`, `insurance_notified_1_day_at`, and the equivalent four for `roadworthiness_`.
+
+**Vehicle expiry alert scheduler:** Runs daily at 08:00 (with distributed Redis lock). For each asset that has an `insuranceExpiry` or `roadworthinessExpiry` value, alerts are dispatched at **30, 14, 7, and 1 day(s)** before expiry. Each threshold is tracked by its own timestamp column; once set it prevents a duplicate alert. Recipients: admins with `ASSET_MAINTENANCE_ALERT` permission. Email template: `asset-vehicle-expiry-alert.html`.
+
+**Permissions added:**
+
+| Permission | Scope |
+|---|---|
+| `FINANCE_APPROVE` | Approve journal entries and petty cash replenishments (cannot be the creator) |
+| `FINANCE_RECONCILE` | Upload CSV bank statements, confirm/skip reconciliation rows, close/reopen accounting periods, reconcile offerings |
+| `FINANCE_REPORT` | Access all 8 finance reporting endpoints |
+| `TITHE_READ` | View individual member tithe records, giving history, annual giving statements |
+| `TITHE_WRITE` | Manage tithe accounts, virtual accounts, deactivate member virtual accounts |
+
+**Routes prefix (admin):** `/admin/finance/...`
+
+| Resource | Prefix |
+|---|---|
+| Funds | `/admin/finance/funds` |
+| Accounting periods | `/admin/finance/accounting-periods` |
+| Chart of accounts | `/admin/finance/accounts` |
+| External payees | `/admin/finance/external-payees` |
+| Journal entries | `/admin/finance/journal-entries` |
+| Offerings | `/admin/finance/offerings` |
+| Budgets | `/admin/finance/budgets` |
+| Pledge campaigns + pledges | `/admin/finance/pledges` |
+| Recurring entries | `/admin/finance/recurring-entries` |
+| Petty cash | `/admin/finance/petty-cash` |
+| Reconciliation (CSV upload) | `/admin/finance/reconciliation` |
+| Bank import profiles | `/admin/finance/bank-import-profiles` |
+| Reports | `/admin/finance/reports` |
+
+**Reporting endpoints** (`FINANCE_REPORT` required, `TITHE_READ` for member-giving):
+
+| Endpoint | Description |
+|---|---|
+| `GET /admin/finance/reports/income-expense` | Income & expenditure by account, filter by `periodId` + `fundId` |
+| `GET /admin/finance/reports/cash-flow` | Line-by-line cash movement for an account (`accountId` required) |
+| `GET /admin/finance/reports/trial-balance` | All accounts with current balances. Without `periodId` returns `currentBalance` from each account row. With `periodId` computes period-specific balances by summing posted journal lines within that period only — accounts with no activity in the period appear with balance 0. |
+| `GET /admin/finance/reports/fund-balance` | Per-fund total balance |
+| `GET /admin/finance/reports/account-ledger` | Full ledger for an account with date range filter |
+| `GET /admin/finance/reports/budget-actuals` | Budget vs actual spend (`budgetId` required) |
+| `GET /admin/finance/reports/pledge-summary` | Pledge totals for a campaign (`campaignId` required) |
+| `GET /admin/finance/reports/member-giving` | Giving history for a member (`memberId` required, `TITHE_READ`) |
+| `GET /admin/finance/reports/dashboard` | Finance dashboard snapshot: MTD income/expenses, pending entries, budget utilisation, outstanding pledges |
+
+**Offering reconciliation — auto-journal (optional):**
+
+`PATCH /admin/finance/offerings/:id/reconcile` accepts optional fields `autoJournal`, `debitAccountId`, `creditAccountId`, and `accountingPeriodId`. When `autoJournal: true` all three IDs are required. A double-entry journal entry is created as `PENDING_APPROVAL` (not auto-posted — segregation of duties: a different admin must approve via the normal journal approval flow). Idempotency key: `offering-auto-journal:{offeringId}`. The reconciling admin is recorded in `reconciledBy` on the offering. The total equals `cashAmount + expectedTransferAmount`. Creation runs inside a `dataSource.transaction()` to prevent duplicate journals under concurrent requests. Account balances are updated only when the journal entry is subsequently approved — not at creation.
+
+**Member finance endpoints (member JWT required):**
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/finance/me/pledges` | Self-service pledge — member commits a pledge to a campaign |
+| `GET` | `/finance/me/pledges` | List the authenticated member's pledges |
+| `GET` | `/finance/me/giving-summary` | YTD tithe total, active pledges, last tithe — cross-type giving view |
+| `POST` | `/finance/me/giving-statement/send` | Trigger annual giving statement email for the previous year (on-demand, always available) |
+
+**Pledge self-service:** `MakePledgeDto` requires `campaignId`, `totalAmount`, `frequency` (`ONE_OFF | MONTHLY | QUARTERLY`), `startDate`. Pledges created this way are identical in schema to admin-created pledges; the audit log records `source: 'member-self-service'`.
+
+**Pledge status transitions:** `COMPLETED` and `CANCELLED` are terminal states — once a pledge reaches either status, `PATCH /admin/finance/pledges/:id/status` throws `400 Bad Request`. This prevents accidental reactivation of fulfilled or cancelled commitments.
+
+**Pledge reminder scheduler:** Runs daily at 08:00 (Redis lock `lock:pledge-reminders`). For each `ACTIVE` pledge, calculates the next due date (rolling forward from `startDate` by `frequency`). Sends a `pledge-reminder` email when `diffDays` is 7 (upcoming), 0 (due today), or −3 (overdue). Redis cache key `pledge-reminder:{pledgeId}:{dueDateKey}:{diffDays}` with 2-day TTL prevents duplicate sends.
+
+**Budget utilisation alerts:** Runs daily at 08:00 (Redis lock `lock:budget-utilization-alerts`). Calculates actuals for each active budget by summing posted journal entry lines for the budget's account within the budget date range. Sends `finance-budget-alert` email to all admins with `FINANCE_READ` permission at 80% and 100% utilisation thresholds. Dedup via `alert_80_sent_at` / `alert_100_sent_at` columns on `finance_budgets` (persists across Redis flushes). Each threshold fires at most once per budget.
+
+**Finance dashboard summary (`GET /admin/finance/reports/dashboard`, `FINANCE_REPORT` permission):**
+
+Returns a point-in-time snapshot:
+- `mtdIncome` / `mtdExpenses` / `mtdNet` — month-to-date totals from posted journal lines
+- `pendingJournalEntries` — count of entries in `PENDING_APPROVAL` status
+- `pendingPettyCash` — count of replenishments in `PENDING` status
+- `budgetsNearLimit` — all active budgets ≥ 80% utilised (sorted desc), each with `name`, `amount`, `actuals`, `utilizationPct`
+- `totalOutstandingPledges` / `activePledgeCount` — sum and count of `ACTIVE` pledges
+- `generatedAt` — server timestamp
+
+**Virtual account endpoints:**
+
+| Method | Path | Auth | Permission | Description |
+|---|---|---|---|---|
+| `POST` | `/tithes/me/virtual-account` | Member JWT | — | Request a new virtual bank account from a provider |
+| `GET` | `/tithes/me/virtual-accounts` | Member JWT | — | List all virtual accounts for the authenticated member |
+| `PATCH` | `/admin/tithes/virtual-accounts/:id/deactivate` | Admin JWT | `TITHE_WRITE` | Deactivate a member's virtual account |
+| `POST` | `/webhooks/virtual-account-credit` | None (HMAC) | — | Provider webhook — creates `TitheRecord` with `source = VIRTUAL_ACCOUNT` |
+
+The webhook is unauthenticated but verified with an HMAC-SHA512 signature against `VIRTUAL_ACCOUNT_WEBHOOK_SECRET`. Signature is read from `x-paystack-signature` (Paystack) or `verif-hash` (Flutterwave) headers. Duplicate credits are ignored via idempotency on `external_reference`.
+
+**Environment variables added:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `ASSET_OVERDUE_NOTIFICATION_DAYS` | `1,3,7` | Comma-separated days-overdue thresholds for checkout reminders. Empty string disables. |
+| `VIRTUAL_ACCOUNT_WEBHOOK_SECRET` | *(required)* | HMAC-SHA512 secret for verifying provider webhook calls |
+| `PAYSTACK_SECRET_KEY` | *(optional)* | Paystack secret key; required if using Paystack as a virtual account provider |
+| `FLUTTERWAVE_SECRET_KEY` | *(optional)* | Flutterwave secret key; required if using Flutterwave as a virtual account provider |
+| `ANNUAL_GIVING_STATEMENT_ENABLED` | `false` | Set to `true` to enable the Jan 1 batch annual giving statement emails to all members |
+
+**Entities:** `finance_funds`, `finance_accounting_periods`, `finance_accounts`, `finance_external_payees`, `finance_journal_entries`, `finance_journal_entry_lines`, `finance_journal_entry_links`, `finance_offerings`, `finance_budgets`, `finance_pledge_campaigns`, `finance_pledges`, `finance_recurring_entries`, `finance_petty_cash_replenishments`, `finance_bulk_upload_jobs`, `finance_reconciliation_rows`, `finance_bank_import_profiles`, `member_virtual_accounts`. New FK on `finance_offerings`: `reconciled_by_id`. New FK on `finance_bulk_upload_jobs`: `profile_id`. New columns on `tithe_records`: `source`, `external_reference`, `payment_channel`, `virtual_account_id`; `batch_id` is now nullable (webhook-created records have no batch). New columns on `assets`: `insurance_expiry`, `roadworthiness_expiry`, plus 8 notification-timestamp columns (`insurance_notified_*`, `roadworthiness_notified_*`).
+
+**Migrations:**
+- `1783641600000-CreateFinanceFunds`
+- `1783728000000-CreateFinanceAccountingPeriods`
+- `1783814400000-CreateFinanceAccounts`
+- `1783900800000-CreateFinanceExternalPayees`
+- `1783987200000-CreateFinanceJournalEntries`
+- `1784073600000-CreateFinanceOfferings`
+- `1784160000000-CreateFinanceBudgets`
+- `1784246400000-CreateFinancePledges`
+- `1784332800000-CreateFinanceRecurringEntries`
+- `1784419200000-CreateFinancePettyCash`
+- `1784505600000-CreateFinanceBulkUpload`
+- `1784592000000-CreateMemberVirtualAccountsAndTitheSource`
+- `1784678400000-AssetVehicleFields`
+- `1784764800000-AssetVehicleNotificationColumns`
+- `1784851200000-TitheRecordBatchNullable`
+- `1784937600000-AddTimestampsToJournalEntryLinesAndLinks`
+- `1785024000000-BudgetAlertColumns`
+- `1785110400000-CreateBankImportProfiles` *(creates `finance_bank_import_profiles` + seeds canonical default profile)*
+- `1785196800000-BulkUploadJobProfileFK` *(adds `profile_id` nullable FK to `finance_bulk_upload_jobs`)*
+- `1785283200000-OfferingReconciledBy` *(adds `reconciled_by_id` nullable FK to `finance_offerings`)*
+
+---
+
 ### Finance Request Module
 
 Manages expense requests raised by department heads (HODs) through a finance team review lifecycle.

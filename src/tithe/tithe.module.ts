@@ -15,15 +15,28 @@ import {UtilityModule} from '../utility/utility.module';
 import {AdminModule} from '../admin/admin.module';
 import {Admin} from '../admin/entity/admin.entity';
 import {Member} from '../member/entity/member.entity';
+import {MemberVirtualAccount} from '../finance/entity/member-virtual-account.entity';
+import {VirtualAccountService} from '../finance/service/virtual-account.service';
+import {VirtualAccountWebhookController} from '../finance/controller/virtual-account-webhook.controller';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([TitheAccount, TitheUploadBatch, TitheRecord, TitheUnmatchedRecord, TitheDisputeRecord, TithePaymentProof, Member, Admin]),
+        TypeOrmModule.forFeature([
+            TitheAccount,
+            TitheUploadBatch,
+            TitheRecord,
+            TitheUnmatchedRecord,
+            TitheDisputeRecord,
+            TithePaymentProof,
+            Member,
+            Admin,
+            MemberVirtualAccount,
+        ]),
         BullModule.registerQueue({name: TITHE_QUEUE}),
         UtilityModule,
         AdminModule,
     ],
-    controllers: [TitheAdminController, TitheMemberController],
-    providers: [TitheService, TitheProcessor],
+    controllers: [TitheAdminController, TitheMemberController, VirtualAccountWebhookController],
+    providers: [TitheService, TitheProcessor, VirtualAccountService],
 })
 export class TitheModule {}

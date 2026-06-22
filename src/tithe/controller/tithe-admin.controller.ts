@@ -26,11 +26,15 @@ import {CurrentAdmin} from '../../admin/decorator/current-admin.decorator';
 import {Admin} from '../../admin/entity/admin.entity';
 import {TitheService} from '../service/tithe.service';
 import {CreateTitheAccountDto, DeclineTitheProofDto, MatchUnmatchedDto, UpdateTitheAccountDto} from '../dto/tithe.dto';
+import {VirtualAccountService} from '../../finance/service/virtual-account.service';
 
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/tithes')
 export class TitheAdminController {
-    constructor(private readonly titheService: TitheService) {}
+    constructor(
+        private readonly titheService: TitheService,
+        private readonly virtualAccountService: VirtualAccountService,
+    ) {}
 
     // ── Tithe Accounts ────────────────────────────────────────────────────────
 
@@ -230,5 +234,17 @@ export class TitheAdminController {
             'Content-Length': buffer.length,
         });
         res.end(buffer);
+    }
+
+    // ── Virtual Accounts ──────────────────────────────────────────────────────
+
+    @RequiresPermission(AdminPermission.TITHE_WRITE)
+    @Patch('virtual-accounts/:id/deactivate')
+    @HttpCode(HttpStatus.OK)
+    deactivateVirtualAccount(
+        @Param('id', ParseUUIDPipe) id: string,
+        @CurrentAdmin() admin: Admin,
+    ) {
+        return this.virtualAccountService.deactivate(id, admin);
     }
 }

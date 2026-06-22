@@ -13,6 +13,7 @@ import {AssetCheckoutService} from './service/asset-checkout.service';
 import {AssetController} from './controller/asset.controller';
 import {MaintenanceReminderScheduler} from './scheduler/maintenance-reminder.scheduler';
 import {WarrantyAlertScheduler} from './scheduler/warranty-alert.scheduler';
+import {VehicleExpiryAlertScheduler} from './scheduler/vehicle-expiry-alert.scheduler';
 import {OverdueCheckoutScheduler} from './scheduler/overdue-checkout.scheduler';
 import {UtilityModule} from '../utility/utility.module';
 import {AdminModule} from '../admin/admin.module';
@@ -23,7 +24,7 @@ import {AdminModule} from '../admin/admin.module';
         UtilityModule,
         AdminModule,
     ],
-    providers: [AssetService, AssetCheckoutService, MaintenanceReminderScheduler, WarrantyAlertScheduler, OverdueCheckoutScheduler],
+    providers: [AssetService, AssetCheckoutService, MaintenanceReminderScheduler, WarrantyAlertScheduler, VehicleExpiryAlertScheduler, OverdueCheckoutScheduler],
     controllers: [AssetController],
 })
 export class AssetManagementModule {}

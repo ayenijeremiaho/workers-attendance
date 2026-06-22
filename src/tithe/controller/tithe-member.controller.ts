@@ -3,13 +3,18 @@ import {JwtAuthGuard} from '../../auth/guard/jwt-auth.guard';
 import {TitheService} from '../service/tithe.service';
 import {SubmitTitheProofDto} from '../dto/tithe.dto';
 import {LimitedFileInterceptor} from '../../utility/interceptors/limited-file.interceptor';
+import {VirtualAccountService} from '../../finance/service/virtual-account.service';
+import {RequestVirtualAccountDto} from '../../finance/dto/virtual-account.dto';
 
 const TITHE_PROOF_MAX_BYTES = 2 * 1024 * 1024;
 
 @UseGuards(JwtAuthGuard)
 @Controller('tithes')
 export class TitheMemberController {
-    constructor(private readonly titheService: TitheService) {}
+    constructor(
+        private readonly titheService: TitheService,
+        private readonly virtualAccountService: VirtualAccountService,
+    ) {}
 
     @Get('accounts')
     getAccounts() {
@@ -52,5 +57,15 @@ export class TitheMemberController {
         @Query('limit', new ParseIntPipe({optional: true})) limit = 20,
     ) {
         return this.titheService.getMyProofs(req.user, page, limit);
+    }
+
+    @Post('me/virtual-account')
+    requestVirtualAccount(@Request() req: any, @Body() dto: RequestVirtualAccountDto) {
+        return this.virtualAccountService.requestAccount(req.user.id, dto);
+    }
+
+    @Get('me/virtual-accounts')
+    getMyVirtualAccounts(@Request() req: any) {
+        return this.virtualAccountService.getMyAccounts(req.user.id);
     }
 }

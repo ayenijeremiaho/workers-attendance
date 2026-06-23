@@ -13,13 +13,13 @@ import { AuditLogService } from '../../utility/service/audit-log.service';
 
 @Injectable()
 export class AdminRoleService {
+  private readonly logger = new Logger(AdminRoleService.name);
+
   constructor(
     @InjectRepository(AdminRole)
     private readonly adminRoleRepository: Repository<AdminRole>,
     private readonly auditLogService: AuditLogService,
   ) {}
-
-  private readonly logger = new Logger(AdminRoleService.name);
 
   async create(dto: CreateAdminRoleDto, actorId: string): Promise<AdminRole> {
     const exists = await this.adminRoleRepository.existsBy({ name: dto.name });

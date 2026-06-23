@@ -30,6 +30,8 @@ export interface ClassEnrollmentBreakdown {
 
 @Injectable()
 export class ClassesService {
+  private readonly logger = new Logger(ClassesService.name);
+
   constructor(
     @InjectRepository(ChurchClass)
     private readonly classRepo: Repository<ChurchClass>,
@@ -38,8 +40,6 @@ export class ClassesService {
     @InjectRepository(Member)
     private readonly memberRepo: Repository<Member>,
   ) {}
-
-  private readonly logger = new Logger(ClassesService.name);
 
   async createClass(dto: CreateChurchClassDto): Promise<ChurchClass> {
     const churchClass = this.classRepo.create({

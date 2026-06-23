@@ -12,12 +12,12 @@ import {
 
 @Injectable()
 export class NotesAnalyticsService {
+  private readonly logger = new Logger(NotesAnalyticsService.name);
+
   constructor(
     @InjectRepository(Note)
     private readonly noteRepository: Repository<Note>,
   ) {}
-
-  private readonly logger = new Logger(NotesAnalyticsService.name);
 
   async getChildNamingAnalytics(from?: Date, to?: Date) {
     const notes = await this.fetchNotes(NoteTypeEnum.CHILD_NAMING, from, to);

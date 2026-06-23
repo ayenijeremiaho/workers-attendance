@@ -321,26 +321,6 @@ export class MemberService {
     return saved;
   }
 
-  private async resolveDepartment(id: string, notFoundMsg: string) {
-    const dept = await this.departmentRepository.findOneBy({ id });
-    if (!dept) throw new NotFoundException(notFoundMsg);
-    return dept;
-  }
-
-  private async resolveSecondaryDepartment(
-    incomingId: string | null | undefined,
-    current: Department | null,
-  ) {
-    if (incomingId === null) return null;
-    if (incomingId && incomingId !== current?.id) {
-      return this.resolveDepartment(
-        incomingId,
-        'Secondary department not found',
-      );
-    }
-    return current; // unchanged
-  }
-
   async changeStatus(
     memberId: string,
     status: MemberStatusEnum,
@@ -613,6 +593,26 @@ export class MemberService {
 
   async count(options?: FindManyOptions<Member>): Promise<number> {
     return this.memberRepository.count(options);
+  }
+
+  private async resolveDepartment(id: string, notFoundMsg: string) {
+    const dept = await this.departmentRepository.findOneBy({ id });
+    if (!dept) throw new NotFoundException(notFoundMsg);
+    return dept;
+  }
+
+  private async resolveSecondaryDepartment(
+    incomingId: string | null | undefined,
+    current: Department | null,
+  ) {
+    if (incomingId === null) return null;
+    if (incomingId && incomingId !== current?.id) {
+      return this.resolveDepartment(
+        incomingId,
+        'Secondary department not found',
+      );
+    }
+    return current; // unchanged
   }
 
   private async assertEmailUnique(email: string): Promise<void> {

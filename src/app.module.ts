@@ -38,6 +38,7 @@ import { ChurchSettingsModule } from './church-settings/church-settings.module';
 import { IncidentReportModule } from './incident-report/incident-report.module';
 import { AssetManagementModule } from './asset-management/asset-management.module';
 import { FinanceModule } from './finance/finance.module';
+import { PrayerModule } from './prayer/prayer.module';
 
 @Module({
   imports: [
@@ -157,6 +158,7 @@ import { FinanceModule } from './finance/finance.module';
     IncidentReportModule,
     AssetManagementModule,
     FinanceModule,
+    PrayerModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: AppThrottlerGuard }],

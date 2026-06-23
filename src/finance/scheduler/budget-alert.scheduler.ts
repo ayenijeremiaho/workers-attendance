@@ -13,8 +13,8 @@ import { JournalEntryStatus } from '../enum/finance.enum';
 
 @Injectable()
 export class BudgetAlertScheduler {
-  private readonly logger = new Logger(BudgetAlertScheduler.name);
   private static readonly LOCK_KEY = 'lock:budget-utilization-alerts';
+  private readonly logger = new Logger(BudgetAlertScheduler.name);
 
   constructor(
     @InjectRepository(Budget)

@@ -39,6 +39,7 @@ import { Member } from '../../member/entity/member.entity';
 
 @Injectable()
 export class AuthService {
+  private static readonly OTP_PURGE_LOCK = 'lock:otp-purge';
   private readonly logger = new Logger(AuthService.name);
   private readonly otpTtlSeconds: number;
   private readonly otpMaxAttempts: number;
@@ -327,6 +328,7 @@ export class AuthService {
       role: member.role,
       requiresPasswordChange: !member.changedPassword,
       surface,
+      workerProfileId: member.workerProfile?.id,
     };
   }
 
@@ -526,6 +528,28 @@ export class AuthService {
     );
   }
 
+  @Cron('0 2 * * *')
+  async purgeExpiredOtps(): Promise<void> {
+    const acquired = await this.cacheService.acquireLock(
+      AuthService.OTP_PURGE_LOCK,
+      120,
+    );
+    if (!acquired) {
+      this.logger.debug('OTP purge skipped — another instance holds the lock');
+      return;
+    }
+    try {
+      this.logger.log('Running scheduled purge of expired OTPs');
+      await this.otpRepository
+        .createQueryBuilder()
+        .delete()
+        .where('used_at IS NOT NULL OR expires_at < :now', { now: new Date() })
+        .execute();
+    } finally {
+      this.cacheService.releaseLock(AuthService.OTP_PURGE_LOCK);
+    }
+  }
+
   private async checkDeviceResetRateLimit(email: string): Promise<void> {
     const key = this.cacheService.key('device_reset', email);
     const count = (await this.cacheService.get<number>(key)) ?? 0;
@@ -627,30 +651,6 @@ export class AuthService {
       refresh_token,
       requires_password_change: requiresPasswordChange,
     };
-  }
-
-  private static readonly OTP_PURGE_LOCK = 'lock:otp-purge';
-
-  @Cron('0 2 * * *')
-  async purgeExpiredOtps(): Promise<void> {
-    const acquired = await this.cacheService.acquireLock(
-      AuthService.OTP_PURGE_LOCK,
-      120,
-    );
-    if (!acquired) {
-      this.logger.debug('OTP purge skipped — another instance holds the lock');
-      return;
-    }
-    try {
-      this.logger.log('Running scheduled purge of expired OTPs');
-      await this.otpRepository
-        .createQueryBuilder()
-        .delete()
-        .where('used_at IS NOT NULL OR expires_at < :now', { now: new Date() })
-        .execute();
-    } finally {
-      this.cacheService.releaseLock(AuthService.OTP_PURGE_LOCK);
-    }
   }
 
   private getTokenExpirySeconds(): number {

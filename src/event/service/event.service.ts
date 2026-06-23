@@ -31,6 +31,8 @@ const SLOT_RELATIONS = [
 
 @Injectable()
 export class EventService {
+  private readonly logger = new Logger(EventService.name);
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly eventConfigService: EventConfigService,
@@ -41,8 +43,6 @@ export class EventService {
     @InjectRepository(ServiceSlot)
     private readonly slotRepository: Repository<ServiceSlot>,
   ) {}
-
-  private readonly logger = new Logger(EventService.name);
 
   async create(dto: CreateEventDto, actorId: string): Promise<Event | Event[]> {
     const eventDate = new Date(dto.eventDate);

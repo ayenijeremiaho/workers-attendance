@@ -9,8 +9,8 @@ import { PledgeFrequency } from '../enum/finance.enum';
 
 @Injectable()
 export class PledgeReminderScheduler {
-  private readonly logger = new Logger(PledgeReminderScheduler.name);
   private static readonly LOCK_KEY = 'lock:pledge-reminders';
+  private readonly logger = new Logger(PledgeReminderScheduler.name);
 
   constructor(
     private readonly pledgeService: PledgeService,

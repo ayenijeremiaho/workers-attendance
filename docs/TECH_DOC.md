@@ -19,8 +19,8 @@
 ## 1. System Overview
 
 A NestJS REST API that manages church membership, service attendance, workforce scheduling, class enrolment, Sunday
-School sessions, Children Church security check-in, internal announcements, tithe records, and internal finance
-requests for a local church.
+School sessions, Children Church security check-in, internal announcements, tithe records, internal finance
+requests, and prayer meeting roster management for a local church.
 
 **Core design principles:**
 
@@ -65,6 +65,7 @@ src/
 ├── follow-up/        First-timer registration, follow-up task management, post-event email jobs, online attendance
 ├── service-programme/ Service programme authoring, live session control, analytics, PDF reports
 ├── service-headcount/ Physical attendance headcounts per service slot, trends by period
+├── prayer/           Prayer meeting roster: schedule config, day configs, rules, self-selection, auto-assignment, reminders
 └── utility/          Email queue, cache, hashing, pagination, email delivery log, Cloudinary file uploads, PDF generation
 ```
 
@@ -856,6 +857,91 @@ Physical attendance count record for one service slot, broken down by demographi
 
 **Computed field:** `total` is not stored. It is computed on every read as the sum of all five fixed columns plus all values in `customGroups`. The value is appended to each response object.
 
+### PrayerScheduleConfig
+
+Global configuration for the prayer roster module. One active record at a time.
+
+| Field               | Type    | Notes                                                            |
+|---------------------|---------|------------------------------------------------------------------|
+| id                  | UUID    | PK                                                               |
+| selectionWindowDays | int     | Number of days before a meeting that self-selection is open. Default 7. |
+| isActive            | boolean | Only one active config is used at a time                         |
+
+### PrayerDayConfig
+
+Defines which days of the week prayer meetings occur and their capacity/mode.
+
+| Field       | Type           | Notes                                        |
+|-------------|----------------|----------------------------------------------|
+| id          | UUID           | PK                                           |
+| dayOfWeek   | int            | 0 = Sunday … 6 = Saturday (JS `Date.getDay`) |
+| mode        | PrayerDayMode  | PHYSICAL \| VIRTUAL                          |
+| startTime   | string (HH:mm) | Default `00:00`                              |
+| endTime     | string (HH:mm) | Default `01:00`                              |
+| maxCapacity | int            | Max workers assignable to this day           |
+| isActive    | boolean        | Inactive configs are skipped during generation |
+
+**Unique constraint (application-level):** Only one active config per `dayOfWeek`.
+
+### PrayerScheduleRule
+
+Configurable rules that govern frequency and capacity requirements.
+
+| Field          | Type                      | Notes                                                             |
+|----------------|---------------------------|-------------------------------------------------------------------|
+| id             | UUID                      | PK                                                                |
+| type           | PrayerRuleType            | ROLE_FREQUENCY \| MIN_LEADERS_PER_MEETING \| MAX_PER_MEETING      |
+| targetLeadType | DepartmentLeadTypeEnum \| null | `null` = applies to all workers; set for HOD/D_HOD overrides |
+| value          | int                       | Times per month for ROLE_FREQUENCY; head-count for others         |
+| description    | string                    | Human-readable label                                              |
+| isActive       | boolean                   | Inactive rules are ignored during assignment                      |
+
+**Seeded defaults:** worker frequency = 1, HOD frequency = 2, D_HOD frequency = 2, min leaders per meeting = 1, max per meeting = 5.
+
+### PrayerFixedAssignment
+
+Permanently pins a worker to a specific prayer day across all months.
+
+| Field         | Type           | Notes                                              |
+|---------------|----------------|----------------------------------------------------|
+| id            | UUID           | PK                                                 |
+| workerProfile | WorkerProfile  | ManyToOne, CASCADE on delete                       |
+| dayConfig     | PrayerDayConfig | ManyToOne, CASCADE on delete                      |
+| isActive      | boolean        | Soft-disable without deleting the assignment       |
+
+**Unique constraint:** `(workerProfile, dayConfig)` — one fixed assignment per worker per day config.
+
+### PrayerMeeting
+
+One concrete meeting per calendar date generated from a day config.
+
+| Field           | Type                | Notes                                               |
+|-----------------|---------------------|-----------------------------------------------------|
+| id              | UUID                | PK                                                  |
+| date            | string (YYYY-MM-DD) | Actual meeting date. Indexed.                       |
+| month           | int                 | Calendar month (1–12). Indexed.                     |
+| year            | int                 | Calendar year. Indexed.                             |
+| dayConfig       | PrayerDayConfig     | ManyToOne, RESTRICT on delete                       |
+| status          | PrayerMeetingStatus | SCHEDULED \| COMPLETED \| CANCELLED. Indexed.       |
+| selectionStatus | PrayerWindowStatus  | PENDING \| OPEN \| CLOSED. Indexed.                 |
+| currentCapacity | int                 | Current number of assigned workers                  |
+| rosterEntries   | PrayerRosterEntry[] | OneToMany                                           |
+
+### PrayerRosterEntry
+
+One assignment of a worker to a prayer meeting.
+
+| Field              | Type                  | Notes                                               |
+|--------------------|-----------------------|-----------------------------------------------------|
+| id                 | UUID                  | PK                                                  |
+| workerProfile      | WorkerProfile         | ManyToOne, CASCADE on delete. Indexed.              |
+| meeting            | PrayerMeeting         | ManyToOne, CASCADE on delete. Indexed.              |
+| assignmentType     | PrayerAssignmentType  | FIXED \| SELF_SELECTED \| AUTO_ASSIGNED             |
+| status             | PrayerRosterStatus    | SCHEDULED \| RESCHEDULED                            |
+| rescheduledFrom    | PrayerRosterEntry \| null | Self-referencing nullable FK, SET NULL on delete — tracks origin of rescheduled entries |
+| reminderTwoDaySent | boolean               | 2-day-ahead reminder dispatched flag. Indexed (scheduler filter). |
+| reminderDaySent    | boolean               | Day-of reminder dispatched flag. Indexed (scheduler filter). |
+
 ---
 
 ## 4. Authentication & Authorization
@@ -878,6 +964,8 @@ The app has two independent entry points — the mobile app (`POST /auth/login`)
 - Password reset and device reset/purge invalidate **both** surfaces simultaneously (credential change = full sign-out).
 
 There is no `ADMIN` role in the JWT. Admin portal access is determined at the route level by `AdminGuard` looking up the `admins` table.
+
+`validateAccessToken` returns `MemberAuth` which is set as `req.user`. For WORKER-role members, `req.user.workerProfileId` is populated from the loaded `workerProfile.id`. Worker-facing endpoints that need the worker's profile ID read it from `req.user.workerProfileId` — this is never embedded in the JWT itself.
 
 ### Guards
 
@@ -1554,6 +1642,41 @@ Records and retrieves physical attendance counts for services, broken down by de
 
 **Routes prefix:** `/service-headcount`
 
+### Prayer Roster Module
+
+Manages the monthly prayer meeting roster for workers. Admins configure which days prayer meetings occur, what capacity and frequency rules apply, and which workers have fixed assignments. Workers self-select available slots during an open window; unselected slots are filled by the auto-assign algorithm.
+
+**Key flows:**
+
+- Admin configures prayer days (`POST /prayer/admin/day-configs`) and frequency rules (`POST /prayer/admin/rules`).
+- Admin generates meetings for a month (`POST /prayer/admin/meetings/generate`). Fixed assignments are auto-applied at generation time.
+- Admin opens the self-selection window (`POST /prayer/admin/meetings/open-selection`); workers browse open slots and submit their preference (`POST /prayer/select`).
+- Admin runs auto-assign (`POST /prayer/admin/roster/auto-assign?month=&year=`) to fill remaining gaps. The algorithm assigns leaders first, then regular workers, respecting exact per-role frequency rules and meeting capacity limits.
+- **Exact frequency enforcement:** Every worker (including HODs) must be assigned to exactly their required number of slots — not more, not fewer. `GET /prayer/my-status` returns `{ required, selected, canSubmit }` so the mobile UI can show the worker's progress.
+- **Concurrent self-selection:** The `selfSelect` flow runs inside a `DataSource.transaction()` with a `pessimistic_write` lock on the meeting row to prevent capacity over-booking under concurrent requests. The lock query uses `innerJoinAndSelect` (not `findOne` with `relations`) because PostgreSQL rejects `FOR UPDATE` on the nullable side of an outer join.
+- **Reschedule (soft-delete):** `PATCH /prayer/admin/roster/entries/:id/reschedule` does not delete the old entry. It marks the old entry's `status` as `RESCHEDULED`, creates a new entry on the target meeting with `rescheduledFrom` pointing to the old entry, and adjusts `currentCapacity` on both meetings. Only `SCHEDULED` entries can be rescheduled.
+- Admin validates the completed roster (`GET /prayer/admin/roster/validate?month=&year=`). All active-entry queries filter `status = SCHEDULED` so rescheduled entries are excluded.
+
+**Reminder scheduler (daily at 08:00):**
+Queries `prayer_roster_entries` where the meeting date is 2 days or 1 day away and the corresponding flag (`reminderTwoDaySent` / `reminderDaySent`) is `false`. Queues email via `UtilityService.sendEmailWithTemplate` (fire-and-forget). All flag updates are batched into a single `save()` call after the loop. Template: `prayer-reminder.html`.
+
+**Routes prefix (admin):** `/prayer/admin`  
+**Routes prefix (worker):** `/prayer`
+
+**Entities:** `prayer_schedule_configs`, `prayer_day_configs`, `prayer_schedule_rules`, `prayer_fixed_assignments`, `prayer_meetings`, `prayer_roster_entries`.
+
+**Migrations:**
+- `1785369600000-CreatePrayerScheduleConfig`
+- `1785456000000-CreatePrayerDayConfigs`
+- `1785542400000-CreatePrayerScheduleRules` *(also seeds 5 default rules)*
+- `1785628800000-CreatePrayerFixedAssignments`
+- `1785715200000-CreatePrayerMeetings`
+- `1785801600000-CreatePrayerRosterEntries`
+- `1785888000000-AddPrayerIndexes` *(indexes on `reminder_two_day_sent`, `reminder_day_sent`, `status` on roster entries; `status`, `selection_status` on meetings)*
+- `1785974400000-PrayerColumnsToSnakeCase` *(renames all prayer table columns from camelCase SQL names to snake_case for TypeORM SnakeNamingStrategy compatibility)*
+
+---
+
 ### Children Church Module
 
 Provides a security-grade check-in/check-out system for children. Key features:
@@ -1846,6 +1969,29 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /admin/incidents/:id                                       | AdminGuard (INCIDENT_REPORT_READ)                             | Get a single incident report with full details.                                                               |
 | PATCH  | /admin/incidents/:id/status                                | AdminGuard (INCIDENT_REPORT_WRITE)                            | Update incident status (`OPEN` → `IN_PROGRESS` → `RESOLVED`) and optionally set adminNotes. Sets `resolvedAt` automatically when status is `RESOLVED`. |
 
+| GET    | /prayer/admin/config                                       | AdminGuard (PRAYER_READ)                                      | Get the active schedule config (selectionWindowDays)                                                          |
+| PATCH  | /prayer/admin/config                                       | AdminGuard (PRAYER_WRITE)                                     | Upsert the active schedule config                                                                             |
+| GET    | /prayer/admin/day-configs                                  | AdminGuard (PRAYER_READ)                                      | List all prayer day configs ordered by dayOfWeek                                                              |
+| POST   | /prayer/admin/day-configs                                  | AdminGuard (PRAYER_WRITE)                                     | Create a prayer day config (one active config per day of week)                                                |
+| PATCH  | /prayer/admin/day-configs/:id                              | AdminGuard (PRAYER_WRITE)                                     | Update a prayer day config (mode, startTime, endTime, maxCapacity, isActive)                                  |
+| GET    | /prayer/admin/rules                                        | AdminGuard (PRAYER_READ)                                      | List all schedule rules                                                                                       |
+| POST   | /prayer/admin/rules                                        | AdminGuard (PRAYER_WRITE)                                     | Create a schedule rule                                                                                        |
+| PATCH  | /prayer/admin/rules/:id                                    | AdminGuard (PRAYER_WRITE)                                     | Update a schedule rule (value, isActive, etc.)                                                                |
+| GET    | /prayer/admin/fixed-assignments                            | AdminGuard (PRAYER_READ)                                      | List all active fixed assignments with worker and day config relations                                        |
+| POST   | /prayer/admin/fixed-assignments                            | AdminGuard (PRAYER_WRITE)                                     | Create a fixed assignment (workerProfileId, dayConfigId)                                                      |
+| DELETE | /prayer/admin/fixed-assignments/:id                        | AdminGuard (PRAYER_WRITE)                                     | Soft-deactivate a fixed assignment                                                                            |
+| POST   | /prayer/admin/meetings/generate                            | AdminGuard (PRAYER_WRITE)                                     | Generate all meetings for a month; auto-applies fixed assignments; 409 if meetings already exist              |
+| POST   | /prayer/admin/meetings/open-selection                      | AdminGuard (PRAYER_WRITE)                                     | Open self-selection window for all PENDING meetings in a month                                                |
+| POST   | /prayer/admin/meetings/close-selection                     | AdminGuard (PRAYER_WRITE)                                     | Close self-selection window for all OPEN meetings in a month                                                  |
+| POST   | /prayer/admin/roster/auto-assign?month=&year=              | AdminGuard (PRAYER_WRITE)                                     | Auto-assign remaining unassigned workers to meetings; returns `{ assigned, unassignable }`                    |
+| GET    | /prayer/admin/roster/validate?month=&year=                 | AdminGuard (PRAYER_READ)                                      | Validate roster completeness; returns `{ valid, issues }` with per-worker frequency and per-meeting leader checks |
+| GET    | /prayer/admin/roster/:month/:year                          | AdminGuard (PRAYER_READ)                                      | Get full monthly roster with all meetings, day configs, and roster entries                                    |
+| PATCH  | /prayer/admin/roster/entries/:id/reschedule                | AdminGuard (PRAYER_WRITE)                                     | Soft-reschedule: marks old entry `RESCHEDULED`, creates new entry on target meeting with `rescheduledFrom` FK; body: `{ newMeetingId }` |
+| GET    | /prayer/available?month=&year=                             | WORKER                                                        | List open prayer meetings with remaining capacity for the given month                                         |
+| GET    | /prayer/my-roster?month=&year=                             | WORKER                                                        | Authenticated worker's own roster entries for the month                                                       |
+| GET    | /prayer/my-status?month=&year=                             | WORKER                                                        | Returns `{ required, selected, canSubmit, entries }` — shows progress toward frequency quota                  |
+| POST   | /prayer/select                                             | WORKER                                                        | Self-select a prayer slot; body: `{ meetingId }`; enforced with pessimistic DB lock to prevent overbooking    |
+
 | POST   | /admin/assets                                              | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Create a new asset. `tagNumber` auto-generated (`AST-{YEAR}-{NNNN}`) if not provided. Optional: `serialNumber`, `manufacturer`, `model`, `warrantyExpiry`, `vendorName`, `vendorContact`, `departmentId`. Returns `409` if tag already exists. |
 | GET    | /admin/assets?page=&limit=&status=&category=&maintenanceEnabled=&departmentId= | AdminGuard (ASSET_MANAGEMENT_READ) + Module: asset_management | Paginated asset list. Filterable by status, category (case-insensitive), maintenanceEnabled, and departmentId. Each record includes `maintenanceSchedule` and `department`. |
 | GET    | /admin/assets/checkouts?page=&limit=                       | AdminGuard (ASSET_MANAGEMENT_READ) + Module: asset_management | All currently active checkouts across all assets (returnedAt IS NULL), newest first. |
@@ -1993,6 +2139,8 @@ A church worker can also have admin access. They pass `@Roles(WORKER)` routes vi
 | Register first-timers, reassign / bulk-update tasks | `FOLLOW_UP_WRITE` |
 | View service attendance headcounts and trends       | `HEADCOUNT_READ`  |
 | Record and correct physical attendance headcounts   | `HEADCOUNT_WRITE` |
+| View prayer config, rules, roster, and meetings     | `PRAYER_READ`     |
+| Manage prayer days, rules, assignments, and roster  | `PRAYER_WRITE`    |
 
 ---
 
@@ -2170,7 +2318,8 @@ Granular permissions assigned to `AdminRole` records:
 `classes:write` · `announcements:read` · `announcements:write` · `notes:read` · `notes:write` · `dashboard:read` ·
 `sunday_school:read` · `sunday_school:write` · `children_church:read` · `children_church:write` · `admin:read` ·
 `admin:write` · `audit:read` · `finance:read` · `finance:write` · `follow_up:read` · `follow_up:write` ·
-`service_programme:read` · `service_programme:write` · `headcount:read` · `headcount:write`
+`service_programme:read` · `service_programme:write` · `headcount:read` · `headcount:write` ·
+`prayer:read` · `prayer:write`
 
 `GET /enums` returns these as both a flat `adminPermissions` list (value + label) and a grouped `adminPermissionGroups` list (group name + permissions with value, label, and description) — use the grouped form to render the permission assignment UI.
 
@@ -2324,3 +2473,27 @@ if the department is not linked to any gated module). Multiple departments can s
 ### AssetConditionEnum
 
 `GOOD` · `FAIR` · `POOR`
+
+### PrayerDayMode
+
+`PHYSICAL` · `VIRTUAL`
+
+### PrayerRuleType
+
+`ROLE_FREQUENCY` · `MIN_LEADERS_PER_MEETING` · `MAX_PER_MEETING`
+
+### PrayerAssignmentType
+
+`FIXED` · `SELF_SELECTED` · `AUTO_ASSIGNED`
+
+### PrayerRosterStatus
+
+`SCHEDULED` · `RESCHEDULED`
+
+### PrayerMeetingStatus
+
+`SCHEDULED` · `COMPLETED` · `CANCELLED`
+
+### PrayerWindowStatus
+
+`PENDING` · `OPEN` · `CLOSED`

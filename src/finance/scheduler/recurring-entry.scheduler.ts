@@ -18,8 +18,8 @@ import {
 
 @Injectable()
 export class RecurringEntryScheduler {
-  private readonly logger = new Logger(RecurringEntryScheduler.name);
   private static readonly LOCK_KEY = 'lock:finance-recurring-entries';
+  private readonly logger = new Logger(RecurringEntryScheduler.name);
 
   constructor(
     @InjectRepository(RecurringEntry)

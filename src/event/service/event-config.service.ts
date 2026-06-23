@@ -18,8 +18,8 @@ export type UpdateEventConfigDto = Partial<CreateEventConfigDto>;
 
 @Injectable()
 export class EventConfigService {
-  private readonly logger = new Logger(EventConfigService.name);
   private static readonly CACHE_KEY = 'event-config:all';
+  private readonly logger = new Logger(EventConfigService.name);
   private readonly cacheTtl: number;
 
   constructor(
@@ -71,7 +71,7 @@ export class EventConfigService {
       config.defaultVenue = await this.venueService.getById(dto.defaultVenueId);
     }
 
-    const { defaultVenueId: _ignored, ...rest } = dto;
+    const { defaultVenueId: _dv, ...rest } = dto;
     Object.assign(config, rest);
     this.validateOffsets(config);
     const saved = await this.repo.save(config);

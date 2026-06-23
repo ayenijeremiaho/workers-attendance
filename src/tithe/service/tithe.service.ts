@@ -71,9 +71,12 @@ export interface TitheAccountSummary {
 
 @Injectable()
 export class TitheService {
+  private static readonly PROOF_CLEANUP_LOCK = 'lock:tithe-proof-cleanup';
   private readonly logger = new Logger(TitheService.name);
   private readonly currencyLocale: string;
   private readonly proofExpiryDays: number;
+
+  // ── Tithe Accounts ────────────────────────────────────────────────────────
 
   constructor(
     @InjectRepository(TitheAccount)
@@ -105,8 +108,6 @@ export class TitheService {
     this.currencyLocale = this.config.get<string>('CURRENCY_LOCALE');
     this.proofExpiryDays = this.config.get<number>('TITHE_PROOF_EXPIRY_DAYS');
   }
-
-  // ── Tithe Accounts ────────────────────────────────────────────────────────
 
   async createAccount(
     dto: CreateTitheAccountDto,
@@ -169,6 +170,8 @@ export class TitheService {
     return updated;
   }
 
+  // ── Template & Upload ─────────────────────────────────────────────────────
+
   async getAccountSummary(
     accountId: string,
     fromMonth?: string,
@@ -228,8 +231,6 @@ export class TitheService {
       grandTotal: bulkTotal + proofTotal,
     };
   }
-
-  // ── Template & Upload ─────────────────────────────────────────────────────
 
   async getTemplate(): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
@@ -585,6 +586,8 @@ export class TitheService {
     return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 
+  // ── Tithe Payment Proofs ──────────────────────────────────────────────────
+
   async emailTitheStatement(
     user: MemberAuth,
     fromMonth?: string,
@@ -635,8 +638,6 @@ export class TitheService {
       `Tithe statement emailed to ${member.email} — ${records.length} records`,
     );
   }
-
-  // ── Tithe Payment Proofs ──────────────────────────────────────────────────
 
   async submitProof(
     user: MemberAuth,
@@ -789,8 +790,6 @@ export class TitheService {
       },
     );
   }
-
-  private static readonly PROOF_CLEANUP_LOCK = 'lock:tithe-proof-cleanup';
 
   @Cron('0 3 * * *')
   async purgeExpiredProofs(): Promise<void> {

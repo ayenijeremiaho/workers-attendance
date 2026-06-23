@@ -12,8 +12,8 @@ import { MemberStatusEnum } from '../../member/enums/member-status.enum';
 
 @Injectable()
 export class AnnualGivingStatementScheduler {
-  private readonly logger = new Logger(AnnualGivingStatementScheduler.name);
   private static readonly LOCK_KEY = 'lock:annual-giving-statements';
+  private readonly logger = new Logger(AnnualGivingStatementScheduler.name);
 
   constructor(
     @InjectRepository(Member)

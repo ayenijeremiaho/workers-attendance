@@ -32,13 +32,35 @@ type UpdateNoteRequest = Partial<NoteRequest> & { type: NoteTypeEnum };
 
 @Injectable()
 export class NotesService {
+  private readonly logger = new Logger(NotesService.name);
+
   constructor(
     @InjectRepository(Note)
     private readonly noteRepository: Repository<Note>,
     private readonly auditLogService: AuditLogService,
   ) {}
 
-  private readonly logger = new Logger(NotesService.name);
+  private static async validateRequest(
+    type: NoteTypeEnum,
+    data: any,
+    partial = false,
+  ): Promise<void> {
+    const classMap = {
+      [NoteTypeEnum.CHILD_NAMING]: ChildNamingRequest,
+      [NoteTypeEnum.CHILD_DEDICATION]: ChildDedicationRequest,
+      [NoteTypeEnum.MARRIAGE]: MarriageRequest,
+    };
+
+    const RequestClass = classMap[type];
+    if (!RequestClass) throw new BadRequestException('Invalid note type');
+
+    const instance = plainToInstance(RequestClass as any, data, {
+      exposeDefaultValues: true,
+    });
+    await validateOrReject(instance as object, {
+      skipMissingProperties: partial,
+    });
+  }
 
   async create(request: NoteRequest, actorId: string): Promise<Note> {
     await NotesService.validateRequest(request.type, request);
@@ -176,27 +198,5 @@ export class NotesService {
       default:
         throw new BadRequestException('Unsupported note type');
     }
-  }
-
-  private static async validateRequest(
-    type: NoteTypeEnum,
-    data: any,
-    partial = false,
-  ): Promise<void> {
-    const classMap = {
-      [NoteTypeEnum.CHILD_NAMING]: ChildNamingRequest,
-      [NoteTypeEnum.CHILD_DEDICATION]: ChildDedicationRequest,
-      [NoteTypeEnum.MARRIAGE]: MarriageRequest,
-    };
-
-    const RequestClass = classMap[type];
-    if (!RequestClass) throw new BadRequestException('Invalid note type');
-
-    const instance = plainToInstance(RequestClass as any, data, {
-      exposeDefaultValues: true,
-    });
-    await validateOrReject(instance as object, {
-      skipMissingProperties: partial,
-    });
   }
 }

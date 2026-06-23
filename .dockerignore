@@ -4,5 +4,6 @@ Dockerfile
 .dockerignore
 dist
 node_modules
+*.tsbuildinfo
 .env.local
 README.md

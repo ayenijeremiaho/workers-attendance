@@ -14,8 +14,8 @@ import { CacheService } from '../../utility/service/cache.service';
 
 @Injectable()
 export class VenueService {
-  private readonly logger = new Logger(VenueService.name);
   private static readonly CACHE_KEY = 'venues:all';
+  private readonly logger = new Logger(VenueService.name);
   private readonly cacheTtl: number;
 
   constructor(

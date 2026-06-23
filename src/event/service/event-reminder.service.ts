@@ -27,6 +27,7 @@ import { WorkerStatusEnum } from '../../member/enums/worker-status.enum';
 
 @Injectable()
 export class EventReminderService {
+  private static readonly LOCK_KEY = 'lock:dispatch-reminders';
   private readonly logger = new Logger(EventReminderService.name);
   private readonly currencyLocale: string;
 
@@ -45,8 +46,6 @@ export class EventReminderService {
   ) {
     this.currencyLocale = this.config.get<string>('CURRENCY_LOCALE');
   }
-
-  private static readonly LOCK_KEY = 'lock:dispatch-reminders';
 
   async create(
     slotId: string,

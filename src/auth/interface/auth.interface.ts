@@ -20,4 +20,5 @@ export interface MemberAuth {
   role: MemberRoleEnum;
   requiresPasswordChange: boolean;
   surface: SessionSurface;
+  workerProfileId?: string;
 }

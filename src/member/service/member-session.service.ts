@@ -6,12 +6,12 @@ import { SessionSurface } from '../../auth/enum/session-surface.enum';
 
 @Injectable()
 export class MemberSessionService {
+  private readonly logger = new Logger(MemberSessionService.name);
+
   constructor(
     @InjectRepository(MemberSession)
     private readonly sessionRepository: Repository<MemberSession>,
   ) {}
-
-  private readonly logger = new Logger(MemberSessionService.name);
 
   async updateLogin(
     memberId: string,

@@ -79,11 +79,11 @@ export class ServiceSlot extends BaseEntity {
   @JoinColumn({ name: 'venue_override_id' })
   venueOverride: Venue | null;
 
+  @OneToMany(() => Attendance, (attendance) => attendance.serviceSlot)
+  attendances: Attendance[];
+
   /** Resolved venue: slot-level override takes priority over the config default. */
   get effectiveVenue(): Venue | null {
     return this.venueOverride ?? this.config?.defaultVenue ?? null;
   }
-
-  @OneToMany(() => Attendance, (attendance) => attendance.serviceSlot)
-  attendances: Attendance[];
 }

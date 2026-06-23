@@ -43,6 +43,8 @@ export enum AdminPermission {
   FINANCE_REPORT = 'finance:report',
   TITHE_READ = 'tithe:read',
   TITHE_WRITE = 'tithe:write',
+  PRAYER_READ = 'prayer:read',
+  PRAYER_WRITE = 'prayer:write',
 }
 
 export const AdminPermissionLabels: Record<AdminPermission, string> = {
@@ -90,6 +92,8 @@ export const AdminPermissionLabels: Record<AdminPermission, string> = {
   [AdminPermission.ASSET_MANAGEMENT_READ]: 'View Assets',
   [AdminPermission.ASSET_MANAGEMENT_WRITE]: 'Manage Assets',
   [AdminPermission.ASSET_MAINTENANCE_ALERT]: 'Receive Maintenance Reminders',
+  [AdminPermission.PRAYER_READ]: 'View Prayer Roster',
+  [AdminPermission.PRAYER_WRITE]: 'Manage Prayer Roster',
 };
 
 export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
@@ -176,6 +180,10 @@ export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
     'Create and manage assets, log scheduled and unplanned maintenance records',
   [AdminPermission.ASSET_MAINTENANCE_ALERT]:
     'Receive email reminders for upcoming and overdue asset maintenance',
+  [AdminPermission.PRAYER_READ]:
+    'View monthly prayer roster, day configurations, rules, and fixed assignments',
+  [AdminPermission.PRAYER_WRITE]:
+    'Manage prayer roster — configure days, rules, fixed assignments, generate and close rosters, and reschedule workers',
 };
 
 export interface AdminPermissionGroupItem {
@@ -275,6 +283,10 @@ export const AdminPermissionGroups: AdminPermissionGroup[] = [
     AdminPermission.ASSET_MANAGEMENT_READ,
     AdminPermission.ASSET_MANAGEMENT_WRITE,
     AdminPermission.ASSET_MAINTENANCE_ALERT,
+  ]),
+  buildGroup('Prayer Roster', [
+    AdminPermission.PRAYER_READ,
+    AdminPermission.PRAYER_WRITE,
   ]),
   buildGroup('Administration', [
     AdminPermission.DASHBOARD_READ,

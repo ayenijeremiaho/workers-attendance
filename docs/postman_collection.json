@@ -149,6 +149,26 @@
       "key": "sessionId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "meetingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workerProfileId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dayConfigId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rosterEntryId",
+      "value": "",
+      "type": "string"
     }
   ],
   "auth": {
@@ -14794,6 +14814,604 @@
             "description": "Triggers the annual giving statement email for the previous year. Available regardless of ANNUAL_GIVING_STATEMENT_ENABLED flag."
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "Prayer (Admin)",
+      "item": [
+        {
+          "name": "Get Schedule Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "config"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upsert Schedule Config",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"selectionWindowDays\": 7}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "config"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Day Configs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/day-configs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "day-configs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Day Config",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"dayOfWeek\": 3, \"mode\": \"PHYSICAL\", \"startTime\": \"06:00\", \"endTime\": \"07:00\", \"maxCapacity\": 10}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/day-configs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "day-configs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Day Config",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"maxCapacity\": 15, \"isActive\": true}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/day-configs/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "day-configs",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Rules",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "rules"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"type\": \"ROLE_FREQUENCY\", \"targetLeadType\": null, \"value\": 1, \"description\": \"Default worker frequency\", \"isActive\": true}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "rules"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Rule",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\": 2, \"isActive\": true}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/rules/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "rules",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Fixed Assignments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/fixed-assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "fixed-assignments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Fixed Assignment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"workerProfileId\": \"{{workerProfileId}}\", \"dayConfigId\": \"{{dayConfigId}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/fixed-assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "fixed-assignments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remove Fixed Assignment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/fixed-assignments/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "fixed-assignments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generate Monthly Meetings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"month\": 7, \"year\": 2026}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/meetings/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "meetings",
+                "generate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Open Selection Window",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"month\": 7, \"year\": 2026}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/meetings/open-selection",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "meetings",
+                "open-selection"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Close Selection Window",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"month\": 7, \"year\": 2026}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/meetings/close-selection",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "meetings",
+                "close-selection"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Auto-Assign Roster",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/roster/auto-assign?month=7&year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "roster",
+                "auto-assign"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "7"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Validate Roster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/roster/validate?month=7&year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "roster",
+                "validate"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "7"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Monthly Roster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/roster/:month/:year",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "roster",
+                ":month",
+                ":year"
+              ],
+              "variable": [
+                {
+                  "key": "month",
+                  "value": "7"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reschedule Roster Entry",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"newMeetingId\": \"{{meetingId}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/roster/entries/{{rosterEntryId}}/reschedule",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "roster",
+                "entries",
+                "{{rosterEntryId}}",
+                "reschedule"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Prayer (Worker)",
+      "item": [
+        {
+          "name": "Get Available Meetings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/available?month=7&year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "available"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "7"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Roster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/my-roster?month=7&year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "my-roster"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "7"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Selection Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/my-status?month=7&year=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "my-status"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "7"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Self-Select Prayer Slot",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"meetingId\": \"{{meetingId}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prayer/select",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "select"
+              ]
+            }
+          }
         }
       ]
     }

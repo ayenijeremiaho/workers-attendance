@@ -45,6 +45,8 @@ export enum AdminPermission {
   TITHE_WRITE = 'tithe:write',
   PRAYER_READ = 'prayer:read',
   PRAYER_WRITE = 'prayer:write',
+  FACILITY_RENTAL_READ = 'facility_rental:read',
+  FACILITY_RENTAL_WRITE = 'facility_rental:write',
 }
 
 export const AdminPermissionLabels: Record<AdminPermission, string> = {
@@ -94,6 +96,8 @@ export const AdminPermissionLabels: Record<AdminPermission, string> = {
   [AdminPermission.ASSET_MAINTENANCE_ALERT]: 'Receive Maintenance Reminders',
   [AdminPermission.PRAYER_READ]: 'View Prayer Roster',
   [AdminPermission.PRAYER_WRITE]: 'Manage Prayer Roster',
+  [AdminPermission.FACILITY_RENTAL_READ]: 'View Facility Bookings',
+  [AdminPermission.FACILITY_RENTAL_WRITE]: 'Manage Facility Rentals',
 };
 
 export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
@@ -184,6 +188,10 @@ export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
     'View monthly prayer roster, day configurations, rules, and fixed assignments',
   [AdminPermission.PRAYER_WRITE]:
     'Manage prayer roster — configure days, rules, fixed assignments, generate and close rosters, and reschedule workers',
+  [AdminPermission.FACILITY_RENTAL_READ]:
+    'View facility bookings, pricing tiers, add-ons, and availability calendar',
+  [AdminPermission.FACILITY_RENTAL_WRITE]:
+    'Manage facilities, pricing tiers, add-ons, confirm or reject bookings, apply discount overrides, and record payments',
 };
 
 export interface AdminPermissionGroupItem {
@@ -287,6 +295,10 @@ export const AdminPermissionGroups: AdminPermissionGroup[] = [
   buildGroup('Prayer Roster', [
     AdminPermission.PRAYER_READ,
     AdminPermission.PRAYER_WRITE,
+  ]),
+  buildGroup('Facility Rental', [
+    AdminPermission.FACILITY_RENTAL_READ,
+    AdminPermission.FACILITY_RENTAL_WRITE,
   ]),
   buildGroup('Administration', [
     AdminPermission.DASHBOARD_READ,

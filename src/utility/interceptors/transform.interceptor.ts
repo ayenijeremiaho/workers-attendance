@@ -27,11 +27,12 @@ export class TransformInterceptor<T>
         const responseData = data ?? {};
         const message = this.getDefaultMessage(statusCode);
         const finalMessage = responseData.message || message;
-        const finalStatus = responseData.status || statusCode;
+        const statusOverride = typeof responseData.status === 'number' ? responseData.status : null;
+        const finalStatus = statusOverride ?? statusCode;
 
         if (responseData) {
           delete responseData.message;
-          delete responseData.status;
+          if (statusOverride !== null) delete responseData.status;
         }
 
         return {

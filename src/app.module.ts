@@ -39,6 +39,7 @@ import { IncidentReportModule } from './incident-report/incident-report.module';
 import { AssetManagementModule } from './asset-management/asset-management.module';
 import { FinanceModule } from './finance/finance.module';
 import { PrayerModule } from './prayer/prayer.module';
+import { FacilityRentalModule } from './facility-rental/facility-rental.module';
 
 @Module({
   imports: [
@@ -159,6 +160,7 @@ import { PrayerModule } from './prayer/prayer.module';
     AssetManagementModule,
     FinanceModule,
     PrayerModule,
+    FacilityRentalModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: AppThrottlerGuard }],

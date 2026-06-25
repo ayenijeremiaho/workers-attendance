@@ -169,6 +169,36 @@
       "key": "rosterEntryId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "rentalFacilityId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rentalAddonId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rentalTierId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rentalBookingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rentalPaymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rentalCalendarBlockId",
+      "value": "",
+      "type": "string"
     }
   ],
   "auth": {
@@ -15412,6 +15442,859 @@
               ]
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "Facility Rental",
+      "item": [
+        {
+          "name": "Admin - Facilities",
+          "item": [
+            {
+              "name": "Create Facility",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/facilities",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "facilities"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Main Hall\",\n  \"basePrice\": 50000,\n  \"description\": \"Large multipurpose hall\",\n  \"capacity\": 200\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Facilities (Admin)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/facilities",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "facilities"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Facility",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/facilities/{{rentalFacilityId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "facilities",
+                    "{{rentalFacilityId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"basePrice\": 55000,\n  \"isActive\": true\n}"
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admin - Pricing Tiers",
+          "item": [
+            {
+              "name": "Upsert Pricing Tier (WORKER)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/pricing-tiers",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "pricing-tiers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"memberCategory\": \"WORKER\",\n  \"discountType\": \"PERCENTAGE\",\n  \"discountValue\": 20\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Upsert Pricing Tier (LEADER)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/pricing-tiers",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "pricing-tiers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"memberCategory\": \"LEADER\",\n  \"discountType\": \"PERCENTAGE\",\n  \"discountValue\": 30\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Pricing Tiers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/pricing-tiers",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "pricing-tiers"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Pricing Tier",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/pricing-tiers/{{rentalTierId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "pricing-tiers",
+                    "{{rentalTierId}}"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admin - Add-ons",
+          "item": [
+            {
+              "name": "Create Add-on",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/addons",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "addons"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"LED Screen\",\n  \"price\": 10000,\n  \"cautionAmount\": 5000,\n  \"description\": \"120-inch LED display\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Add-on (D\u00e9cor)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/addons",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "addons"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Hall Decoration\",\n  \"price\": 15000,\n  \"cautionAmount\": 10000\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Add-ons (Admin)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/addons",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "addons"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Add-on",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/addons/{{rentalAddonId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "addons",
+                    "{{rentalAddonId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"price\": 12000\n}"
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admin - Calendar Blocks",
+          "item": [
+            {
+              "name": "Create Calendar Block",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/calendar-blocks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "calendar-blocks"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"facilityId\": \"{{rentalFacilityId}}\",\n  \"startDateTime\": \"2026-08-10T08:00:00Z\",\n  \"endDateTime\": \"2026-08-10T22:00:00Z\",\n  \"reason\": \"Church conference\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Calendar Blocks",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/calendar-blocks?facilityId={{rentalFacilityId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "calendar-blocks"
+                  ],
+                  "query": [
+                    {
+                      "key": "facilityId",
+                      "value": "{{rentalFacilityId}}",
+                      "disabled": false
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Calendar Block",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/calendar-blocks/{{rentalCalendarBlockId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "calendar-blocks",
+                    "{{rentalCalendarBlockId}}"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admin - Bookings",
+          "item": [
+            {
+              "name": "List All Bookings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/bookings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "bookings"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Bookings by Status",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/bookings?status=PENDING",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "bookings"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "PENDING",
+                      "disabled": false
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Booking",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/bookings/{{rentalBookingId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "bookings",
+                    "{{rentalBookingId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Confirm Booking",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/bookings/{{rentalBookingId}}/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "bookings",
+                    "{{rentalBookingId}}",
+                    "confirm"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"Payment verified\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Reject Booking",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/bookings/{{rentalBookingId}}/reject",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "bookings",
+                    "{{rentalBookingId}}",
+                    "reject"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rejectionReason\": \"Facility unavailable for maintenance\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Apply Override Discount",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/bookings/{{rentalBookingId}}/discount",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "bookings",
+                    "{{rentalBookingId}}",
+                    "discount"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"overrideDiscountType\": \"FLAT\",\n  \"overrideDiscountValue\": 5000,\n  \"overrideDiscountNote\": \"Approved by pastor\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Override Discount",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/bookings/{{rentalBookingId}}/discount",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "bookings",
+                    "{{rentalBookingId}}",
+                    "discount"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admin - Payments",
+          "item": [
+            {
+              "name": "Mark Payment Paid",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/payments/{{rentalPaymentId}}/paid",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "payments",
+                    "{{rentalPaymentId}}",
+                    "paid"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reference\": \"TXN-2026-001\",\n  \"proofUrl\": \"https://example.com/proof.jpg\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Mark Caution Refunded",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/admin/payments/{{rentalPaymentId}}/refund",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "admin",
+                    "payments",
+                    "{{rentalPaymentId}}",
+                    "refund"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Member",
+          "item": [
+            {
+              "name": "List Facilities",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/facilities",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "facilities"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Add-ons",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/addons",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "addons"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Check Availability",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/facilities/{{rentalFacilityId}}/availability?from=2026-08-01T00:00:00Z&to=2026-08-31T23:59:59Z",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "facilities",
+                    "{{rentalFacilityId}}",
+                    "availability"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-08-01T00:00:00Z",
+                      "disabled": false
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-08-31T23:59:59Z",
+                      "disabled": false
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Booking",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/bookings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "bookings"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"facilityId\": \"{{rentalFacilityId}}\",\n  \"startDateTime\": \"2026-08-15T09:00:00Z\",\n  \"endDateTime\": \"2026-08-15T17:00:00Z\",\n  \"purpose\": \"Family event\",\n  \"addons\": [\n    {\n      \"addonId\": \"{{rentalAddonId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "My Bookings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/bookings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "bookings"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get My Booking",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/bookings/{{rentalBookingId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "bookings",
+                    "{{rentalBookingId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Cancel Booking",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/facility-rental/bookings/{{rentalBookingId}}/cancel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "facility-rental",
+                    "bookings",
+                    "{{rentalBookingId}}",
+                    "cancel"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }

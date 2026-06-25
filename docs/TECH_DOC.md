@@ -944,6 +944,115 @@ One assignment of a worker to a prayer meeting.
 
 ---
 
+### RentalFacility
+
+A bookable space (hall, room, etc.) owned by the congregation.
+
+| Field       | Type    | Notes                              |
+|-------------|---------|------------------------------------|
+| id          | UUID    | PK                                 |
+| name        | varchar | Unique display name                |
+| description | text    | nullable                           |
+| basePrice   | decimal | Price before discount (15,2)       |
+| capacity    | int     | nullable — max occupancy           |
+| isActive    | boolean | Soft-disable without deleting      |
+
+### RentalPricingTier
+
+One discount rule per member category. Unique on `memberCategory`.
+
+| Field          | Type                  | Notes                                    |
+|----------------|-----------------------|------------------------------------------|
+| id             | UUID                  | PK                                       |
+| memberCategory | RentalMemberCategory  | MEMBER \| WORKER \| LEADER \| PUBLIC — UNIQUE |
+| discountType   | RentalDiscountType    | PERCENTAGE \| FLAT                       |
+| discountValue  | decimal               | % value or flat amount (10,2)            |
+| isActive       | boolean               |                                          |
+
+### RentalAddon
+
+Bookable extras (LED screen, décor, etc.) with an optional asset link.
+
+| Field         | Type    | Notes                                         |
+|---------------|---------|-----------------------------------------------|
+| id            | UUID    | PK                                            |
+| name          | varchar |                                               |
+| description   | text    | nullable                                      |
+| price         | decimal | Service charge, subject to discount (15,2)    |
+| cautionAmount | decimal | Refundable deposit — never discounted (15,2)  |
+| isActive      | boolean |                                               |
+| asset         | Asset   | nullable FK → assets, SET NULL on delete      |
+
+### RentalCalendarBlock
+
+Admin-created blackout period on a facility (maintenance, church events, etc.).
+
+| Field         | Type           | Notes                            |
+|---------------|----------------|----------------------------------|
+| id            | UUID           | PK                               |
+| facility      | RentalFacility | ManyToOne, CASCADE on delete     |
+| startDateTime | timestamptz    |                                  |
+| endDateTime   | timestamptz    |                                  |
+| reason        | text           | nullable                         |
+
+### RentalBooking
+
+A member's booking of a facility for a specific time window. Price snapshot is stored at creation time so later config changes do not affect existing bookings.
+
+| Field                | Type                  | Notes                                                                 |
+|----------------------|-----------------------|-----------------------------------------------------------------------|
+| id                   | UUID                  | PK                                                                    |
+| facility             | RentalFacility        | ManyToOne, RESTRICT on delete                                         |
+| member               | Member                | ManyToOne, RESTRICT on delete                                         |
+| startDateTime        | timestamptz           | Indexed                                                               |
+| endDateTime          | timestamptz           |                                                                       |
+| status               | RentalBookingStatus   | PENDING → CONFIRMED → IN_PROGRESS → COMPLETED \| CANCELLED \| REJECTED |
+| memberCategory       | RentalMemberCategory  | Snapshot of category at booking time                                  |
+| basePrice            | decimal               | Snapshot of facility base price                                       |
+| discountType         | RentalDiscountType    | nullable — applied discount type                                      |
+| discountValue        | decimal               | nullable — applied discount amount/percent                            |
+| discountSource       | RentalDiscountSource  | NONE \| TIER \| OVERRIDE                                              |
+| serviceFee           | decimal               | (base + addons) after discount                                        |
+| cautionTotal         | decimal               | Sum of all caution amounts — never discounted                         |
+| grandTotal           | decimal               | serviceFee + cautionTotal                                             |
+| overrideDiscountType | RentalDiscountType    | nullable — admin override                                             |
+| overrideDiscountValue| decimal               | nullable                                                              |
+| overrideDiscountNote | text                  | nullable — reason for override                                        |
+| purpose              | text                  | nullable                                                              |
+| notes                | text                  | nullable — admin notes                                                |
+| rejectionReason      | text                  | nullable                                                              |
+
+### RentalBookingAddon
+
+Junction between a booking and selected add-ons. Stores unit price/caution snapshots.
+
+| Field      | Type          | Notes                                  |
+|------------|---------------|----------------------------------------|
+| id         | UUID          | PK                                     |
+| booking    | RentalBooking | ManyToOne, CASCADE on delete           |
+| addon      | RentalAddon   | ManyToOne, RESTRICT on delete          |
+| quantity   | int           | Default 1                              |
+| unitPrice  | decimal       | Snapshot of addon.price at booking time|
+| unitCaution| decimal       | Snapshot of addon.cautionAmount        |
+
+### RentalPayment
+
+One payment line per booking (service fee + separate caution record if caution > 0). Tracks proof and refund lifecycle.
+
+| Field      | Type               | Notes                                                     |
+|------------|--------------------|-----------------------------------------------------------|
+| id         | UUID               | PK                                                        |
+| booking    | RentalBooking      | ManyToOne, CASCADE on delete. Indexed.                    |
+| type       | RentalPaymentType  | SERVICE_FEE \| CAUTION                                    |
+| amount     | decimal            |                                                           |
+| status     | RentalPaymentStatus| PENDING → PAID; CAUTION can transition to REFUNDED        |
+| paidAt     | timestamptz        | nullable                                                  |
+| refundedAt | timestamptz        | nullable — set when caution returned                      |
+| reference  | varchar            | nullable — bank ref / receipt number                      |
+| proofUrl   | varchar            | nullable                                                  |
+
+---
+
 ## 4. Authentication & Authorization
 
 ### Dual-Surface Sessions
@@ -1677,6 +1786,34 @@ Queries `prayer_roster_entries` where the meeting date is 2 days or 1 day away a
 
 ---
 
+### Facility Rental Module
+
+Manages bookable facility slots (halls, rooms, etc.) for members and workers, with tier-based discounts, add-ons, and payment tracking.
+
+**Key flows:**
+
+- Admin configures facilities (`POST /facility-rental/admin/facilities`), pricing tiers (`POST /facility-rental/admin/pricing-tiers`), add-ons (`POST /facility-rental/admin/addons`), and calendar blackout blocks (`POST /facility-rental/admin/calendar-blocks`).
+- Members/workers browse active facilities and available add-ons, check availability via `GET /facility-rental/facilities/:id/availability?from=&to=`, and submit a booking (`POST /facility-rental/bookings`).
+- On booking creation, the service resolves the member's category (LEADER if a `DepartmentLead` record exists, WORKER if `role = WORKER`, otherwise MEMBER), looks up the matching pricing tier, and computes a price snapshot. Caution amounts are **never discounted**.
+- **Pricing formula:** `serviceFee = (basePrice + sum(addon prices)) × (1 - discount)`, `grandTotal = serviceFee + sum(addon caution amounts)`.
+- On creation, two `RentalPayment` rows are generated — one `SERVICE_FEE` and one `CAUTION` (skipped if caution total is zero). Both start `PENDING`.
+- **Overlap check:** `createBooking` and calendar blocks both use a time-range overlap query (`start < newEnd AND end > newStart`) against all non-cancelled/rejected bookings. A calendar block also blocks the slot.
+- Admin confirms (`PATCH .../confirm`), rejects (`PATCH .../reject`), or applies a one-off discount override (`PATCH .../discount`). Overrides recompute and update the `SERVICE_FEE` payment record in place.
+- Admin marks payments as paid (`PATCH /facility-rental/admin/payments/:id/paid`) and marks caution refunded (`PATCH /facility-rental/admin/payments/:id/refund`) after the booking completes.
+
+**Status scheduler (every 10 minutes):** `RentalStatusScheduler` auto-transitions `CONFIRMED → IN_PROGRESS` when `startDateTime ≤ now < endDateTime`, and `IN_PROGRESS → COMPLETED` when `endDateTime ≤ now`.
+
+**Routes prefix (admin):** `/facility-rental/admin`  
+**Routes prefix (member/worker):** `/facility-rental`
+
+**Entities:** `rental_facilities`, `rental_pricing_tiers`, `rental_addons`, `rental_bookings`, `rental_booking_addons`, `rental_payments`, `rental_calendar_blocks`.
+
+**Migration:** `1782303229675-CreateFacilityRental`
+
+**Permissions:** `FACILITY_RENTAL_READ`, `FACILITY_RENTAL_WRITE`
+
+---
+
 ### Children Church Module
 
 Provides a security-grade check-in/check-out system for children. Key features:
@@ -1991,6 +2128,34 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /prayer/my-roster?month=&year=                             | WORKER                                                        | Authenticated worker's own roster entries for the month                                                       |
 | GET    | /prayer/my-status?month=&year=                             | WORKER                                                        | Returns `{ required, selected, canSubmit, entries }` — shows progress toward frequency quota                  |
 | POST   | /prayer/select                                             | WORKER                                                        | Self-select a prayer slot; body: `{ meetingId }`; enforced with pessimistic DB lock to prevent overbooking    |
+
+| POST   | /facility-rental/admin/facilities                          | AdminGuard (FACILITY_RENTAL_WRITE)                            | Create a rental facility; body: `name`, `basePrice`, `description?`, `capacity?`                             |
+| GET    | /facility-rental/admin/facilities                          | AdminGuard (FACILITY_RENTAL_READ)                             | List all facilities                                                                                           |
+| PATCH  | /facility-rental/admin/facilities/:id                      | AdminGuard (FACILITY_RENTAL_WRITE)                            | Update facility (any field including `isActive`)                                                              |
+| POST   | /facility-rental/admin/pricing-tiers                       | AdminGuard (FACILITY_RENTAL_WRITE)                            | Upsert a pricing tier for a member category; body: `memberCategory`, `discountType`, `discountValue`         |
+| GET    | /facility-rental/admin/pricing-tiers                       | AdminGuard (FACILITY_RENTAL_READ)                             | List all pricing tiers                                                                                        |
+| DELETE | /facility-rental/admin/pricing-tiers/:id                   | AdminGuard (FACILITY_RENTAL_WRITE)                            | Remove a pricing tier                                                                                         |
+| POST   | /facility-rental/admin/addons                              | AdminGuard (FACILITY_RENTAL_WRITE)                            | Create add-on; body: `name`, `price`, `cautionAmount?`, `description?`, `assetId?`                           |
+| GET    | /facility-rental/admin/addons                              | AdminGuard (FACILITY_RENTAL_READ)                             | List active add-ons (with linked asset)                                                                       |
+| PATCH  | /facility-rental/admin/addons/:id                          | AdminGuard (FACILITY_RENTAL_WRITE)                            | Update add-on                                                                                                 |
+| POST   | /facility-rental/admin/calendar-blocks                     | AdminGuard (FACILITY_RENTAL_WRITE)                            | Create admin blackout block; body: `facilityId`, `startDateTime`, `endDateTime`, `reason?`                   |
+| GET    | /facility-rental/admin/calendar-blocks?facilityId=         | AdminGuard (FACILITY_RENTAL_READ)                             | List blackout blocks for a facility                                                                           |
+| DELETE | /facility-rental/admin/calendar-blocks/:id                 | AdminGuard (FACILITY_RENTAL_WRITE)                            | Remove a calendar block                                                                                       |
+| GET    | /facility-rental/admin/bookings?status=                    | AdminGuard (FACILITY_RENTAL_READ)                             | List all bookings, optionally filtered by status                                                              |
+| GET    | /facility-rental/admin/bookings/:id                        | AdminGuard (FACILITY_RENTAL_READ)                             | Get single booking with addons and payments                                                                   |
+| PATCH  | /facility-rental/admin/bookings/:id/confirm                | AdminGuard (FACILITY_RENTAL_WRITE)                            | Confirm a pending booking; optional body: `notes`                                                             |
+| PATCH  | /facility-rental/admin/bookings/:id/reject                 | AdminGuard (FACILITY_RENTAL_WRITE)                            | Reject a pending booking; body: `rejectionReason`                                                             |
+| PATCH  | /facility-rental/admin/bookings/:id/discount               | AdminGuard (FACILITY_RENTAL_WRITE)                            | Apply override discount; body: `overrideDiscountType`, `overrideDiscountValue`, `overrideDiscountNote?`; recalculates serviceFee and updates SERVICE_FEE payment record |
+| DELETE | /facility-rental/admin/bookings/:id/discount               | AdminGuard (FACILITY_RENTAL_WRITE)                            | Remove override discount; reverts to tier-based pricing                                                       |
+| PATCH  | /facility-rental/admin/payments/:id/paid                   | AdminGuard (FACILITY_RENTAL_WRITE)                            | Mark a payment as paid; optional body: `reference`, `proofUrl`                                               |
+| PATCH  | /facility-rental/admin/payments/:id/refund                 | AdminGuard (FACILITY_RENTAL_WRITE)                            | Mark a caution payment as refunded (must be PAID first)                                                       |
+| GET    | /facility-rental/facilities                                | JwtAuthGuard                                                  | List active facilities (member-facing)                                                                        |
+| GET    | /facility-rental/addons                                    | JwtAuthGuard                                                  | List active add-ons with linked asset (member-facing)                                                         |
+| GET    | /facility-rental/facilities/:id/availability?from=&to=     | JwtAuthGuard                                                  | Returns blocked time ranges (bookings + admin blocks) for the facility within a date window                   |
+| POST   | /facility-rental/bookings                                  | JwtAuthGuard                                                  | Create booking; body: `facilityId`, `startDateTime`, `endDateTime`, `purpose?`, `addons?: [{addonId, quantity}]`; overlap-checked; price auto-computed from tier |
+| GET    | /facility-rental/bookings                                  | JwtAuthGuard                                                  | Authenticated member's own bookings                                                                           |
+| GET    | /facility-rental/bookings/:id                              | JwtAuthGuard                                                  | Get own booking detail (returns 404 if belongs to another member)                                             |
+| PATCH  | /facility-rental/bookings/:id/cancel                       | JwtAuthGuard                                                  | Cancel own booking (only PENDING or CONFIRMED)                                                                |
 
 | POST   | /admin/assets                                              | AdminGuard (ASSET_MANAGEMENT_WRITE) + Module: asset_management | Create a new asset. `tagNumber` auto-generated (`AST-{YEAR}-{NNNN}`) if not provided. Optional: `serialNumber`, `manufacturer`, `model`, `warrantyExpiry`, `vendorName`, `vendorContact`, `departmentId`. Returns `409` if tag already exists. |
 | GET    | /admin/assets?page=&limit=&status=&category=&maintenanceEnabled=&departmentId= | AdminGuard (ASSET_MANAGEMENT_READ) + Module: asset_management | Paginated asset list. Filterable by status, category (case-insensitive), maintenanceEnabled, and departmentId. Each record includes `maintenanceSchedule` and `department`. |
@@ -2497,3 +2662,33 @@ if the department is not linked to any gated module). Multiple departments can s
 ### PrayerWindowStatus
 
 `PENDING` · `OPEN` · `CLOSED`
+
+### RentalMemberCategory
+
+`PUBLIC` · `MEMBER` · `WORKER` · `LEADER`
+
+Determines which pricing tier is applied. Resolved at booking time: LEADER if a `DepartmentLead` record exists for the member, WORKER if `role = WORKER`, otherwise MEMBER.
+
+### RentalDiscountType
+
+`PERCENTAGE` · `FLAT`
+
+### RentalDiscountSource
+
+`NONE` · `TIER` · `OVERRIDE`
+
+Stored as a snapshot on the booking to record how the discount was determined.
+
+### RentalBookingStatus
+
+`PENDING` · `CONFIRMED` · `IN_PROGRESS` · `COMPLETED` · `CANCELLED` · `REJECTED`
+
+Transitions: PENDING → CONFIRMED (admin) or CANCELLED/REJECTED; CONFIRMED → IN_PROGRESS (scheduler); IN_PROGRESS → COMPLETED (scheduler).
+
+### RentalPaymentType
+
+`SERVICE_FEE` · `CAUTION`
+
+### RentalPaymentStatus
+
+`PENDING` · `PAID` · `REFUNDED` (REFUNDED only valid for CAUTION payments)

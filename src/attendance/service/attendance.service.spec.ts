@@ -709,6 +709,35 @@ describe('AttendanceService', () => {
       expect(result.page).toBe(1);
     });
 
+    it('should join event directly on attendance so absent records include event data', async () => {
+      const qb = makeQb();
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+      mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+      jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
+        data: [],
+        page: 1,
+        limit: 10,
+        totalCount: 0,
+        totalPages: 1,
+      });
+
+      await service.getMyHistory(
+        {
+          id: 'member-1',
+          role: MemberRoleEnum.MEMBER,
+          requiresPasswordChange: false,
+          surface: SessionSurface.MEMBER,
+        },
+        1,
+        10,
+      );
+
+      expect(qb.leftJoinAndSelect).toHaveBeenCalledWith(
+        'attendance.event',
+        'event',
+      );
+    });
+
     it('should apply status filter when provided', async () => {
       const qb = makeQb();
       qb.getManyAndCount.mockResolvedValue([[], 0]);
@@ -737,6 +766,51 @@ describe('AttendanceService', () => {
         expect.stringContaining('attendance.status'),
         expect.objectContaining({ status: AttendanceStatusEnum.PRESENT }),
       );
+    });
+  });
+
+  describe('getAllHistory', () => {
+    it('should join event directly on attendance so absent records include event data', async () => {
+      const qb = makeQb();
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+      mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+      jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
+        data: [],
+        page: 1,
+        limit: 10,
+        totalCount: 0,
+        totalPages: 1,
+      });
+
+      await service.getAllHistory(1, 10);
+
+      expect(qb.leftJoinAndSelect).toHaveBeenCalledWith(
+        'attendance.event',
+        'event',
+      );
+    });
+
+    it('should throw BadRequestException if page < 1', async () => {
+      await expect(service.getAllHistory(0)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should apply memberId filter when provided', async () => {
+      const qb = makeQb();
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+      mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+      jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
+        data: [],
+        page: 1,
+        limit: 10,
+        totalCount: 0,
+        totalPages: 1,
+      });
+
+      await service.getAllHistory(1, 10, 'member-1');
+
+      expect(qb.andWhere).toHaveBeenCalledWith('member.id = :memberId', {
+        memberId: 'member-1',
+      });
     });
   });
 

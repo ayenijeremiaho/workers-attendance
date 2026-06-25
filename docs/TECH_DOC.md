@@ -1291,6 +1291,8 @@ event creation — create a venue once, reference it by ID in any config or slot
 
 **Duplicate check-in:** The `(member, event)` unique constraint is enforced at DB level. If a member tries to check in twice for the same event, the service catches the `QueryFailedError` (PG error code `23505`) and returns `409 Conflict` with the message "You have already checked in for this event."
 
+**Event data on absent records:** Absence records have `serviceSlot = null` (no physical slot was entered). History endpoints (`GET /attendances/my-history`, `GET /attendances/history`, `GET /attendances/history/department`) join the `event` relation directly on the `Attendance` entity rather than through `serviceSlot`, so `event` is always populated regardless of status.
+
 **Routes prefix:** `/attendances`
 
 ### Department Module

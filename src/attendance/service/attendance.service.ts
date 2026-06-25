@@ -266,8 +266,8 @@ export class AttendanceService {
 
     const qb = this.attendanceRepository
       .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.event', 'event')
       .leftJoinAndSelect('attendance.serviceSlot', 'slot')
-      .leftJoinAndSelect('slot.event', 'event')
       .where('attendance.member.id = :memberId', { memberId: user.id })
       .orderBy('attendance.createdAt', 'DESC')
       .skip((page - 1) * limit)
@@ -300,11 +300,11 @@ export class AttendanceService {
 
     const qb = this.attendanceRepository
       .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.event', 'event')
       .leftJoinAndSelect('attendance.member', 'member')
       .leftJoinAndSelect('member.workerProfile', 'profile')
       .leftJoinAndSelect('profile.department', 'department')
       .leftJoinAndSelect('attendance.serviceSlot', 'slot')
-      .leftJoinAndSelect('slot.event', 'event')
       .orderBy('attendance.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -337,11 +337,11 @@ export class AttendanceService {
 
     return this.attendanceRepository
       .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.event', 'event')
       .leftJoinAndSelect('attendance.member', 'member')
       .leftJoinAndSelect('member.workerProfile', 'profile')
       .leftJoin('profile.department', 'dept')
       .leftJoinAndSelect('attendance.serviceSlot', 'slot')
-      .leftJoinAndSelect('slot.event', 'event')
       .where('dept.id = :deptId', { deptId })
       .andWhere('slot.id = :slotId', { slotId })
       .orderBy('attendance.createdAt', 'DESC')

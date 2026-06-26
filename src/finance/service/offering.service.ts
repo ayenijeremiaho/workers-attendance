@@ -71,6 +71,9 @@ export class OfferingService {
       .createQueryBuilder('o')
       .leftJoinAndSelect('o.fund', 'fund')
       .leftJoinAndSelect('o.recordedBy', 'recordedBy')
+      .leftJoinAndSelect('recordedBy.member', 'recordedByMember')
+      .leftJoinAndSelect('o.reconciledBy', 'reconciledBy')
+      .leftJoinAndSelect('reconciledBy.member', 'reconciledByMember')
       .orderBy('o.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -91,10 +94,15 @@ export class OfferingService {
   }
 
   async findOne(id: string): Promise<Offering> {
-    const offering = await this.offeringRepo.findOne({
-      where: { id },
-      relations: ['fund', 'recordedBy'],
-    });
+    const offering = await this.offeringRepo
+      .createQueryBuilder('o')
+      .leftJoinAndSelect('o.fund', 'fund')
+      .leftJoinAndSelect('o.recordedBy', 'recordedBy')
+      .leftJoinAndSelect('recordedBy.member', 'recordedByMember')
+      .leftJoinAndSelect('o.reconciledBy', 'reconciledBy')
+      .leftJoinAndSelect('reconciledBy.member', 'reconciledByMember')
+      .where('o.id = :id', { id })
+      .getOne();
     if (!offering) throw new NotFoundException('Offering not found.');
     return offering;
   }
@@ -107,6 +115,10 @@ export class OfferingService {
     const offering = await this.findOne(id);
     if (offering.isReconciled)
       throw new BadRequestException('Offering is already reconciled.');
+    if (offering.recordedBy?.id === admin.id)
+      throw new BadRequestException(
+        'You cannot reconcile a giving entry you recorded. Another administrator must review it.',
+      );
 
     offering.isReconciled = true;
     offering.reconciledAt = new Date();
@@ -123,7 +135,7 @@ export class OfferingService {
       await this.createAutoJournal(saved, dto, admin);
     }
 
-    return saved;
+    return this.findOne(saved.id);
   }
 
   private async createAutoJournal(

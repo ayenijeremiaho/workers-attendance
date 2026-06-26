@@ -1,4 +1,4 @@
-import { IsEnum, IsUUID } from 'class-validator';
+import { IsArray, IsEnum, IsUUID, ArrayMinSize } from 'class-validator';
 import { EnrollmentStatusEnum } from '../enum/enrollment-status.enum';
 
 export class EnrollMemberDto {
@@ -7,6 +7,16 @@ export class EnrollMemberDto {
 
   @IsUUID()
   classId: string;
+}
+
+export class BulkEnrollDto {
+  @IsUUID()
+  classId: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID(undefined, { each: true })
+  memberIds: string[];
 }
 
 export class UpdateEnrollmentStatusDto {

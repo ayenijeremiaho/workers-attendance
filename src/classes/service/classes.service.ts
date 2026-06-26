@@ -13,9 +13,10 @@ import {
   CreateChurchClassDto,
   UpdateChurchClassDto,
 } from '../dto/create-church-class.dto';
-import { EnrollMemberDto } from '../dto/enroll-member.dto';
+import { BulkEnrollDto, EnrollMemberDto } from '../dto/enroll-member.dto';
 import { EnrollmentStatusEnum } from '../enum/enrollment-status.enum';
 import { ChurchClassTypeEnum } from '../enum/church-class-type.enum';
+import { ChurchClassStatusEnum } from '../enum/church-class-status.enum';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
 
@@ -124,8 +125,41 @@ export class ClassesService {
     return UtilityService.createPaginationResponse(classes, page, limit, total);
   }
 
+  async closeClass(id: string): Promise<{ closedEnrollments: number }> {
+    const churchClass = await this.getClassOrThrow(id);
+
+    if (churchClass.status === ChurchClassStatusEnum.CLOSED) {
+      throw new BadRequestException('Class is already closed');
+    }
+
+    const now = new Date();
+
+    const result = await this.enrollmentRepo
+      .createQueryBuilder()
+      .update(ClassEnrollment)
+      .set({ status: EnrollmentStatusEnum.COMPLETED, completedAt: now })
+      .where('church_class_id = :id', { id })
+      .andWhere('status = :status', { status: EnrollmentStatusEnum.IN_PROGRESS })
+      .execute();
+
+    churchClass.status = ChurchClassStatusEnum.CLOSED;
+    await this.classRepo.save(churchClass);
+
+    const closedEnrollments = result.affected ?? 0;
+    this.logger.log(
+      `Class "${churchClass.name}" closed — ${closedEnrollments} in-progress enrollment(s) completed`,
+    );
+    return { closedEnrollments };
+  }
+
   async enrollMember(dto: EnrollMemberDto): Promise<ClassEnrollment> {
     const churchClass = await this.getClassOrThrow(dto.classId);
+
+    if (churchClass.status === ChurchClassStatusEnum.CLOSED) {
+      throw new BadRequestException(
+        'Cannot enrol a member into a closed class',
+      );
+    }
 
     const memberExists = await this.memberRepo.existsBy({ id: dto.memberId });
     if (!memberExists) throw new NotFoundException('Member not found');
@@ -170,6 +204,33 @@ export class ClassesService {
       `Member ${dto.memberId} enrolled in class "${churchClass.name}" (id: ${churchClass.id})`,
     );
     return saved;
+  }
+
+  async bulkEnrollMembers(
+    dto: BulkEnrollDto,
+  ): Promise<{ enrolled: number; skipped: number }> {
+    const churchClass = await this.getClassOrThrow(dto.classId);
+
+    if (churchClass.status === ChurchClassStatusEnum.CLOSED) {
+      throw new BadRequestException('Cannot enrol members into a closed class');
+    }
+
+    let enrolled = 0;
+    let skipped = 0;
+
+    for (const memberId of dto.memberIds) {
+      try {
+        await this.enrollMember({ memberId, classId: dto.classId });
+        enrolled++;
+      } catch {
+        skipped++;
+      }
+    }
+
+    this.logger.log(
+      `Bulk enrol in "${churchClass.name}": ${enrolled} enrolled, ${skipped} skipped`,
+    );
+    return { enrolled, skipped };
   }
 
   async countActiveEnrollments(): Promise<number> {

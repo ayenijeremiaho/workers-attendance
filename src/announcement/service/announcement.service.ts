@@ -196,13 +196,27 @@ export class AnnouncementService {
   async getAll(
     page = 1,
     limit = 10,
+    search?: string,
+    audience?: AnnouncementAudienceEnum,
   ): Promise<PaginationResponseDto<Announcement>> {
-    const [announcements, total] = await this.announcementRepo.findAndCount({
-      relations: ['author', 'department', 'targetMember'],
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
+    const qb = this.announcementRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.author', 'author')
+      .leftJoinAndSelect('a.department', 'department')
+      .leftJoinAndSelect('a.targetMember', 'targetMember')
+      .orderBy('a.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (audience) qb.andWhere('a.audience = :audience', { audience });
+
+    if (search) {
+      qb.andWhere('LOWER(a.title) LIKE :s', {
+        s: `%${search.toLowerCase()}%`,
+      });
+    }
+
+    const [announcements, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(
       announcements,
       page,

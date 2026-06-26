@@ -15,6 +15,7 @@ import {
   CreateAnnouncementDto,
   UpdateAnnouncementDto,
 } from '../dto/create-announcement.dto';
+import { AnnouncementAudienceEnum } from '../enum/announcement-audience.enum';
 import { JwtAuthGuard } from '../../auth/guard/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorator/current-user.decorator';
 import { MemberAuth } from '../../auth/interface/auth.interface';
@@ -58,8 +59,18 @@ export class AnnouncementController {
   @UseGuards(AdminGuard)
   @RequiresPermission(AdminPermission.ANNOUNCEMENTS_READ)
   @Get('all')
-  findAll(@Query('page') page = 1, @Query('limit') limit = 10) {
-    return this.announcementService.getAll(Number(page), Number(limit));
+  findAll(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @Query('search') search?: string,
+    @Query('audience') audience?: AnnouncementAudienceEnum,
+  ) {
+    return this.announcementService.getAll(
+      Number(page),
+      Number(limit),
+      search,
+      audience,
+    );
   }
 
   @Get('feed')

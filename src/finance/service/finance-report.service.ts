@@ -11,6 +11,7 @@ import { PettyCashReplenishment } from '../entity/petty-cash-replenishment.entit
 import { Fund } from '../entity/fund.entity';
 import { AccountingPeriod } from '../entity/accounting-period.entity';
 import {
+  AccountSubtype,
   AccountType,
   JournalEntryStatus,
   JournalLineType,
@@ -343,26 +344,26 @@ export class FinanceReportService {
       )
       .reduce((s, r) => s + Number(r.total), 0);
 
-    const actualsRows = await this.lineRepo
-      .createQueryBuilder('l')
-      .innerJoin('l.journalEntry', 'je')
-      .innerJoin(
-        'finance_budgets',
-        'b',
-        'b.account_id = l.account_id AND b.is_active = true AND je.date >= b.start_date AND je.date <= b.end_date',
-      )
-      .where('je.status = :status', { status: JournalEntryStatus.POSTED })
-      .andWhere('b.id IN (:...budgetIds)', {
-        budgetIds:
-          activeBudgets.length > 0
-            ? activeBudgets.map((b) => b.id)
-            : ['__none__'],
-      })
-      .select('b.id', 'budgetId')
-      .addSelect('l.entryType', 'entryType')
-      .addSelect('SUM(l.amount)', 'total')
-      .groupBy('b.id, l.entryType')
-      .getRawMany<{ budgetId: string; entryType: string; total: string }>();
+    const actualsRows: { budgetId: string; entryType: string; total: string }[] =
+      activeBudgets.length === 0
+        ? []
+        : await this.lineRepo
+            .createQueryBuilder('l')
+            .innerJoin('l.journalEntry', 'je')
+            .innerJoin(
+              'finance_budgets',
+              'b',
+              'b.account_id = l.account_id AND b.is_active = true AND je.date >= b.start_date AND je.date <= b.end_date',
+            )
+            .where('je.status = :status', { status: JournalEntryStatus.POSTED })
+            .andWhere('b.id IN (:...budgetIds)', {
+              budgetIds: activeBudgets.map((b) => b.id),
+            })
+            .select('b.id', 'budgetId')
+            .addSelect('l.entryType', 'entryType')
+            .addSelect('SUM(l.amount)', 'total')
+            .groupBy('b.id, l.entryType')
+            .getRawMany<{ budgetId: string; entryType: string; total: string }>();
 
     const actualsMap = new Map<string, { debit: number; credit: number }>();
     for (const row of actualsRows) {
@@ -408,7 +409,13 @@ export class FinanceReportService {
     };
   }
 
-  async memberGiving(memberId: string, periodId?: string): Promise<object> {
+  async memberGiving(
+    memberId: string,
+    periodId?: string,
+    fromDate?: string,
+    toDate?: string,
+    accountSubtype?: AccountSubtype,
+  ): Promise<object> {
     const qb = this.lineRepo
       .createQueryBuilder('l')
       .innerJoin('l.journalEntry', 'je')
@@ -418,18 +425,26 @@ export class FinanceReportService {
         'lk.journal_entry_id = je.id AND lk.member_id = :memberId',
         { memberId },
       )
+      .leftJoinAndSelect('l.account', 'a')
       .where('je.status = :status', { status: JournalEntryStatus.POSTED })
       .orderBy('je.date', 'ASC');
 
     if (periodId)
       qb.andWhere('je.accounting_period_id = :periodId', { periodId });
+    if (fromDate) qb.andWhere('je.date >= :fromDate', { fromDate });
+    if (toDate) qb.andWhere('je.date <= :toDate', { toDate });
+    if (accountSubtype)
+      qb.andWhere('a.subtype = :accountSubtype', { accountSubtype });
 
-    const lines = await qb.leftJoinAndSelect('l.account', 'a').getMany();
+    const lines = await qb.getMany();
     const total = lines.reduce((s, l) => s + Number(l.amount), 0);
 
     return {
       memberId,
       periodId: periodId ?? null,
+      fromDate: fromDate ?? null,
+      toDate: toDate ?? null,
+      accountSubtype: accountSubtype ?? null,
       lines,
       total,
       generatedAt: new Date(),

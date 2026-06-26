@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import {
+  TitheBatchStatus,
   TitheDisputeStatus,
   TitheProofStatus,
   TitheUnmatchedStatus,
@@ -122,8 +123,9 @@ export class TitheAdminController {
   getBatches(
     @Query('page', new ParseIntPipe({ optional: true })) page = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
+    @Query('status') status?: TitheBatchStatus,
   ) {
-    return this.titheService.getBatches(page, limit);
+    return this.titheService.getBatches(page, limit, status);
   }
 
   @RequiresPermission(AdminPermission.FINANCE_READ)
@@ -150,8 +152,9 @@ export class TitheAdminController {
     @Query('page', new ParseIntPipe({ optional: true })) page = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
     @Query('status') status?: TitheUnmatchedStatus,
+    @Query('search') search?: string,
   ) {
-    return this.titheService.getUnmatched(page, limit, status);
+    return this.titheService.getUnmatched(page, limit, status, search);
   }
 
   @RequiresPermission(AdminPermission.FINANCE_WRITE)
@@ -183,8 +186,9 @@ export class TitheAdminController {
     @Query('page', new ParseIntPipe({ optional: true })) page = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
     @Query('status') status?: TitheDisputeStatus,
+    @Query('search') search?: string,
   ) {
-    return this.titheService.getDisputes(page, limit, status);
+    return this.titheService.getDisputes(page, limit, status, search);
   }
 
   @RequiresPermission(AdminPermission.FINANCE_WRITE)
@@ -215,8 +219,9 @@ export class TitheAdminController {
     @Query('page', new ParseIntPipe({ optional: true })) page = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
     @Query('status') status?: TitheProofStatus,
+    @Query('search') search?: string,
   ) {
-    return this.titheService.getAllProofs(page, limit, status);
+    return this.titheService.getAllProofs(page, limit, status, search);
   }
 
   @RequiresPermission(AdminPermission.FINANCE_WRITE)

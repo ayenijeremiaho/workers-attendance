@@ -380,13 +380,20 @@ export class TitheService {
   async getBatches(
     page = 1,
     limit = 20,
+    status?: TitheBatchStatus,
   ): Promise<PaginationResponseDto<TitheUploadBatch>> {
-    const [data, total] = await this.batchRepo.findAndCount({
-      relations: ['uploadedBy', 'uploadedBy.member', 'titheAccount'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const qb = this.batchRepo
+      .createQueryBuilder('b')
+      .leftJoinAndSelect('b.uploadedBy', 'uploadedBy')
+      .leftJoinAndSelect('uploadedBy.member', 'member')
+      .leftJoinAndSelect('b.titheAccount', 'titheAccount')
+      .orderBy('b.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (status) qb.andWhere('b.status = :status', { status });
+
+    const [data, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 
@@ -433,17 +440,29 @@ export class TitheService {
     page = 1,
     limit = 20,
     status?: TitheUnmatchedStatus,
+    search?: string,
   ): Promise<PaginationResponseDto<TitheUnmatchedRecord>> {
-    const where = status
-      ? { status }
-      : { status: TitheUnmatchedStatus.PENDING };
-    const [data, total] = await this.unmatchedRepo.findAndCount({
-      where,
-      relations: ['batch', 'batch.titheAccount', 'matchedMember'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const qb = this.unmatchedRepo
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.batch', 'batch')
+      .leftJoinAndSelect('batch.titheAccount', 'titheAccount')
+      .leftJoinAndSelect('u.matchedMember', 'matchedMember')
+      .where('u.status = :status', {
+        status: status ?? TitheUnmatchedStatus.PENDING,
+      })
+      .orderBy('u.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (search) {
+      const s = `%${search.toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(u.rawEmail) LIKE :s OR LOWER(u.reference) LIKE :s)',
+        { s },
+      );
+    }
+
+    const [data, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 
@@ -511,15 +530,30 @@ export class TitheService {
     page = 1,
     limit = 20,
     status?: TitheDisputeStatus,
+    search?: string,
   ): Promise<PaginationResponseDto<TitheDisputeRecord>> {
-    const where = status ? { status } : { status: TitheDisputeStatus.PENDING };
-    const [data, total] = await this.disputeRepo.findAndCount({
-      where,
-      relations: ['member', 'existingRecord', 'batch', 'batch.titheAccount'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const qb = this.disputeRepo
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.member', 'member')
+      .leftJoinAndSelect('d.existingRecord', 'existingRecord')
+      .leftJoinAndSelect('d.batch', 'batch')
+      .leftJoinAndSelect('batch.titheAccount', 'titheAccount')
+      .where('d.status = :status', {
+        status: status ?? TitheDisputeStatus.PENDING,
+      })
+      .orderBy('d.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (search) {
+      const s = `%${search.toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(member.firstname) LIKE :s OR LOWER(member.lastname) LIKE :s OR LOWER(member.email) LIKE :s)',
+        { s },
+      );
+    }
+
+    const [data, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 
@@ -716,14 +750,29 @@ export class TitheService {
     page = 1,
     limit = 20,
     status?: TitheProofStatus,
+    search?: string,
   ): Promise<PaginationResponseDto<TithePaymentProof>> {
-    const [data, total] = await this.proofRepo.findAndCount({
-      where: status ? { status } : undefined,
-      relations: ['member', 'titheAccount', 'reviewedBy', 'reviewedBy.member'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const qb = this.proofRepo
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.member', 'member')
+      .leftJoinAndSelect('p.titheAccount', 'titheAccount')
+      .leftJoinAndSelect('p.reviewedBy', 'reviewedBy')
+      .leftJoinAndSelect('reviewedBy.member', 'reviewedByMember')
+      .orderBy('p.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (status) qb.andWhere('p.status = :status', { status });
+
+    if (search) {
+      const s = `%${search.toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(member.firstname) LIKE :s OR LOWER(member.lastname) LIKE :s OR LOWER(member.email) LIKE :s)',
+        { s },
+      );
+    }
+
+    const [data, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 

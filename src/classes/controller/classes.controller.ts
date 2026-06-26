@@ -16,6 +16,7 @@ import {
   UpdateChurchClassDto,
 } from '../dto/create-church-class.dto';
 import {
+  BulkEnrollDto,
   EnrollMemberDto,
   UpdateEnrollmentStatusDto,
 } from '../dto/enroll-member.dto';
@@ -77,9 +78,23 @@ export class ClassesController {
 
   @UseGuards(AdminGuard)
   @RequiresPermission(AdminPermission.CLASSES_WRITE)
+  @Patch(':id/close')
+  closeClass(@Param('id', ParseUUIDPipe) id: string) {
+    return this.classesService.closeClass(id);
+  }
+
+  @UseGuards(AdminGuard)
+  @RequiresPermission(AdminPermission.CLASSES_WRITE)
   @Post('enroll')
   enroll(@Body() dto: EnrollMemberDto) {
     return this.classesService.enrollMember(dto);
+  }
+
+  @UseGuards(AdminGuard)
+  @RequiresPermission(AdminPermission.CLASSES_WRITE)
+  @Post('bulk-enroll')
+  bulkEnroll(@Body() dto: BulkEnrollDto) {
+    return this.classesService.bulkEnrollMembers(dto);
   }
 
   @UseGuards(AdminGuard)

@@ -41,6 +41,7 @@ const mockFirstTimerRepo = {
 };
 
 const mockTaskRepo = {
+  exists: jest.fn().mockResolvedValue(false),
   findOne: jest.fn(),
   findAndCount: jest.fn(),
   find: jest.fn(),

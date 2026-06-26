@@ -69,7 +69,13 @@ export class FinanceReportController {
   @RequiresPermission(AdminPermission.TITHE_READ)
   @Get('member-giving')
   memberGiving(@Query() query: MemberGivingQueryDto) {
-    return this.reportService.memberGiving(query.memberId, query.periodId);
+    return this.reportService.memberGiving(
+      query.memberId,
+      query.periodId,
+      query.fromDate,
+      query.toDate,
+      query.accountSubtype,
+    );
   }
 
   @RequiresPermission(AdminPermission.FINANCE_REPORT)

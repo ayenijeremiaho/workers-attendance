@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { OfferingService } from './offering.service';
 import { Offering } from '../entity/offering.entity';
 import { JournalEntry } from '../entity/journal-entry.entity';
@@ -112,6 +112,19 @@ describe('OfferingService', () => {
       await expect(
         service.reconcile('missing', { notes: 'x' }, mockAdmin),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when reconciler is the same admin who recorded it', async () => {
+      mockOfferingRepo.findOne.mockResolvedValue({
+        id: 'o-1',
+        isReconciled: false,
+        recordedBy: { id: 'admin-1' },
+        reconciledAt: null,
+        notes: null,
+      });
+      await expect(
+        service.reconcile('o-1', { notes: 'self-review' }, mockAdmin),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

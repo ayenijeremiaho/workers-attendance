@@ -280,6 +280,15 @@ export class FollowUpService {
     memberId: string,
     eventId: string,
   ): Promise<FollowUpTask | null> {
+    const alreadyExists = await this.taskRepo.exists({
+      where: {
+        type: FollowUpTaskTypeEnum.ONLINE_NO_RESPONSE,
+        member: { id: memberId },
+        event: { id: eventId },
+      },
+    });
+    if (alreadyExists) return null;
+
     const assignee = await this.pickRoundRobinAssignee();
     if (!assignee) return null;
 
@@ -312,7 +321,7 @@ export class FollowUpService {
       );
     }
 
-    this.logger.log(
+    this.logger.debug(
       `Online non-responder follow-up task created for member ${memberId} → assigned to ${assignee.id}`,
     );
     this.cacheService.flushNamespace('follow-up:report');

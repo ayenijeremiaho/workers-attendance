@@ -33,7 +33,14 @@ import { UtilityModule } from '../utility/utility.module';
       Admin,
       AdminRole,
     ]),
-    BullModule.registerQueue({ name: FOLLOW_UP_QUEUE }),
+    BullModule.registerQueue({
+      name: FOLLOW_UP_QUEUE,
+      settings: {
+        lockDuration: 5 * 60 * 1000,
+        stalledInterval: 60 * 1000,
+        maxStalledCount: 2,
+      },
+    }),
     UtilityModule,
   ],
   controllers: [FollowUpController, FollowUpAdminController],

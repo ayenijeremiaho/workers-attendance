@@ -19,6 +19,7 @@ import { CreateDepartmentDto } from '../dto/create-department.dto';
 import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { AssignDepartmentHodDto } from '../dto/assign-department-hod.dto';
 import { RemoveDepartmentHodDto } from '../dto/remove-department-hod.dto';
+import { BulkAssignDepartmentDto } from '../dto/bulk-assign-department.dto';
 import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
 import { MemberRoleEnum } from '../../member/enums/member-role.enum';
@@ -123,6 +124,18 @@ export class DepartmentController {
     @Query('limit') limit = 20,
   ) {
     return this.departmentService.getWorkersByDepartment(id, +page, +limit);
+  }
+
+  @UseGuards(AdminGuard)
+  @RequiresPermission(AdminPermission.DEPARTMENTS_WRITE)
+  @HttpCode(HttpStatus.OK)
+  @Post(':id/bulk-assign')
+  async bulkAssignDepartment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BulkAssignDepartmentDto,
+    @CurrentUser() user: MemberAuth,
+  ) {
+    return this.departmentService.bulkAssignDepartment(id, dto, user.id);
   }
 
   @UseGuards(RolesGuard)

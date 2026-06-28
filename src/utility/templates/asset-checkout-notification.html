@@ -195,19 +195,19 @@
                         <td><strong>Location</strong></td>
                         <td>{{ location }}</td>
                       </tr>
-                      {{ #if purpose }}
+                      {{#if purpose}}
                       <tr>
                         <td><strong>Purpose</strong></td>
                         <td>{{ purpose }}</td>
                       </tr>
-                      {{ /if }}
+                      {{/if}}
                       <tr>
                         <td><strong>Checked Out On</strong></td>
                         <td>{{ checkedOutAt }}</td>
                       </tr>
                       <tr>
                         <td><strong>Expected Return</strong></td>
-                        <td>{{ #if expectedReturnAt }}{{ expectedReturnAt }}{{ else }}Not specified{{ /if }}</td>
+                        <td>{{#if expectedReturnAt}}{{ expectedReturnAt }}{{else}}Not specified{{/if}}</td>
                       </tr>
                     </table>
 

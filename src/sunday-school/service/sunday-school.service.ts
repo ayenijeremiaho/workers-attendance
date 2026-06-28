@@ -545,6 +545,176 @@ export class SundaySchoolService {
     };
   }
 
+  // ─── Admin Methods (bypass worker auth) ──────────────────────────────────
+
+  async adminCreateClass(dto: CreateSundaySchoolClassDto): Promise<SundaySchoolClass> {
+    const entity = this.classRepo.create({
+      name: dto.name,
+      description: dto.description ?? null,
+      teacher: dto.teacherId ? { id: dto.teacherId } : null,
+    });
+    return this.classRepo.save(entity);
+  }
+
+  async adminUpdateClass(id: string, dto: UpdateSundaySchoolClassDto): Promise<SundaySchoolClass> {
+    const entity = await this.classRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('Sunday School class not found');
+    if (dto.name !== undefined) entity.name = dto.name;
+    if (dto.description !== undefined) entity.description = dto.description ?? null;
+    if (dto.teacherId !== undefined) {
+      entity.teacher = dto.teacherId ? ({ id: dto.teacherId } as Member) : null;
+    }
+    return this.classRepo.save(entity);
+  }
+
+  async adminAssignMember(classId: string, memberId: string): Promise<SundaySchoolMember> {
+    const cls = await this.classRepo.findOne({ where: { id: classId } });
+    if (!cls) throw new NotFoundException('Sunday School class not found');
+    const memberExists = await this.memberRepo.existsBy({ id: memberId });
+    if (!memberExists) throw new NotFoundException('Member not found');
+    const existing = await this.memberAssignRepo.findOne({
+      where: { member: { id: memberId }, sundaySchoolClass: { id: classId } },
+    });
+    if (existing) throw new BadRequestException('This member is already assigned to this Sunday School class.');
+    const assignment = this.memberAssignRepo.create({
+      member: { id: memberId } as Member,
+      sundaySchoolClass: cls,
+    });
+    return this.memberAssignRepo.save(assignment);
+  }
+
+  async adminRemoveMember(classId: string, memberId: string): Promise<void> {
+    const assignment = await this.memberAssignRepo.findOne({
+      where: { member: { id: memberId }, sundaySchoolClass: { id: classId } },
+    });
+    if (!assignment) throw new NotFoundException('This member is not assigned to this Sunday School class.');
+    await this.memberAssignRepo.remove(assignment);
+  }
+
+  async adminGetSessions(classId: string, page = 1, limit = 20): Promise<PaginationResponseDto<SundaySchoolSession>> {
+    const cls = await this.classRepo.findOne({ where: { id: classId } });
+    if (!cls) throw new NotFoundException('Sunday School class not found');
+    const [data, totalCount] = await this.sessionRepo.findAndCount({
+      where: { sundaySchoolClass: { id: classId } },
+      order: { sessionDate: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { data, page, limit, totalCount, totalPages: Math.ceil(totalCount / limit) };
+  }
+
+  async adminCreateSession(dto: CreateSundaySchoolSessionDto): Promise<SundaySchoolSession> {
+    const cls = await this.classRepo.findOne({ where: { id: dto.classId } });
+    if (!cls) throw new NotFoundException('Sunday School class not found');
+    const existing = await this.sessionRepo.findOne({
+      where: { sundaySchoolClass: { id: dto.classId }, sessionDate: dto.sessionDate },
+    });
+    if (existing) throw new BadRequestException('A session already exists for this class on the selected date.');
+    const session = this.sessionRepo.create({
+      sundaySchoolClass: cls,
+      sessionDate: dto.sessionDate,
+      notes: dto.notes ?? null,
+    });
+    return this.sessionRepo.save(session);
+  }
+
+  async adminDeleteSession(sessionId: string): Promise<void> {
+    const session = await this.sessionRepo.findOne({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Session not found');
+    await this.sessionRepo.remove(session);
+  }
+
+  async adminOpenSession(sessionId: string, closesInMinutes: number): Promise<SundaySchoolSession> {
+    const session = await this.sessionRepo.findOne({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Session not found');
+    const closesAt = new Date();
+    closesAt.setMinutes(closesAt.getMinutes() + closesInMinutes);
+    session.selfMarkClosesAt = closesAt;
+    return this.sessionRepo.save(session);
+  }
+
+  async adminCloseSession(sessionId: string): Promise<SundaySchoolSession> {
+    const session = await this.sessionRepo.findOne({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Session not found');
+    session.selfMarkClosesAt = null;
+    return this.sessionRepo.save(session);
+  }
+
+  async adminBulkMarkAttendance(sessionId: string, dto: BulkMarkAttendanceDto): Promise<{ marked: number }> {
+    const session = await this.sessionRepo.findOne({
+      where: { id: sessionId },
+      relations: ['sundaySchoolClass'],
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    const memberIds = dto.attendances.map((e) => e.memberId);
+    if (memberIds.length === 0) return { marked: 0 };
+
+    const result = await this.attendanceRepo.manager.transaction(async (em) => {
+      const validAssignments = await em.find(SundaySchoolMember, {
+        where: { sundaySchoolClass: { id: session.sundaySchoolClass.id }, member: { id: In(memberIds) } },
+        relations: ['member'],
+      });
+      const validIds = new Set(validAssignments.map((a) => a.member.id));
+      const existing = await em.find(SundaySchoolAttendance, {
+        where: { session: { id: sessionId }, member: { id: In(memberIds) } },
+        relations: ['member'],
+      });
+      const existingMap = new Map(existing.map((a) => [a.member.id, a]));
+      const toSave: SundaySchoolAttendance[] = [];
+      for (const entry of dto.attendances) {
+        if (!validIds.has(entry.memberId)) continue;
+        const record = existingMap.get(entry.memberId);
+        if (record) {
+          record.status = entry.status;
+          record.markedByTeacher = true;
+          toSave.push(record);
+        } else {
+          toSave.push(this.attendanceRepo.create({
+            session: { id: sessionId } as SundaySchoolSession,
+            member: { id: entry.memberId } as Member,
+            status: entry.status,
+            markedByTeacher: true,
+          }));
+        }
+      }
+      return toSave.length > 0 ? await em.save(SundaySchoolAttendance, toSave) : [];
+    });
+    return { marked: result.length };
+  }
+
+  async adminGetSessionRoster(sessionId: string): Promise<SessionRoster> {
+    const session = await this.sessionRepo.findOne({
+      where: { id: sessionId },
+      relations: ['sundaySchoolClass'],
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    const [classMembers, attendances] = await Promise.all([
+      this.memberAssignRepo.find({
+        where: { sundaySchoolClass: { id: session.sundaySchoolClass.id } },
+        relations: ['member'],
+      }),
+      this.attendanceRepo.find({ where: { session: { id: sessionId } }, relations: ['member'] }),
+    ]);
+    const attendanceMap = new Map(attendances.map((a) => [a.member.id, a]));
+    return {
+      sessionId,
+      classId: session.sundaySchoolClass.id,
+      sessionDate: session.sessionDate,
+      selfMarkOpen: !!session.selfMarkClosesAt && new Date() < new Date(session.selfMarkClosesAt),
+      selfMarkClosesAt: session.selfMarkClosesAt,
+      members: classMembers.map((cm) => {
+        const att = attendanceMap.get(cm.member.id);
+        return {
+          memberId: cm.member.id,
+          name: `${cm.member.firstname} ${cm.member.lastname}`,
+          status: att?.status ?? null,
+          markedByTeacher: att?.markedByTeacher ?? false,
+          markedAt: att?.markedAt ?? null,
+        };
+      }),
+    };
+  }
+
   // ─── Authorization Helpers ────────────────────────────────────────────────
 
   /**

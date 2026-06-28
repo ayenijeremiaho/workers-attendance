@@ -19,6 +19,7 @@ import { CreateFirstTimerDto } from '../dto/create-first-timer.dto';
 import { ReassignTaskDto } from '../dto/reassign-task.dto';
 import { BulkUpdateTasksDto } from '../dto/bulk-update-tasks.dto';
 import {
+  FirstTimerSourceEnum,
   FollowUpTaskStatusEnum,
   FollowUpTaskTypeEnum,
 } from '../enums/follow-up.enum';
@@ -43,8 +44,27 @@ export class FollowUpAdminController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
     @Query('eventId') eventId?: string,
+    @Query('source') source?: FirstTimerSourceEnum,
+    @Query('wantsToJoinChurch') wantsToJoinChurch?: string,
+    @Query('wantsToJoinWorkforce') wantsToJoinWorkforce?: string,
+    @Query('search') search?: string,
   ) {
-    return this.followUpService.getFirstTimers(+page, +limit, eventId);
+    let joinChurch: boolean | undefined;
+    if (wantsToJoinChurch === 'true') joinChurch = true;
+    else if (wantsToJoinChurch === 'false') joinChurch = false;
+
+    let joinWorkforce: boolean | undefined;
+    if (wantsToJoinWorkforce === 'true') joinWorkforce = true;
+    else if (wantsToJoinWorkforce === 'false') joinWorkforce = false;
+    return this.followUpService.getFirstTimers(
+      +page,
+      +limit,
+      eventId,
+      source,
+      joinChurch,
+      joinWorkforce,
+      search,
+    );
   }
 
   @RequiresPermission(AdminPermission.FOLLOW_UP_READ)
@@ -54,8 +74,9 @@ export class FollowUpAdminController {
     @Query('limit') limit = 20,
     @Query('status') status?: FollowUpTaskStatusEnum,
     @Query('type') type?: FollowUpTaskTypeEnum,
+    @Query('search') search?: string,
   ) {
-    return this.followUpService.getAllTasks(+page, +limit, status, type);
+    return this.followUpService.getAllTasks(+page, +limit, status, type, search);
   }
 
   @RequiresPermission(AdminPermission.FOLLOW_UP_WRITE)
@@ -72,6 +93,12 @@ export class FollowUpAdminController {
   @Patch('tasks/bulk')
   async bulkUpdateTasks(@Body() dto: BulkUpdateTasksDto) {
     return this.followUpService.bulkUpdateTasks(dto);
+  }
+
+  @RequiresPermission(AdminPermission.FOLLOW_UP_WRITE)
+  @Post('first-timers/:id/invite-to-membership')
+  async inviteToMembership(@Param('id', ParseUUIDPipe) id: string) {
+    return this.followUpService.inviteFirstTimerToMembership(id);
   }
 
   @RequiresPermission(AdminPermission.FOLLOW_UP_READ)

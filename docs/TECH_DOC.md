@@ -112,7 +112,7 @@ Created when a member is promoted to WORKER. Deleted when revoked.
 | id                    | UUID               | PK                                                                                               |
 | member                | Member             | OneToOne                                                                                         |
 | department            | Department         | ManyToOne — primary department                                                                   |
-| secondaryDepartment   | Department \| null | ManyToOne, nullable — secondary department; HOD can only be assigned from the primary department |
+| secondaryDepartment   | Department \| null | ManyToOne, nullable — secondary department; HOD/D-HOD can be assigned from primary OR secondary department |
 | status                | WorkerStatusEnum   | ACTIVE \| INACTIVE                                                                               |
 | profession            | string             | Optional                                                                                         |
 | yearJoinedWorkforce   | Date               | Optional                                                                                         |
@@ -239,7 +239,7 @@ Joins a WorkerProfile to a Department as head or assistant lead.
 
 | Field               | Notes                                                          |
 |---------------------|----------------------------------------------------------------|
-| type                | BELIEVERS \| BAPTISMAL \| WORKERS_IN_TRAINING \| BIBLE_COLLEGE |
+| type                | BELIEVERS \| BAPTISMAL \| WORKERS_IN_TRAINING \| BIBLE_COLLEGE \| SCHOOL_OF_DISCIPLESHIP |
 | facilitator         | ManyToOne → Member (nullable)                                  |
 | startDate / endDate | date strings                                                   |
 
@@ -262,7 +262,7 @@ cancel all active enrolments first.
 
 | Field        | Notes                                                            |
 |--------------|------------------------------------------------------------------|
-| audience     | ALL \| WORKERS_ONLY \| DEPARTMENT \| INDIVIDUAL                  |
+| audience     | ALL \| WORKERS_ONLY \| MEMBERS_ONLY \| DEPARTMENT \| INDIVIDUAL  |
 | department   | ManyToOne → Department (required when audience=DEPARTMENT)       |
 | targetMember | ManyToOne → Member, nullable (required when audience=INDIVIDUAL) |
 | publishedAt  | defaults to creation time                                        |
@@ -1323,7 +1323,7 @@ overlapping a slot's time range, they are marked ON_LEAVE instead of ABSENT.
 
 Tracks member progress through structured church programs.
 
-**Class types:** BELIEVERS, BAPTISMAL, WORKERS_IN_TRAINING, BIBLE_COLLEGE
+**Class types:** BELIEVERS, BAPTISMAL, WORKERS_IN_TRAINING, BIBLE_COLLEGE, SCHOOL_OF_DISCIPLESHIP
 
 **Enrollment statuses:** IN_PROGRESS → COMPLETED or CANCELLED
 
@@ -1336,12 +1336,12 @@ role and optional `departmentId`.
 
 **Audience rules:**
 
-- MEMBER → sees `ALL` + any `INDIVIDUAL` announcements addressed to them
+- MEMBER → sees `ALL` + `MEMBERS_ONLY` + any `INDIVIDUAL` announcements addressed to them
 - WORKER → sees `ALL` + `WORKERS_ONLY` + `DEPARTMENT` (for their department) + `INDIVIDUAL` (addressed to them)
 - ADMIN → sees all audiences
 - Expired announcements (`expiresAt < now`) are excluded from the feed
 
-**Audience types:** `ALL` | `WORKERS_ONLY` | `DEPARTMENT` | `INDIVIDUAL`  
+**Audience types:** `ALL` | `WORKERS_ONLY` | `MEMBERS_ONLY` | `DEPARTMENT` | `INDIVIDUAL`  
 When `audience = DEPARTMENT`, `departmentId` is required. When `audience = INDIVIDUAL`, `targetMemberId` (UUID) is
 required.
 
@@ -1427,7 +1427,9 @@ a staff member has opened the window on the session.
 - Bulk marking is used by teachers/staff; self-mark (`POST /sunday-school/sessions/:id/checkin`) is used by individual
   members.
 
-**Routes prefix:** `/sunday-school`
+**Routes prefix:** `/sunday-school` (worker/member routes) and `/admin/sunday-school` (admin routes)
+
+**Admin controller (`/admin/sunday-school`):** All routes require `AdminGuard`. Provides the same class and session management as the worker controller but bypasses the `requireSundaySchoolAuth` check so that admins can manage any class regardless of department or teacher assignment.
 
 ### Tithe Module
 
@@ -1738,8 +1740,10 @@ Members receive an email after an online-attendance-enabled event. They confirm 
 
 **Pastoral report:** `GET /admin/follow-up/report?from=&to=` (requires `FOLLOW_UP_READ`) returns aggregate stats: first-timer totals, source breakdown, wants-to-join counts, task status/outcome breakdown, overdue snapshot, conversion rate, per-worker performance, and per-event first-timer counts. Date range is optional; omitting it returns all-time stats.
 
+**Membership invitation:** `POST /admin/follow-up/first-timers/:id/invite-to-membership` (requires `FOLLOW_UP_WRITE`) queues a personalised invitation email to the first-timer asking them to get in touch about joining the congregation. Returns `{ queued: true }`. Throws `404` if the first-timer is not found or `400` if no email address is on record.
+
 **Routes (worker mobile):** `/follow-up/first-timers`, `/follow-up/tasks/mine`, `/follow-up/tasks/:id`  
-**Routes (admin portal):** `/admin/follow-up/first-timers`, `/admin/follow-up/tasks`, `/admin/follow-up/tasks/:id/reassign`, `/admin/follow-up/tasks/bulk`, `/admin/follow-up/report`
+**Routes (admin portal):** `/admin/follow-up/first-timers`, `/admin/follow-up/first-timers/:id/invite-to-membership`, `/admin/follow-up/tasks`, `/admin/follow-up/tasks/:id/reassign`, `/admin/follow-up/tasks/bulk`, `/admin/follow-up/report`
 
 ### ServiceHeadcount Module
 
@@ -1883,6 +1887,7 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /members/workers                                           | AdminGuard (MEMBERS_READ)                                     | List workers (filterable by status)                                                                           |
 | GET    | /members/:id                                               | AdminGuard (MEMBERS_READ)                                     | Get member by ID                                                                                              |
 | PATCH  | /members/:id                                               | AdminGuard (MEMBERS_WRITE)                                    | Update member details                                                                                         |
+| POST   | /members/bulk-promote                                      | AdminGuard (MEMBERS_WRITE)                                    | Bulk promote members to workers; returns `{ promoted, skipped }`                                              |
 | POST   | /members/:id/promote                                       | AdminGuard (MEMBERS_WRITE)                                    | Promote member to worker                                                                                      |
 | POST   | /members/:id/revoke-worker                                 | AdminGuard (MEMBERS_WRITE)                                    | Remove worker role                                                                                            |
 | PATCH  | /members/:id/worker-profile                                | AdminGuard (MEMBERS_WRITE)                                    | Update worker profile                                                                                         |
@@ -1914,10 +1919,11 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /follow-up/tasks/mine                                      | WORKER (FOLLOW_UP dept)                                       | List follow-up tasks assigned to the caller                                                                   |
 | PATCH  | /follow-up/tasks/:id                                       | WORKER (FOLLOW_UP dept)                                       | Update task status/outcome/notes (caller must be the assignee)                                                |
 | POST   | /admin/follow-up/first-timers                              | AdminGuard (FOLLOW_UP_WRITE)                                  | Register a first-timer from admin portal                                                                      |
-| GET    | /admin/follow-up/first-timers                              | AdminGuard (FOLLOW_UP_READ)                                   | List all first-timers (filterable by eventId)                                                                 |
-| GET    | /admin/follow-up/tasks                                     | AdminGuard (FOLLOW_UP_READ)                                   | List all follow-up tasks (filterable by status, type)                                                         |
+| GET    | /admin/follow-up/first-timers                              | AdminGuard (FOLLOW_UP_READ)                                   | List first-timers; query: `page`, `limit`, `eventId`, `source`, `wantsToJoinChurch`, `wantsToJoinWorkforce`, `search` |
+| GET    | /admin/follow-up/tasks                                     | AdminGuard (FOLLOW_UP_READ)                                   | List follow-up tasks; query: `page`, `limit`, `status`, `type`, `search` (matches first-timer name)          |
 | PATCH  | /admin/follow-up/tasks/:id/reassign                        | AdminGuard (FOLLOW_UP_WRITE)                                  | Reassign a task to a different FOLLOW_UP-dept worker                                                          |
 | PATCH  | /admin/follow-up/tasks/bulk                                | AdminGuard (FOLLOW_UP_WRITE)                                  | Bulk update task statuses                                                                                     |
+| POST   | /admin/follow-up/first-timers/:id/invite-to-membership     | AdminGuard (FOLLOW_UP_WRITE)                                  | Queue membership invitation email to a first-timer. Returns `{ queued: true }`. 400 if no email on record.  |
 | GET    | /admin/follow-up/report                                    | AdminGuard (FOLLOW_UP_READ)                                   | Pastoral report: first-timer totals, task stats, overdue count, conversion rate, by-worker, by-event         |
 | POST   | /events                                                    | AdminGuard (EVENTS_WRITE)                                     | Create event (single or recurring)                                                                            |
 | PATCH  | /events/:id                                                | AdminGuard (EVENTS_WRITE)                                     | Update event                                                                                                  |
@@ -1945,7 +1951,8 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | POST   | /departments                                               | AdminGuard (DEPARTMENTS_WRITE)                                | Create department                                                                                             |
 | PATCH  | /departments/:id                                           | AdminGuard (DEPARTMENTS_WRITE)                                | Update department                                                                                             |
 | DELETE | /departments/:id                                           | AdminGuard (DEPARTMENTS_WRITE)                                | Delete department                                                                                             |
-| POST   | /departments/assign-lead                                   | AdminGuard (DEPARTMENTS_WRITE)                                | Assign head/assistant lead                                                                                    |
+| POST   | /departments/:id/bulk-assign                               | AdminGuard (DEPARTMENTS_WRITE)                                | Bulk assign workers to a primary department; returns `{ updated, skipped }`                                   |
+| POST   | /departments/assign-lead                                   | AdminGuard (DEPARTMENTS_WRITE)                                | Assign head/assistant lead (accepts primary OR secondary department membership)                               |
 | POST   | /departments/remove-lead                                   | AdminGuard (DEPARTMENTS_WRITE)                                | Remove lead                                                                                                   |
 | GET    | /departments/leads/:id                                     | AdminGuard (DEPARTMENTS_READ)                                 | Leads for a department                                                                                        |
 | GET    | /departments/leads                                         | AdminGuard (DEPARTMENTS_READ)                                 | All department leads                                                                                          |
@@ -1969,10 +1976,11 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | POST   | /announcements                                             | AdminGuard (ANNOUNCEMENTS_WRITE)                              | Create announcement                                                                                           |
 | PATCH  | /announcements/:id                                         | AdminGuard (ANNOUNCEMENTS_WRITE)                              | Update announcement                                                                                           |
 | DELETE | /announcements/:id                                         | AdminGuard (ANNOUNCEMENTS_WRITE)                              | Delete announcement                                                                                           |
-| GET    | /announcements/all?search=&audience=&page=&limit=          | AdminGuard (ANNOUNCEMENTS_READ)                               | All announcements (paginated); optional `search` filters by title (case-insensitive); optional `audience` filters by value (ALL/DEPARTMENT/WORKERS_ONLY/INDIVIDUAL) |
+| GET    | /announcements/all?search=&audience=&page=&limit=          | AdminGuard (ANNOUNCEMENTS_READ)                               | All announcements (paginated); optional `search` filters by title (case-insensitive); optional `audience` filters by value (ALL/WORKERS_ONLY/MEMBERS_ONLY/DEPARTMENT/INDIVIDUAL) |
 | GET    | /announcements/feed                                        | Any                                                           | My filtered feed                                                                                              |
 | GET    | /announcements/:id                                         | Any                                                           | Get announcement                                                                                              |
 | GET    | /birthday/today                                            | Any (JwtAuthGuard)                                            | List active members with a birthday today (birthDay + birthMonth match current date)                          |
+| GET    | /birthday/upcoming                                         | AdminGuard (MEMBERS_READ)                                     | List active members with birthdays in the next 7 days, ordered by month/day                                  |
 | POST   | /birthday/wishes/:recipientId                              | Any                                                           | Send a birthday wish (once per year per sender; rate-limited to WISH_DAILY_LIMIT/day)                         |
 | GET    | /birthday/wishes/me                                        | Any                                                           | Read own birthday wishes (?year= filter optional)                                                             |
 | GET    | /birthday/wishes/:memberId                                 | AdminGuard (MEMBERS_READ)                                     | Read any member's birthday wishes                                                                             |
@@ -2004,6 +2012,20 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /sunday-school/sessions?classId=                           | Any                                                           | List sessions for a class (paginated)                                                                         |
 | GET    | /sunday-school/sessions/:id                                | Any                                                           | Get SS session by ID                                                                                          |
 | DELETE | /sunday-school/sessions/:id                                | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Delete SS session                                                                                             |
+| GET    | /admin/sunday-school/classes                               | AdminGuard (SUNDAY_SCHOOL_READ)                               | List SS classes (paginated)                                                                                   |
+| POST   | /admin/sunday-school/classes                               | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Create SS class (no auth restriction on department or teacher)                                                |
+| PATCH  | /admin/sunday-school/classes/:id                           | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Update SS class                                                                                               |
+| DELETE | /admin/sunday-school/classes/:id                           | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Delete SS class                                                                                               |
+| GET    | /admin/sunday-school/classes/:id/members                   | AdminGuard (SUNDAY_SCHOOL_READ)                               | List members of an SS class (paginated)                                                                       |
+| POST   | /admin/sunday-school/classes/:id/members                   | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Assign a member to an SS class                                                                                |
+| DELETE | /admin/sunday-school/classes/:id/members/:memberId         | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Remove a member from an SS class                                                                              |
+| GET    | /admin/sunday-school/sessions?classId=                     | AdminGuard (SUNDAY_SCHOOL_READ)                               | List sessions for a class (paginated; `classId` required UUID query param)                                    |
+| POST   | /admin/sunday-school/sessions                              | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Create SS session                                                                                             |
+| DELETE | /admin/sunday-school/sessions/:id                          | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Delete SS session                                                                                             |
+| PATCH  | /admin/sunday-school/sessions/:id/open                     | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Open self-mark window (body: `{ closesInMinutes }`)                                                           |
+| PATCH  | /admin/sunday-school/sessions/:id/close                    | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Close self-mark window                                                                                        |
+| GET    | /admin/sunday-school/sessions/:id/roster                   | AdminGuard (SUNDAY_SCHOOL_READ)                               | Get session attendance roster                                                                                 |
+| POST   | /admin/sunday-school/sessions/:id/bulk-mark                | AdminGuard (SUNDAY_SCHOOL_WRITE)                              | Bulk mark session attendance; returns `{ marked: number }`                                                    |
 | POST   | /children-church/age-groups                                | AdminGuard (CHILDREN_CHURCH_WRITE)                            | Create age group                                                                                              |
 | PATCH  | /children-church/age-groups/:id                            | AdminGuard (CHILDREN_CHURCH_WRITE)                            | Update age group                                                                                              |
 | DELETE | /children-church/age-groups/:id                            | AdminGuard (CHILDREN_CHURCH_WRITE)                            | Delete age group                                                                                              |
@@ -2512,7 +2534,7 @@ Granular permissions assigned to `AdminRole` records:
 
 ### ChurchClassTypeEnum
 
-`BELIEVERS` · `BAPTISMAL` · `WORKERS_IN_TRAINING` · `BIBLE_COLLEGE`
+`BELIEVERS` · `BAPTISMAL` · `WORKERS_IN_TRAINING` · `BIBLE_COLLEGE` · `SCHOOL_OF_DISCIPLESHIP`
 
 ### EnrollmentStatusEnum
 
@@ -2520,7 +2542,7 @@ Granular permissions assigned to `AdminRole` records:
 
 ### AnnouncementAudienceEnum
 
-`ALL` · `WORKERS_ONLY` · `DEPARTMENT` · `INDIVIDUAL`
+`ALL` · `WORKERS_ONLY` · `MEMBERS_ONLY` · `DEPARTMENT` · `INDIVIDUAL`
 
 ### NoteTypeEnum *(path param values)*
 

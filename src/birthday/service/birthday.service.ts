@@ -131,6 +131,41 @@ export class BirthdayService implements OnApplicationBootstrap {
       .getMany();
   }
 
+  async getUpcomingBirthdays(): Promise<
+    Pick<Member, 'id' | 'firstname' | 'lastname' | 'email' | 'phoneNumber' | 'birthMonth' | 'birthDay'>[]
+  > {
+    const today = new Date();
+
+    const upcoming: { month: number; day: number }[] = [];
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      upcoming.push({ month: d.getMonth() + 1, day: d.getDate() });
+    }
+
+    const conditions = upcoming
+      .map((_, i) => `(m.birth_month = :month${i} AND m.birth_day = :day${i})`)
+      .join(' OR ');
+
+    const params: Record<string, number> = {};
+    upcoming.forEach(({ month, day }, i) => {
+      params[`month${i}`] = month;
+      params[`day${i}`] = day;
+    });
+
+    return this.memberRepository
+      .createQueryBuilder('m')
+      .select([
+        'm.id', 'm.firstname', 'm.lastname', 'm.email',
+        'm.phoneNumber', 'm.birthMonth', 'm.birthDay',
+      ])
+      .where(`(${conditions})`, params)
+      .andWhere('m.status = :status', { status: MemberStatusEnum.ACTIVE })
+      .orderBy('m.birthMonth', 'ASC')
+      .addOrderBy('m.birthDay', 'ASC')
+      .getMany();
+  }
+
   async sendWish(
     recipientId: string,
     senderId: string,

@@ -153,9 +153,10 @@ export class AnnouncementService {
 
     if (role === MemberRoleEnum.MEMBER) {
       qb.andWhere(
-        '(a.audience = :all OR (a.audience = :individual AND targetMember.id = :memberId))',
+        '(a.audience = :all OR a.audience = :membersOnly OR (a.audience = :individual AND targetMember.id = :memberId))',
         {
           all: AnnouncementAudienceEnum.ALL,
+          membersOnly: AnnouncementAudienceEnum.MEMBERS_ONLY,
           individual: AnnouncementAudienceEnum.INDIVIDUAL,
           memberId,
         },

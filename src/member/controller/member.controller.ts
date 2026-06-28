@@ -18,6 +18,7 @@ import { WorkerStatusEnum } from '../enums/worker-status.enum';
 import { MemberRoleEnum } from '../enums/member-role.enum';
 import { UpdateMemberDto } from '../dto/update-member.dto';
 import { PromoteToWorkerDto } from '../dto/promote-to-worker.dto';
+import { BulkPromoteToWorkerDto } from '../dto/bulk-promote-to-worker.dto';
 import { UpdateWorkerProfileDto } from '../dto/update-worker-profile.dto';
 import { plainToInstance } from 'class-transformer';
 import { MemberDto } from '../dto/member.dto';
@@ -96,6 +97,17 @@ export class MemberController {
     return plainToInstance(MemberDto, member, {
       excludeExtraneousValues: true,
     });
+  }
+
+  @UseGuards(AdminGuard)
+  @RequiresPermission(AdminPermission.MEMBERS_WRITE)
+  @HttpCode(HttpStatus.OK)
+  @Post('bulk-promote')
+  async bulkPromoteToWorker(
+    @Body() dto: BulkPromoteToWorkerDto,
+    @CurrentUser() user: MemberAuth,
+  ) {
+    return this.memberService.bulkPromoteToWorker(dto, user.id);
   }
 
   @UseGuards(AdminGuard)

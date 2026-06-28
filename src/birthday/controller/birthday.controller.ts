@@ -27,6 +27,13 @@ export class BirthdayController {
     return this.birthdayService.getTodaysBirthdays();
   }
 
+  @UseGuards(AdminGuard)
+  @RequiresPermission(AdminPermission.MEMBERS_READ)
+  @Get('upcoming')
+  getUpcomingBirthdays() {
+    return this.birthdayService.getUpcomingBirthdays();
+  }
+
   @Post('wishes/:recipientId')
   sendWish(
     @Param('recipientId', ParseUUIDPipe) recipientId: string,

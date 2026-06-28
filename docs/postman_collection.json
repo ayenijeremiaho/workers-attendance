@@ -199,6 +199,11 @@
       "key": "rentalCalendarBlockId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "firstTimerId",
+      "value": "",
+      "type": "string"
     }
   ],
   "auth": {
@@ -978,6 +983,32 @@
               "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Member is already a worker\"\n}"
             }
           ]
+        },
+        {
+          "name": "Bulk Promote Members to Workers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberIds\": [\n    \"{{memberId}}\",\n    \"{{memberId2}}\"\n  ],\n  \"departmentId\": \"{{departmentId}}\",\n  \"profession\": \"Sound Engineer\",\n  \"yearJoinedWorkforce\": \"2020\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/bulk-promote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "bulk-promote"
+              ]
+            }
+          }
         },
         {
           "name": "Revoke Worker Role",
@@ -3068,6 +3099,33 @@
           ]
         },
         {
+          "name": "Bulk Assign Workers to Department",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberIds\": [\n    \"{{memberId}}\",\n    \"{{memberId2}}\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/departments/{{departmentId}}/bulk-assign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departments",
+                "{{departmentId}}",
+                "bulk-assign"
+              ]
+            }
+          }
+        },
+        {
           "name": "Assign Department Lead",
           "request": {
             "method": "POST",
@@ -4152,6 +4210,56 @@
               "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Invalid announcement data\"\n}"
             }
           ]
+        },
+        {
+          "name": "Create Workers-Only Announcement (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/announcements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Workers Meeting This Saturday\",\n  \"body\": \"Mandatory workers meeting at 7am. All departments must be represented.\",\n  \"audience\": \"WORKERS_ONLY\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Members-Only Announcement (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/announcements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "announcements"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Members Class\",\n  \"body\": \"A new members orientation class starts next Sunday. Please sign up at the information desk.\",\n  \"audience\": \"MEMBERS_ONLY\"\n}"
+            }
+          }
         },
         {
           "name": "Update Announcement (Admin)",
@@ -5952,6 +6060,401 @@
       ]
     },
     {
+      "name": "Sunday School (Admin)",
+      "item": [
+        {
+          "name": "List Classes (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/classes?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "classes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Class (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/classes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "classes"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Class Name\",\n  \"description\": \"optional\",\n  \"teacherId\": \"uuid\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Class (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/classes/{{ssClassId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "classes",
+                "{ssClassId}"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Class (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/classes/{{ssClassId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "classes",
+                "{ssClassId}"
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Class Members (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/classes/{{ssClassId}}/members?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "classes",
+                "{ssClassId}",
+                "members"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Member to Class (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/classes/{{ssClassId}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "classes",
+                "{ssClassId}",
+                "members"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"uuid\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Member from Class (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/classes/{{ssClassId}}/members/{{memberId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "classes",
+                "{ssClassId}",
+                "members",
+                "{memberId}"
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Sessions (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/sessions?classId={{ssClassId}}&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "sessions"
+              ],
+              "query": [
+                {
+                  "key": "classId",
+                  "value": "{ssClassId}",
+                  "disabled": false
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Session (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "sessions"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"classId\": \"uuid\",\n  \"sessionDate\": \"2026-06-27\",\n  \"notes\": \"optional\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Session (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/sessions/{{ssSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "sessions",
+                "{ssSessionId}"
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Open Session Self-Mark (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/sessions/{{ssSessionId}}/open",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "sessions",
+                "{ssSessionId}",
+                "open"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"closesInMinutes\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Close Session Self-Mark (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/sessions/{{ssSessionId}}/close",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "sessions",
+                "{ssSessionId}",
+                "close"
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session Roster (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/sessions/{{ssSessionId}}/roster",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "sessions",
+                "{ssSessionId}",
+                "roster"
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Mark Attendance (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/sunday-school/sessions/{{ssSessionId}}/bulk-mark",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sunday-school",
+                "sessions",
+                "{ssSessionId}",
+                "bulk-mark"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attendances\": [\n    {\n      \"memberId\": \"uuid\",\n      \"status\": \"PRESENT\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Children Church",
       "description": "Security check-in/check-out system for children. Access requires ADMIN role or a worker whose primary or secondary department has key=CHILDREN_CHURCH. Age group and class group management is ADMIN-only.",
       "item": [
@@ -7159,6 +7662,23 @@
               "body": "{ \"statusCode\": 404, \"message\": \"Member not found\" }"
             }
           ]
+        },
+        {
+          "name": "Upcoming Birthdays (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/birthday/upcoming",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "birthday",
+                "upcoming"
+              ]
+            }
+          }
         }
       ]
     },
@@ -9783,6 +10303,11 @@
                   "key": "status",
                   "value": "PENDING",
                   "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
                 }
               ]
             },
@@ -9919,6 +10444,26 @@
                   "key": "eventId",
                   "value": "{{eventId}}",
                   "disabled": true
+                },
+                {
+                  "key": "source",
+                  "value": "WALK_IN",
+                  "disabled": true
+                },
+                {
+                  "key": "wantsToJoinChurch",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "wantsToJoinWorkforce",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
                 }
               ]
             },
@@ -9965,6 +10510,11 @@
                 {
                   "key": "type",
                   "value": "FIRST_TIMER",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
                   "disabled": true
                 }
               ]
@@ -10058,6 +10608,13 @@
                 "follow-up",
                 "tasks",
                 "bulk"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
               ]
             },
             "description": "Bulk update status for multiple follow-up tasks. Requires FOLLOW_UP_WRITE permission."
@@ -10070,6 +10627,28 @@
               "body": "{ \"updated\": 2 }"
             }
           ]
+        },
+        {
+          "name": "Invite First-Timer to Membership",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/first-timers/{{firstTimerId}}/invite-to-membership",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "first-timers",
+                "{firstTimerId}",
+                "invite-to-membership"
+              ],
+              "query": []
+            }
+          },
+          "response": []
         },
         {
           "name": "Follow-Up Report (Admin)",

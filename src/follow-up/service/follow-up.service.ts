@@ -17,6 +17,7 @@ import { UpdateFollowUpTaskDto } from '../dto/update-follow-up-task.dto';
 import { BulkUpdateTasksDto } from '../dto/bulk-update-tasks.dto';
 import { ReassignTaskDto } from '../dto/reassign-task.dto';
 import {
+  FirstTimerSourceEnum,
   FollowUpOutcomeEnum,
   FollowUpTaskStatusEnum,
   FollowUpTaskTypeEnum,
@@ -87,6 +88,10 @@ export class FollowUpService {
     page = 1,
     limit = 20,
     eventId?: string,
+    source?: FirstTimerSourceEnum,
+    wantsToJoinChurch?: boolean,
+    wantsToJoinWorkforce?: boolean,
+    search?: string,
   ): Promise<PaginationResponseDto<FirstTimer>> {
     if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
@@ -101,6 +106,21 @@ export class FollowUpService {
       .take(limit);
 
     if (eventId) qb.andWhere('event.id = :eventId', { eventId });
+    if (source) qb.andWhere('ft.source = :source', { source });
+    if (wantsToJoinChurch !== undefined)
+      qb.andWhere('ft.wants_to_join_church = :wantsToJoinChurch', {
+        wantsToJoinChurch,
+      });
+    if (wantsToJoinWorkforce !== undefined)
+      qb.andWhere('ft.wants_to_join_workforce = :wantsToJoinWorkforce', {
+        wantsToJoinWorkforce,
+      });
+    if (search) {
+      qb.andWhere(
+        "(LOWER(ft.firstname) LIKE :search OR LOWER(ft.lastname) LIKE :search OR ft.phone LIKE :search OR LOWER(ft.email) LIKE :search)",
+        { search: `%${search.toLowerCase()}%` },
+      );
+    }
 
     const [data, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(data, page, limit, total);
@@ -143,6 +163,7 @@ export class FollowUpService {
     limit = 20,
     status?: FollowUpTaskStatusEnum,
     type?: FollowUpTaskTypeEnum,
+    search?: string,
   ): Promise<PaginationResponseDto<FollowUpTask>> {
     if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
@@ -159,6 +180,12 @@ export class FollowUpService {
 
     if (status) qb.andWhere('task.status = :status', { status });
     if (type) qb.andWhere('task.type = :type', { type });
+    if (search) {
+      qb.andWhere(
+        "(LOWER(ft.firstname) LIKE :search OR LOWER(ft.lastname) LIKE :search)",
+        { search: `%${search.toLowerCase()}%` },
+      );
+    }
 
     const [data, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(data, page, limit, total);
@@ -679,5 +706,23 @@ export class FollowUpService {
 
     this.cacheService.flushNamespace('follow-up:report');
     return savedFirstTimer;
+  }
+
+  async inviteFirstTimerToMembership(id: string): Promise<{ queued: boolean }> {
+    const ft = await this.firstTimerRepo.findOne({ where: { id } });
+    if (!ft) throw new NotFoundException('First-timer not found');
+    if (!ft.email) throw new BadRequestException('This first-timer has no email address on record');
+    this.emailQueueService.queueEmailWithTemplate(
+      ft.email,
+      `You're Invited to Join ${this.churchName}`,
+      'first-timer-membership-invite',
+      {
+        firstname: ft.firstname,
+        lastname: ft.lastname,
+        churchName: this.churchName,
+      },
+    );
+    this.logger.log(`Membership invitation queued for first-timer ${id}`);
+    return { queued: true };
   }
 }

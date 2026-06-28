@@ -23,6 +23,7 @@ import { WorkerStatusEnum } from '../enums/worker-status.enum';
 import { SignupDto } from '../dto/signup.dto';
 import { UpdateMemberDto } from '../dto/update-member.dto';
 import { PromoteToWorkerDto } from '../dto/promote-to-worker.dto';
+import { BulkPromoteToWorkerDto } from '../dto/bulk-promote-to-worker.dto';
 import { UpdateWorkerProfileDto } from '../dto/update-worker-profile.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
@@ -176,6 +177,38 @@ export class MemberService {
       'workerProfile',
       'workerProfile.department',
     ]);
+  }
+
+  async bulkPromoteToWorker(
+    dto: BulkPromoteToWorkerDto,
+    actorId: string,
+  ): Promise<{ promoted: number; skipped: number }> {
+    let promoted = 0;
+    let skipped = 0;
+
+    for (const memberId of dto.memberIds) {
+      try {
+        await this.promoteToWorker(
+          memberId,
+          {
+            departmentId: dto.departmentId,
+            profession: dto.profession,
+            yearJoinedWorkforce: dto.yearJoinedWorkforce,
+          },
+          actorId,
+        );
+        promoted++;
+      } catch {
+        skipped++;
+      }
+    }
+
+    this.auditLogService.log('BULK_WORKER_PROMOTED', {
+      actorId,
+      metadata: { promoted, skipped, departmentId: dto.departmentId },
+    });
+
+    return { promoted, skipped };
   }
 
   async revokeWorker(memberId: string, actorId: string): Promise<void> {

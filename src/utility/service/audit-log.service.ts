@@ -48,8 +48,11 @@ export type AuditAction =
   | 'DEPARTMENT_DELETED'
   | 'DEPARTMENT_LEAD_ASSIGNED'
   | 'DEPARTMENT_LEAD_REMOVED'
+  | 'BULK_DEPARTMENT_ASSIGNED'
   // Worker profiles
   | 'WORKER_PROFILE_UPDATED'
+  // Bulk operations
+  | 'BULK_WORKER_PROMOTED'
   // Admin roles
   | 'ADMIN_ROLE_CREATED'
   | 'ADMIN_ROLE_UPDATED'

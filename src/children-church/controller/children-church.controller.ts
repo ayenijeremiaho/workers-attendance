@@ -103,8 +103,6 @@ export class ChildrenChurchController {
     return this.childrenChurchService.deleteClassGroup(id);
   }
 
-  @UseGuards(RolesGuard)
-  @Roles(MemberRoleEnum.WORKER)
   @Get('class-groups')
   async getClassGroupsByAgeGroup(@Query('ageGroupId') ageGroupId: string) {
     return this.childrenChurchService.getClassGroupsByAgeGroup(ageGroupId);

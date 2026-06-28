@@ -19,6 +19,7 @@ import { CreateDepartmentDto } from '../dto/create-department.dto';
 import { UpdateDepartmentDto } from '../dto/update-department.dto';
 import { AssignDepartmentHodDto } from '../dto/assign-department-hod.dto';
 import { RemoveDepartmentHodDto } from '../dto/remove-department-hod.dto';
+import { BulkAssignDepartmentDto } from '../dto/bulk-assign-department.dto';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
 import { AuditLogService } from '../../utility/service/audit-log.service';
@@ -160,13 +161,14 @@ export class DepartmentService {
 
     const department = await this.getDepartmentOrThrow(departmentId);
 
-    // HOD/D-HOD can only be assigned from the worker's primary department.
-    // Secondary department membership intentionally does not qualify here.
     const profile = await this.workerProfileRepository.findOne({
-      where: { member: { id: memberId }, department: { id: departmentId } },
+      where: [
+        { member: { id: memberId }, department: { id: departmentId } },
+        { member: { id: memberId }, secondaryDepartment: { id: departmentId } },
+      ],
     });
     if (!profile)
-      throw new NotFoundException('Worker not found in this department');
+      throw new NotFoundException('Worker is not a member of this department');
 
     const leadType =
       type === 'head'
@@ -409,6 +411,39 @@ export class DepartmentService {
         dateTo: l.dateTo,
       })),
     };
+  }
+
+  async bulkAssignDepartment(
+    departmentId: string,
+    dto: BulkAssignDepartmentDto,
+    actorId: string,
+  ): Promise<{ updated: number; skipped: number }> {
+    const department = await this.getDepartmentOrThrow(departmentId);
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const memberId of dto.memberIds) {
+      const profile = await this.workerProfileRepository.findOne({
+        where: { member: { id: memberId } },
+        relations: ['department'],
+      });
+      if (!profile) {
+        skipped++;
+        continue;
+      }
+      profile.department = department;
+      await this.workerProfileRepository.save(profile);
+      updated++;
+    }
+
+    this.auditLogService.log('BULK_DEPARTMENT_ASSIGNED', {
+      actorId,
+      targetId: departmentId,
+      metadata: { updated, skipped, memberIds: dto.memberIds },
+    });
+
+    return { updated, skipped };
   }
 
   private async getDepartmentOrThrow(id: string): Promise<Department> {

@@ -6,6 +6,7 @@ import { SundaySchoolSession } from './entity/sunday-school-session.entity';
 import { SundaySchoolAttendance } from './entity/sunday-school-attendance.entity';
 import { SundaySchoolService } from './service/sunday-school.service';
 import { SundaySchoolController } from './controller/sunday-school.controller';
+import { SundaySchoolAdminController } from './controller/sunday-school-admin.controller';
 import { MemberModule } from '../member/member.module';
 import { UtilityModule } from '../utility/utility.module';
 
@@ -20,7 +21,7 @@ import { UtilityModule } from '../utility/utility.module';
     MemberModule,
     UtilityModule,
   ],
-  controllers: [SundaySchoolController],
+  controllers: [SundaySchoolController, SundaySchoolAdminController],
   providers: [SundaySchoolService],
   exports: [SundaySchoolService],
 })

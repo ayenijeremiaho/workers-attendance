@@ -52,6 +52,8 @@ export class AdminService {
       this.auditLogService.log('ADMIN_USER_CREATED', {
         actorId,
         targetId: member.id,
+        targetEmail: member.email,
+        targetName: `${member.firstname} ${member.lastname}`,
         metadata: { adminRoleId: dto.adminRoleId, reactivated: true },
       });
       this.sendAdminWelcomeEmail(member.email, member.firstname);
@@ -69,6 +71,8 @@ export class AdminService {
     this.auditLogService.log('ADMIN_USER_CREATED', {
       actorId,
       targetId: member.id,
+      targetEmail: member.email,
+      targetName: `${member.firstname} ${member.lastname}`,
       metadata: { adminRoleId: dto.adminRoleId },
     });
     this.sendAdminWelcomeEmail(member.email, member.firstname);
@@ -98,6 +102,10 @@ export class AdminService {
     this.auditLogService.log('ADMIN_USER_UPDATED', {
       actorId,
       targetId: admin.member?.id,
+      targetEmail: admin.member?.email,
+      targetName: admin.member
+        ? `${admin.member.firstname} ${admin.member.lastname}`
+        : undefined,
       metadata: {
         changes: Object.keys(dto),
         ...(dto.adminRoleId && {
@@ -120,6 +128,10 @@ export class AdminService {
     this.auditLogService.log('ADMIN_USER_DEACTIVATED', {
       actorId,
       targetId: admin.member?.id,
+      targetEmail: admin.member?.email,
+      targetName: admin.member
+        ? `${admin.member.firstname} ${admin.member.lastname}`
+        : undefined,
     });
     if (admin.member?.email) {
       this.utilityService.sendEmailWithTemplate(

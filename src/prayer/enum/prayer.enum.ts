@@ -9,10 +9,17 @@ export enum PrayerRuleType {
   MAX_PER_MEETING = 'MAX_PER_MEETING',
 }
 
+export enum PrayerAudience {
+  WORKERS = 'WORKERS',
+  MEMBERS = 'MEMBERS',
+  ALL = 'ALL',
+}
+
 export enum PrayerAssignmentType {
   FIXED = 'FIXED',
   SELF_SELECTED = 'SELF_SELECTED',
   AUTO_ASSIGNED = 'AUTO_ASSIGNED',
+  MANUAL = 'MANUAL',
 }
 
 export enum PrayerRosterStatus {

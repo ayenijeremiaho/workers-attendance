@@ -250,8 +250,40 @@ export class ChildrenChurchController {
 
   @UseGuards(AdminGuard)
   @RequiresPermission(AdminPermission.CHILDREN_CHURCH_READ)
+  @Get('admin/checkin/active')
+  async getActiveCheckInsAdmin(
+    @Query('classGroupId') classGroupId?: string,
+  ) {
+    return this.childrenChurchService.getActiveCheckInsAdmin(classGroupId);
+  }
+
+  @UseGuards(AdminGuard)
+  @RequiresPermission(AdminPermission.CHILDREN_CHURCH_READ)
+  @Get('admin/checkin/history')
+  async getCheckInHistoryAdmin(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('classGroupId') classGroupId?: string,
+    @Query('status') status?: string,
+    @Query('slotId') slotId?: string,
+  ) {
+    return this.childrenChurchService.getCheckInHistoryAdmin(
+      +page,
+      +limit,
+      classGroupId,
+      status as any,
+      slotId,
+    );
+  }
+
+  @UseGuards(AdminGuard)
+  @RequiresPermission(AdminPermission.CHILDREN_CHURCH_READ)
   @Get('checkin/slot/:slotId')
-  async getCheckInsBySlot(@Param('slotId', ParseUUIDPipe) slotId: string) {
-    return this.childrenChurchService.getCheckInsBySlot(slotId);
+  async getCheckInsBySlot(
+    @Param('slotId', ParseUUIDPipe) slotId: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.childrenChurchService.getCheckInsBySlot(slotId, +page, +limit);
   }
 }

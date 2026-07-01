@@ -56,12 +56,14 @@ const mockUnmatchedRepo = {
   findOne: jest.fn(),
   findAndCount: jest.fn(),
   save: jest.fn(),
+  createQueryBuilder: jest.fn(),
 };
 
 const mockDisputeRepo = {
   findOne: jest.fn(),
   findAndCount: jest.fn(),
   save: jest.fn(),
+  createQueryBuilder: jest.fn(),
 };
 
 const mockMemberRepo = {
@@ -147,6 +149,34 @@ function makeRecordsQb(rows: object[], total: number) {
     getManyAndCount: jest.fn().mockResolvedValue([rows, total]),
   };
   mockRecordRepo.createQueryBuilder.mockReturnValue(qb);
+  return qb;
+}
+
+function makeUnmatchedQb(rows: object[], total: number) {
+  const qb: any = {
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    getManyAndCount: jest.fn().mockResolvedValue([rows, total]),
+  };
+  mockUnmatchedRepo.createQueryBuilder.mockReturnValue(qb);
+  return qb;
+}
+
+function makeDisputeQb(rows: object[], total: number) {
+  const qb: any = {
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    getManyAndCount: jest.fn().mockResolvedValue([rows, total]),
+  };
+  mockDisputeRepo.createQueryBuilder.mockReturnValue(qb);
   return qb;
 }
 
@@ -557,7 +587,7 @@ describe('TitheService', () => {
 
   describe('getUnmatched', () => {
     it('should default to PENDING status when no filter provided', async () => {
-      mockUnmatchedRepo.findAndCount.mockResolvedValue([[], 0]);
+      const qb = makeUnmatchedQb([], 0);
       jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
         data: [],
         page: 1,
@@ -568,15 +598,13 @@ describe('TitheService', () => {
 
       await service.getUnmatched(1, 20);
 
-      expect(mockUnmatchedRepo.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { status: TitheUnmatchedStatus.PENDING },
-        }),
-      );
+      expect(qb.where).toHaveBeenCalledWith('u.status = :status', {
+        status: TitheUnmatchedStatus.PENDING,
+      });
     });
 
     it('should filter by provided status', async () => {
-      mockUnmatchedRepo.findAndCount.mockResolvedValue([[], 0]);
+      const qb = makeUnmatchedQb([], 0);
       jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
         data: [],
         page: 1,
@@ -587,11 +615,9 @@ describe('TitheService', () => {
 
       await service.getUnmatched(1, 20, TitheUnmatchedStatus.MATCHED);
 
-      expect(mockUnmatchedRepo.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { status: TitheUnmatchedStatus.MATCHED },
-        }),
-      );
+      expect(qb.where).toHaveBeenCalledWith('u.status = :status', {
+        status: TitheUnmatchedStatus.MATCHED,
+      });
     });
   });
 
@@ -599,7 +625,7 @@ describe('TitheService', () => {
 
   describe('getDisputes', () => {
     it('should default to PENDING status when no filter provided', async () => {
-      mockDisputeRepo.findAndCount.mockResolvedValue([[], 0]);
+      const qb = makeDisputeQb([], 0);
       jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
         data: [],
         page: 1,
@@ -610,15 +636,13 @@ describe('TitheService', () => {
 
       await service.getDisputes(1, 20);
 
-      expect(mockDisputeRepo.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { status: TitheDisputeStatus.PENDING },
-        }),
-      );
+      expect(qb.where).toHaveBeenCalledWith('d.status = :status', {
+        status: TitheDisputeStatus.PENDING,
+      });
     });
 
     it('should filter by provided status', async () => {
-      mockDisputeRepo.findAndCount.mockResolvedValue([[], 0]);
+      const qb = makeDisputeQb([], 0);
       jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
         data: [],
         page: 1,
@@ -629,11 +653,9 @@ describe('TitheService', () => {
 
       await service.getDisputes(1, 20, TitheDisputeStatus.CONFIRMED_VALID);
 
-      expect(mockDisputeRepo.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { status: TitheDisputeStatus.CONFIRMED_VALID },
-        }),
-      );
+      expect(qb.where).toHaveBeenCalledWith('d.status = :status', {
+        status: TitheDisputeStatus.CONFIRMED_VALID,
+      });
     });
   });
 
@@ -778,6 +800,8 @@ describe('TitheService', () => {
         expect.any(String),
         'tithe-proof-confirmed',
         expect.any(Object),
+        undefined,
+        'GIVING_RECEIPT',
       );
     });
   });
@@ -833,6 +857,8 @@ describe('TitheService', () => {
         expect.any(String),
         'tithe-proof-declined',
         expect.objectContaining({ financeNote: 'Contact your bank' }),
+        undefined,
+        'GIVING_RECEIPT',
       );
     });
   });
@@ -1028,6 +1054,7 @@ describe('TitheService', () => {
         expect.arrayContaining([
           expect.objectContaining({ filename: 'tithe-statement.pdf' }),
         ]),
+        'GIVING_RECEIPT',
       );
     });
   });

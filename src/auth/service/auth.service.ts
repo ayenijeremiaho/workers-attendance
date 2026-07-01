@@ -31,11 +31,13 @@ import {
 import { SessionSurface } from '../enum/session-surface.enum';
 import { PasswordResetOtp } from '../entity/password-reset-otp.entity';
 import { DeviceResetOtp } from '../entity/device-reset-otp.entity';
+import { DepartmentLead } from '../../department/entity/department-lead.entity';
 import refreshJwtConfig from '../../config/refresh.jwt.config';
 import { ChangePasswordDto } from '../../member/dto/change-password.dto';
 import { SignupDto } from '../../member/dto/signup.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { Member } from '../../member/entity/member.entity';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 
 @Injectable()
 export class AuthService {
@@ -49,6 +51,7 @@ export class AuthService {
   private readonly deviceResetMaxAttempts: number;
   private readonly deviceResetWindowSeconds: number;
   private readonly timezone: string;
+  private readonly productName: string;
 
   constructor(
     private readonly jwtService: JwtService,
@@ -65,6 +68,8 @@ export class AuthService {
     private readonly otpRepository: Repository<PasswordResetOtp>,
     @InjectRepository(DeviceResetOtp)
     private readonly deviceResetOtpRepository: Repository<DeviceResetOtp>,
+    @InjectRepository(DepartmentLead)
+    private readonly departmentLeadRepo: Repository<DepartmentLead>,
   ) {
     this.otpTtlSeconds = this.configService.get<number>('OTP_TTL_SECONDS');
     this.otpMaxAttempts = this.configService.get<number>(
@@ -85,6 +90,7 @@ export class AuthService {
       'DEVICE_RESET_WINDOW_SECONDS',
     );
     this.timezone = this.configService.get<string>('TIMEZONE');
+    this.productName = this.configService.get<string>('PRODUCT_NAME');
   }
 
   async validateMember(email: string, password: string): Promise<MemberAuth> {
@@ -115,7 +121,7 @@ export class AuthService {
         ).toString();
         this.utilityService.sendEmailWithTemplate(
           member.email,
-          `${firstName}, Your Discovery Hub Account Has Been Temporarily Locked`,
+          `${firstName}, Your ${this.productName} Account Has Been Temporarily Locked`,
           'login-security-alert',
           { name: firstName, lockoutMinutes },
         );
@@ -183,7 +189,11 @@ export class AuthService {
       user.requiresPasswordChange,
       SessionSurface.MEMBER,
     );
-    this.auditLogService.log('MEMBER_LOGIN', { targetId: user.id });
+    this.auditLogService.log('MEMBER_LOGIN', {
+      targetId: user.id,
+      targetEmail: member.email,
+      targetName: `${member.firstname} ${member.lastname}`,
+    });
 
     const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
     const loginTime = new Date().toLocaleString('en-GB', {
@@ -191,9 +201,11 @@ export class AuthService {
     });
     this.utilityService.sendEmailWithTemplate(
       member.email,
-      `${firstName}, New Discovery Hub Login Detected`,
+      `${firstName}, New ${this.productName} Login Detected`,
       'login-notification',
       { name: firstName, loginTime },
+      undefined,
+      EmailCategory.LOGIN_ALERT,
     );
 
     return tokens;
@@ -332,11 +344,20 @@ export class AuthService {
     };
   }
 
-  async getProfile(memberId: string): Promise<Member> {
-    return this.memberService.getById(memberId, [
+  async getProfile(
+    memberId: string,
+  ): Promise<{ member: Member; isHod: boolean }> {
+    const member = await this.memberService.getById(memberId, [
       'workerProfile',
       'workerProfile.department',
     ]);
+    let isHod = false;
+    if (member.workerProfile?.id) {
+      isHod = await this.departmentLeadRepo.exists({
+        where: { workerProfile: { id: member.workerProfile.id } },
+      });
+    }
+    return { member, isHod };
   }
 
   async changePassword(
@@ -374,7 +395,7 @@ export class AuthService {
     const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
     this.utilityService.sendEmailWithTemplate(
       member.email,
-      `${firstName}, Your Discovery Hub Password Reset Code`,
+      `${firstName}, Your ${this.productName} Password Reset Code`,
       'forgot-password-otp',
       {
         name: firstName,
@@ -424,7 +445,7 @@ export class AuthService {
     const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
     this.utilityService.sendEmailWithTemplate(
       member.email,
-      `${firstName}, Your Discovery Hub Password Has Been Changed`,
+      `${firstName}, Your ${this.productName} Password Has Been Changed`,
       'password-changed',
       {
         name: firstName,

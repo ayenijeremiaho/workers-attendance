@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,15 +9,18 @@ import { Repository } from 'typeorm';
 import { PrayerMeeting } from '../entity/prayer-meeting.entity';
 import { PrayerRosterEntry } from '../entity/prayer-roster-entry.entity';
 import { PrayerScheduleRule } from '../entity/prayer-schedule-rule.entity';
+import { PrayerProgram } from '../entity/prayer-program.entity';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
+import { Member } from '../../member/entity/member.entity';
 import { DepartmentLead } from '../../department/entity/department-lead.entity';
 import {
   PrayerAssignmentType,
+  PrayerAudience,
   PrayerMeetingStatus,
   PrayerRosterStatus,
   PrayerRuleType,
 } from '../enum/prayer.enum';
-import { ReschedulePrayerEntryDto } from '../dto/prayer.dto';
+import { ManualAssignDto, ReschedulePrayerEntryDto } from '../dto/prayer.dto';
 import { WorkerStatusEnum } from '../../member/enums/worker-status.enum';
 import { DepartmentLeadTypeEnum } from '../../department/enums/department-lead-type.enum';
 
@@ -42,28 +46,66 @@ export class PrayerRosterService {
     private readonly rosterRepo: Repository<PrayerRosterEntry>,
     @InjectRepository(PrayerScheduleRule)
     private readonly ruleRepo: Repository<PrayerScheduleRule>,
+    @InjectRepository(PrayerProgram)
+    private readonly programRepo: Repository<PrayerProgram>,
     @InjectRepository(WorkerProfile)
     private readonly workerRepo: Repository<WorkerProfile>,
+    @InjectRepository(Member)
+    private readonly memberRepo: Repository<Member>,
     @InjectRepository(DepartmentLead)
     private readonly deptLeadRepo: Repository<DepartmentLead>,
   ) {}
 
   async autoAssign(
+    programId: string,
     month: number,
     year: number,
   ): Promise<{ assigned: number; unassignable: string[] }> {
+    const program = await this.programRepo.findOne({ where: { id: programId } });
+    if (!program) throw new NotFoundException('Prayer program not found.');
+    if (program.audience === PrayerAudience.MEMBERS) {
+      throw new BadRequestException(
+        'Auto-assign is not available for member-only programs. Use manual assignment or let members self-select.',
+      );
+    }
+
     const meetings = await this.meetingRepo.find({
-      where: { month, year, status: PrayerMeetingStatus.SCHEDULED },
+      where: { month, year, status: PrayerMeetingStatus.SCHEDULED, program: { id: programId } },
       relations: ['dayConfig', 'rosterEntries', 'rosterEntries.workerProfile'],
       order: { date: 'ASC' },
     });
     if (!meetings.length)
       throw new NotFoundException(
-        `No scheduled meetings found for ${year}-${month}.`,
+        `No scheduled meetings found for ${year}-${month} in this program.`,
       );
 
+    // Delete existing AUTO_ASSIGNED entries to make this call idempotent.
+    // FIXED and SELF_SELECTED entries are preserved.
+    const existingAutoIds = await this.rosterRepo.find({
+      where: {
+        meeting: { month, year, program: { id: programId } as any },
+        assignmentType: PrayerAssignmentType.AUTO_ASSIGNED,
+        status: PrayerRosterStatus.SCHEDULED,
+      },
+      select: ['id'],
+    });
+    if (existingAutoIds.length) {
+      const ids = existingAutoIds.map((e) => e.id);
+      await this.rosterRepo.delete(ids);
+      // Reset capacities to reflect only fixed/self-selected entries
+      for (const meeting of meetings) {
+        const nonAutoCount = meeting.rosterEntries.filter(
+          (e) => e.assignmentType !== PrayerAssignmentType.AUTO_ASSIGNED,
+        ).length;
+        if (meeting.currentCapacity !== nonAutoCount) {
+          meeting.currentCapacity = nonAutoCount;
+        }
+      }
+      await this.meetingRepo.save(meetings);
+    }
+
     const { maxPerMeeting, minLeaders, frequencyRules, defaultFrequency } =
-      await this.loadRules();
+      await this.loadRules(programId);
 
     const activeWorkers = await this.workerRepo.find({
       where: { status: WorkerStatusEnum.ACTIVE },
@@ -71,27 +113,38 @@ export class PrayerRosterService {
     const leadMap = await this.buildLeadMap();
 
     const existingEntries = await this.rosterRepo.find({
-      where: { meeting: { month, year }, status: PrayerRosterStatus.SCHEDULED },
+      where: {
+        meeting: { month, year, program: { id: programId } as any },
+        status: PrayerRosterStatus.SCHEDULED,
+      },
       relations: ['workerProfile', 'meeting'],
     });
 
     const assignedCount = new Map<string, number>();
     for (const entry of existingEntries) {
+      if (!entry.workerProfile) continue;
       const wid = entry.workerProfile.id;
       assignedCount.set(wid, (assignedCount.get(wid) ?? 0) + 1);
     }
 
-    const capacities = new Map(meetings.map((m) => [m.id, m.currentCapacity]));
+    // Re-fetch meetings with updated capacities
+    const freshMeetings = await this.meetingRepo.find({
+      where: { month, year, status: PrayerMeetingStatus.SCHEDULED, program: { id: programId } },
+      relations: ['dayConfig'],
+      order: { date: 'ASC' },
+    });
+
+    const capacities = new Map(freshMeetings.map((m) => [m.id, m.currentCapacity]));
     const leaderCounts = new Map<string, number>();
     for (const entry of existingEntries) {
       const mid = entry.meeting.id;
-      if (leadMap.has(entry.workerProfile.id)) {
+      if (entry.workerProfile && leadMap.has(entry.workerProfile.id)) {
         leaderCounts.set(mid, (leaderCounts.get(mid) ?? 0) + 1);
       }
     }
 
     const ctx: AssignContext = {
-      meetings,
+      meetings: freshMeetings,
       existingEntries,
       leadMap,
       assignedCount,
@@ -122,7 +175,7 @@ export class PrayerRosterService {
 
     if (ctx.newEntries.length) {
       await this.rosterRepo.save(ctx.newEntries as PrayerRosterEntry[]);
-      const capacityUpdates = meetings
+      const capacityUpdates = freshMeetings
         .filter(
           (m) =>
             (ctx.capacities.get(m.id) ?? m.currentCapacity) !==
@@ -140,13 +193,116 @@ export class PrayerRosterService {
     return { assigned: ctx.newEntries.length, unassignable };
   }
 
+  async manualAssign(
+    programId: string,
+    dto: ManualAssignDto,
+  ): Promise<PrayerRosterEntry> {
+    if (!dto.workerProfileId && !dto.memberId) {
+      throw new BadRequestException(
+        'Either workerProfileId or memberId must be provided.',
+      );
+    }
+
+    const meeting = await this.meetingRepo.findOne({
+      where: { id: dto.meetingId, program: { id: programId } },
+      relations: ['dayConfig', 'program'],
+    });
+    if (!meeting) throw new NotFoundException('Meeting not found in this program.');
+    if (meeting.currentCapacity >= meeting.dayConfig.maxCapacity) {
+      throw new BadRequestException('This meeting is at full capacity.');
+    }
+
+    let workerProfile: WorkerProfile | null = null;
+    let member: Member | null = null;
+
+    if (dto.workerProfileId) {
+      if (meeting.program.audience === PrayerAudience.MEMBERS) {
+        throw new BadRequestException(
+          'This program is for members only. Use memberId instead.',
+        );
+      }
+      workerProfile = await this.workerRepo.findOne({
+        where: { id: dto.workerProfileId },
+      });
+      if (!workerProfile) throw new NotFoundException('Worker profile not found.');
+
+      const existing = await this.rosterRepo.findOne({
+        where: {
+          workerProfile: { id: dto.workerProfileId },
+          meeting: { id: dto.meetingId },
+          status: PrayerRosterStatus.SCHEDULED,
+        },
+      });
+      if (existing) throw new ConflictException('Worker is already assigned to this meeting.');
+    }
+
+    if (dto.memberId) {
+      if (meeting.program.audience === PrayerAudience.WORKERS) {
+        throw new BadRequestException(
+          'This program is for workers only. Use workerProfileId instead.',
+        );
+      }
+      member = await this.memberRepo.findOne({ where: { id: dto.memberId } });
+      if (!member) throw new NotFoundException('Member not found.');
+
+      const existing = await this.rosterRepo.findOne({
+        where: {
+          member: { id: dto.memberId },
+          meeting: { id: dto.meetingId },
+          status: PrayerRosterStatus.SCHEDULED,
+        },
+      });
+      if (existing) throw new ConflictException('Member is already assigned to this meeting.');
+    }
+
+    const entry = await this.rosterRepo.save(
+      this.rosterRepo.create({
+        workerProfile,
+        member,
+        meeting,
+        assignmentType: PrayerAssignmentType.MANUAL,
+      }),
+    );
+
+    meeting.currentCapacity += 1;
+    await this.meetingRepo.save(meeting);
+
+    return entry;
+  }
+
+  async removeEntry(entryId: string): Promise<void> {
+    const entry = await this.rosterRepo.findOne({
+      where: { id: entryId },
+      relations: ['meeting'],
+    });
+    if (!entry) throw new NotFoundException('Roster entry not found.');
+    if (entry.assignmentType === PrayerAssignmentType.FIXED) {
+      throw new BadRequestException(
+        'Fixed assignments cannot be removed from the roster. Remove the fixed assignment configuration instead.',
+      );
+    }
+    if (entry.status !== PrayerRosterStatus.SCHEDULED) {
+      throw new BadRequestException('Only scheduled entries can be removed.');
+    }
+
+    await this.rosterRepo.delete(entryId);
+
+    const meeting = await this.meetingRepo.findOne({
+      where: { id: entry.meeting.id },
+    });
+    if (meeting && meeting.currentCapacity > 0) {
+      meeting.currentCapacity -= 1;
+      await this.meetingRepo.save(meeting);
+    }
+  }
+
   async reschedule(
     entryId: string,
     dto: ReschedulePrayerEntryDto,
   ): Promise<PrayerRosterEntry> {
     const entry = await this.rosterRepo.findOne({
       where: { id: entryId },
-      relations: ['workerProfile', 'meeting', 'meeting.dayConfig'],
+      relations: ['workerProfile', 'member', 'meeting', 'meeting.dayConfig'],
     });
     if (!entry) throw new NotFoundException('Roster entry not found.');
 
@@ -173,21 +329,39 @@ export class PrayerRosterService {
       );
     }
 
-    const alreadyOnNewMeeting = await this.rosterRepo.findOne({
-      where: {
-        workerProfile: { id: entry.workerProfile.id },
-        meeting: { id: dto.newMeetingId },
-        status: PrayerRosterStatus.SCHEDULED,
-      },
-    });
-    if (alreadyOnNewMeeting) {
-      throw new BadRequestException(
-        'This worker is already assigned to the target meeting.',
-      );
+    if (entry.workerProfile) {
+      const alreadyOnNewMeeting = await this.rosterRepo.findOne({
+        where: {
+          workerProfile: { id: entry.workerProfile.id },
+          meeting: { id: dto.newMeetingId },
+          status: PrayerRosterStatus.SCHEDULED,
+        },
+      });
+      if (alreadyOnNewMeeting) {
+        throw new BadRequestException(
+          'This worker is already assigned to the target meeting.',
+        );
+      }
+    }
+
+    if (entry.member) {
+      const alreadyOnNewMeeting = await this.rosterRepo.findOne({
+        where: {
+          member: { id: entry.member.id },
+          meeting: { id: dto.newMeetingId },
+          status: PrayerRosterStatus.SCHEDULED,
+        },
+      });
+      if (alreadyOnNewMeeting) {
+        throw new BadRequestException(
+          'This member is already assigned to the target meeting.',
+        );
+      }
     }
 
     const newEntry = this.rosterRepo.create({
       workerProfile: entry.workerProfile,
+      member: entry.member,
       meeting: newMeeting,
       assignmentType: entry.assignmentType,
       rescheduledFrom: entry,
@@ -213,11 +387,12 @@ export class PrayerRosterService {
   }
 
   async validateRoster(
+    programId: string,
     month: number,
     year: number,
   ): Promise<{ valid: boolean; issues: string[] }> {
     const { minLeaders, frequencyRules, defaultFrequency } =
-      await this.loadRules();
+      await this.loadRules(programId);
 
     const activeWorkers = await this.workerRepo.find({
       where: { status: WorkerStatusEnum.ACTIVE },
@@ -225,7 +400,10 @@ export class PrayerRosterService {
     const leadMap = await this.buildLeadMap();
 
     const entries = await this.rosterRepo.find({
-      where: { meeting: { month, year }, status: PrayerRosterStatus.SCHEDULED },
+      where: {
+        meeting: { month, year, program: { id: programId } as any },
+        status: PrayerRosterStatus.SCHEDULED,
+      },
       relations: ['workerProfile', 'meeting'],
     });
 
@@ -236,6 +414,7 @@ export class PrayerRosterService {
       })
       .leftJoinAndSelect('re.workerProfile', 'wp')
       .where('m.month = :month AND m.year = :year', { month, year })
+      .andWhere('m.program_id = :programId', { programId })
       .getMany();
 
     const issues: string[] = [];
@@ -247,7 +426,7 @@ export class PrayerRosterService {
         defaultFrequency,
       });
       const assigned = entries.filter(
-        (e) => e.workerProfile.id === worker.id,
+        (e) => e.workerProfile?.id === worker.id,
       ).length;
       if (assigned !== required) {
         issues.push(
@@ -258,7 +437,7 @@ export class PrayerRosterService {
 
     for (const meeting of meetings) {
       const leaderCount = meeting.rosterEntries.filter((e) =>
-        leadMap.has(e.workerProfile.id),
+        e.workerProfile && leadMap.has(e.workerProfile.id),
       ).length;
       if (leaderCount < minLeaders) {
         issues.push(
@@ -270,13 +449,15 @@ export class PrayerRosterService {
     return { valid: issues.length === 0, issues };
   }
 
-  private async loadRules(): Promise<{
+  private async loadRules(programId: string): Promise<{
     maxPerMeeting: number;
     minLeaders: number;
     frequencyRules: PrayerScheduleRule[];
     defaultFrequency: number;
   }> {
-    const rules = await this.ruleRepo.find({ where: { isActive: true } });
+    const rules = await this.ruleRepo.find({
+      where: { isActive: true, program: { id: programId } },
+    });
     const maxPerMeeting =
       rules.find((r) => r.type === PrayerRuleType.MAX_PER_MEETING)?.value ??
       Infinity;
@@ -319,7 +500,7 @@ export class PrayerRosterService {
 
     const alreadyAssignedMeetingIds = new Set(
       ctx.existingEntries
-        .filter((e) => e.workerProfile.id === worker.id)
+        .filter((e) => e.workerProfile?.id === worker.id)
         .map((e) => e.meeting.id),
     );
 

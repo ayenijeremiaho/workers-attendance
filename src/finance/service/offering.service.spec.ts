@@ -21,10 +21,12 @@ const mockOfferingRepo = {
 
 const mockQb = {
   leftJoinAndSelect: jest.fn().mockReturnThis(),
+  where: jest.fn().mockReturnThis(),
   orderBy: jest.fn().mockReturnThis(),
   andWhere: jest.fn().mockReturnThis(),
   skip: jest.fn().mockReturnThis(),
   take: jest.fn().mockReturnThis(),
+  getOne: jest.fn(),
   getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
 };
 
@@ -93,11 +95,11 @@ describe('OfferingService', () => {
         reconciledAt: null,
         notes: null,
       };
-      mockOfferingRepo.findOne.mockResolvedValue(offering);
-      mockOfferingRepo.save.mockResolvedValue({
-        ...offering,
-        isReconciled: true,
-      });
+      const reconciled = { ...offering, isReconciled: true };
+      mockQb.getOne
+        .mockResolvedValueOnce(offering)
+        .mockResolvedValueOnce(reconciled);
+      mockOfferingRepo.save.mockResolvedValue(reconciled);
 
       const result = await service.reconcile(
         'o-1',
@@ -108,14 +110,14 @@ describe('OfferingService', () => {
     });
 
     it('throws NotFoundException when offering missing', async () => {
-      mockOfferingRepo.findOne.mockResolvedValue(null);
+      mockQb.getOne.mockResolvedValueOnce(null);
       await expect(
         service.reconcile('missing', { notes: 'x' }, mockAdmin),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('throws BadRequestException when reconciler is the same admin who recorded it', async () => {
-      mockOfferingRepo.findOne.mockResolvedValue({
+      mockQb.getOne.mockResolvedValueOnce({
         id: 'o-1',
         isReconciled: false,
         recordedBy: { id: 'admin-1' },

@@ -38,6 +38,7 @@ import {
 import { Admin } from '../../admin/entity/admin.entity';
 import { Member } from '../../member/entity/member.entity';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { AuditLogService } from '../../utility/service/audit-log.service';
 import { CloudinaryService } from '../../utility/service/cloudinary.service';
 import { CacheService } from '../../utility/service/cache.service';
@@ -666,6 +667,7 @@ export class TitheService {
         count: records.length,
       },
       [{ filename: 'tithe-statement.pdf', content: pdfBuffer }],
+      EmailCategory.GIVING_RECEIPT,
     );
 
     this.logger.log(
@@ -802,6 +804,8 @@ export class TitheService {
         amount: formattedAmount,
         paymentDate: proof.paymentDate,
       },
+      undefined,
+      EmailCategory.GIVING_RECEIPT,
     );
   }
 
@@ -837,6 +841,8 @@ export class TitheService {
         paymentDate: proof.paymentDate,
         financeNote: dto.financeNote,
       },
+      undefined,
+      EmailCategory.GIVING_RECEIPT,
     );
   }
 
@@ -988,6 +994,8 @@ export class TitheService {
           accountName: account.accountName,
           bankName: account.bankName,
         },
+        undefined,
+        EmailCategory.GIVING_RECEIPT,
       );
     }
   }

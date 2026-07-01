@@ -25,6 +25,7 @@ export enum AdminPermission {
   ADMIN_READ = 'admin:read',
   ADMIN_WRITE = 'admin:write',
   AUDIT_READ = 'audit:read',
+  EMAIL_LOGS_READ = 'email_logs:read',
   FINANCE_READ = 'finance:read',
   FINANCE_WRITE = 'finance:write',
   FOLLOW_UP_READ = 'follow_up:read',
@@ -76,6 +77,7 @@ export const AdminPermissionLabels: Record<AdminPermission, string> = {
   [AdminPermission.ADMIN_READ]: 'View Admin Users & Roles',
   [AdminPermission.ADMIN_WRITE]: 'Manage Admin Users & Roles',
   [AdminPermission.AUDIT_READ]: 'View Audit Logs',
+  [AdminPermission.EMAIL_LOGS_READ]: 'View Email Logs',
   [AdminPermission.FINANCE_READ]: 'View Finance Records',
   [AdminPermission.FINANCE_WRITE]: 'Manage Finance Records',
   [AdminPermission.FINANCE_APPROVE]: 'Approve Finance Transactions',
@@ -149,6 +151,8 @@ export const AdminPermissionDescriptions: Record<AdminPermission, string> = {
     'Create admin accounts, define roles, and assign permissions to roles',
   [AdminPermission.AUDIT_READ]:
     'View audit logs and system-wide activity history',
+  [AdminPermission.EMAIL_LOGS_READ]:
+    'View email delivery logs including sent and failed email records',
   [AdminPermission.FINANCE_READ]:
     'View ledger entries, accounts, budgets, offerings, and reconciliation records — excludes individual member tithe and giving data',
   [AdminPermission.FINANCE_WRITE]:
@@ -305,5 +309,6 @@ export const AdminPermissionGroups: AdminPermissionGroup[] = [
     AdminPermission.ADMIN_READ,
     AdminPermission.ADMIN_WRITE,
     AdminPermission.AUDIT_READ,
+    AdminPermission.EMAIL_LOGS_READ,
   ]),
 ];

@@ -8,6 +8,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../service/auth.service';
 import { Public } from '../decorator/public.decorator';
 import { SkipPasswordChangeCheck } from '../decorator/skip-password-change-check.decorator';
@@ -30,6 +31,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('signup')
   async signup(@Body() dto: SignupDto): Promise<MemberDto> {
     const member = await this.authService.signup(dto);
@@ -75,11 +77,12 @@ export class AuthController {
 
   @SkipPasswordChangeCheck()
   @Get('me')
-  async getProfile(@Request() req: any): Promise<MemberDto> {
-    const member = await this.authService.getProfile(req.user.id);
-    return plainToInstance(MemberDto, member, {
+  async getProfile(@Request() req: any): Promise<MemberDto & { isHod: boolean }> {
+    const { member, isHod } = await this.authService.getProfile(req.user.id);
+    const dto = plainToInstance(MemberDto, member, {
       excludeExtraneousValues: true,
     });
+    return { ...dto, isHod };
   }
 
   @SkipPasswordChangeCheck()
@@ -93,6 +96,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('forgot-password')
   async forgotPassword(
@@ -117,6 +121,7 @@ export class AuthController {
 
   @Public()
   @SkipPasswordChangeCheck()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('device-reset/request')
   async requestDeviceReset(
@@ -131,6 +136,7 @@ export class AuthController {
 
   @Public()
   @SkipPasswordChangeCheck()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('device-reset/verify')
   async verifyDeviceReset(

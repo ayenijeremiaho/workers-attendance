@@ -6,6 +6,7 @@ import { MemberService } from '../../member/service/member.service';
 import { DepartmentService } from '../../department/service/department.service';
 import { UtilityService } from '../../utility/service/utility.service';
 import { AuditLogService } from '../../utility/service/audit-log.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('RequestLeaveService', () => {
   let service: RequestLeaveService;
@@ -27,6 +28,7 @@ describe('RequestLeaveService', () => {
         { provide: DepartmentService, useValue: {} },
         { provide: UtilityService, useValue: {} },
         { provide: AuditLogService, useValue: { log: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('Test App') } },
       ],
     }).compile();
 

@@ -8,6 +8,7 @@ import {
 import { BaseEntity } from '../../utility/entity/base.entity';
 import { FollowUpTask } from './follow-up-task.entity';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
+import { ContactMethodEnum } from '../enums/follow-up.enum';
 
 @Entity({ name: 'follow_up_notes' })
 export class FollowUpNote extends BaseEntity {
@@ -27,4 +28,7 @@ export class FollowUpNote extends BaseEntity {
 
   @Column({ type: 'text' })
   content: string;
+
+  @Column({ name: 'contact_method', nullable: true })
+  contactMethod: ContactMethodEnum | null;
 }

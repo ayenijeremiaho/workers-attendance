@@ -7,6 +7,7 @@ import { Asset } from '../entity/asset.entity';
 import { Admin } from '../../admin/entity/admin.entity';
 import { AdminPermission } from '../../admin/enum/admin-permission.enum';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { CacheService } from '../../utility/service/cache.service';
 
 interface ExpiryConfig {
@@ -161,6 +162,8 @@ export class VehicleExpiryAlertScheduler {
           timing,
           admin_login_url: adminLoginUrl,
         },
+        undefined,
+        EmailCategory.ASSET_ALERTS,
       );
     }
   }

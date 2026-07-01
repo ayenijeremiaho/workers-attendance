@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { BaseEntity } from '../../utility/entity/base.entity';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
+import { Member } from '../../member/entity/member.entity';
 import { PrayerMeeting } from './prayer-meeting.entity';
 import { PrayerAssignmentType, PrayerRosterStatus } from '../enum/prayer.enum';
 
@@ -17,9 +18,14 @@ export class PrayerRosterEntry extends BaseEntity {
   id: string;
 
   @Index()
-  @ManyToOne(() => WorkerProfile, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => WorkerProfile, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'worker_profile_id' })
-  workerProfile: WorkerProfile;
+  workerProfile: WorkerProfile | null;
+
+  @Index()
+  @ManyToOne(() => Member, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'member_id' })
+  member: Member | null;
 
   @Index()
   @ManyToOne(() => PrayerMeeting, (meeting) => meeting.rosterEntries, {

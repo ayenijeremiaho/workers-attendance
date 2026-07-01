@@ -15,9 +15,12 @@ import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto
 import { UtilityService } from '../../utility/service/utility.service';
 import { AuditLogService } from '../../utility/service/audit-log.service';
 import { DepartmentService } from '../../department/service/department.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class RequestLeaveService {
+  private readonly productName: string;
+
   constructor(
     @InjectRepository(RequestLeave)
     private readonly repo: Repository<RequestLeave>,
@@ -25,7 +28,10 @@ export class RequestLeaveService {
     private readonly departmentService: DepartmentService,
     private readonly utilityService: UtilityService,
     private readonly auditLogService: AuditLogService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.productName = this.configService.get<string>('PRODUCT_NAME');
+  }
 
   private readonly logger = new Logger(RequestLeaveService.name);
 
@@ -89,7 +95,7 @@ export class RequestLeaveService {
     const firstName = UtilityService.capitalizeFirstLetter(member.firstname);
     this.utilityService.sendEmailWithTemplate(
       member.email,
-      `${firstName}, Discovery Hub Leave Request Received`,
+      `${firstName}, ${this.productName} Leave Request Received`,
       'leave-submitted',
       {
         name: firstName,
@@ -149,7 +155,7 @@ export class RequestLeaveService {
         status === LeaveStatusEnum.APPROVED ? 'Approved' : 'Rejected';
       this.utilityService.sendEmailWithTemplate(
         workerMember.email,
-        `${firstName}, Discovery Hub Leave Request ${actionStatus}`,
+        `${firstName}, ${this.productName} Leave Request ${actionStatus}`,
         'leave-actioned',
         {
           name: firstName,
@@ -192,18 +198,26 @@ export class RequestLeaveService {
 
   async getMyLeaveHistory(
     user: MemberAuth,
+    page = 1,
+    limit = 10,
     status?: LeaveStatusEnum,
-  ): Promise<RequestLeave[]> {
+  ): Promise<PaginationResponseDto<RequestLeave>> {
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
     const member = await this.memberService.getById(user.id, ['workerProfile']);
-    if (!member.workerProfile) return [];
+    if (!member.workerProfile)
+      return UtilityService.createPaginationResponse([], page, limit, 0);
 
-    return this.repo.find({
+    const [leaves, total] = await this.repo.findAndCount({
       where: {
         workerProfile: { id: member.workerProfile.id },
         ...(status ? { status } : {}),
       },
+      skip: (page - 1) * limit,
+      take: limit,
       order: { createdAt: 'DESC' },
     });
+
+    return UtilityService.createPaginationResponse(leaves, page, limit, total);
   }
 
   async getAllLeaveHistory(
@@ -226,8 +240,11 @@ export class RequestLeaveService {
 
   async getDepartmentLeaveRequests(
     user: MemberAuth,
+    page = 1,
+    limit = 10,
     status?: LeaveStatusEnum,
-  ): Promise<RequestLeave[]> {
+  ): Promise<PaginationResponseDto<RequestLeave>> {
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
     const isLead = await this.departmentService.isMemberDepartmentLead(user.id);
     if (!isLead)
       throw new BadRequestException(
@@ -244,14 +261,18 @@ export class RequestLeaveService {
         'You do not have a department assigned. Please contact your admin.',
       );
 
-    return this.repo.find({
+    const [leaves, total] = await this.repo.findAndCount({
       where: {
         workerProfile: { department: { id: deptId } },
         ...(status ? { status } : {}),
       },
       relations: ['workerProfile', 'workerProfile.member', 'actionedBy'],
       order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return UtilityService.createPaginationResponse(leaves, page, limit, total);
   }
 
   async countPendingLeave(

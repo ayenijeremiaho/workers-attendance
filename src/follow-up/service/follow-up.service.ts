@@ -14,18 +14,24 @@ import { FollowUpNote } from '../entity/follow-up-note.entity';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
 import { CreateFirstTimerDto } from '../dto/create-first-timer.dto';
 import { UpdateFollowUpTaskDto } from '../dto/update-follow-up-task.dto';
+import { AdminUpdateFollowUpTaskDto } from '../dto/admin-update-follow-up-task.dto';
 import { BulkUpdateTasksDto } from '../dto/bulk-update-tasks.dto';
 import { ReassignTaskDto } from '../dto/reassign-task.dto';
 import {
+  ContactMethodEnum,
   FirstTimerSourceEnum,
   FollowUpOutcomeEnum,
   FollowUpTaskStatusEnum,
   FollowUpTaskTypeEnum,
 } from '../enums/follow-up.enum';
+import { FirstTimerVisit } from '../entity/first-timer-visit.entity';
+import { LogVisitDto } from '../dto/log-visit.dto';
+import { AddNoteDto } from '../dto/add-note.dto';
 import { DepartmentKeyEnum } from '../../department/enums/department-key.enum';
 import { WorkerStatusEnum } from '../../member/enums/worker-status.enum';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { CacheService } from '../../utility/service/cache.service';
 import { EmailQueueService } from '../../utility/service/email-queue.service';
 
@@ -54,6 +60,8 @@ export class FollowUpService {
     private readonly noteRepo: Repository<FollowUpNote>,
     @InjectRepository(WorkerProfile)
     private readonly workerProfileRepo: Repository<WorkerProfile>,
+    @InjectRepository(FirstTimerVisit)
+    private readonly visitRepo: Repository<FirstTimerVisit>,
   ) {
     this.followUpDueDays = this.configService.get<number>('FOLLOW_UP_DUE_DAYS');
     this.churchName = this.configService.get<string>('CHURCH_NAME');
@@ -92,6 +100,8 @@ export class FollowUpService {
     wantsToJoinChurch?: boolean,
     wantsToJoinWorkforce?: boolean,
     search?: string,
+    dateFrom?: string,
+    dateTo?: string,
   ): Promise<PaginationResponseDto<FirstTimer>> {
     if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
@@ -108,11 +118,11 @@ export class FollowUpService {
     if (eventId) qb.andWhere('event.id = :eventId', { eventId });
     if (source) qb.andWhere('ft.source = :source', { source });
     if (wantsToJoinChurch !== undefined)
-      qb.andWhere('ft.wants_to_join_church = :wantsToJoinChurch', {
+      qb.andWhere('ft.wantsToJoinChurch = :wantsToJoinChurch', {
         wantsToJoinChurch,
       });
     if (wantsToJoinWorkforce !== undefined)
-      qb.andWhere('ft.wants_to_join_workforce = :wantsToJoinWorkforce', {
+      qb.andWhere('ft.wantsToJoinWorkforce = :wantsToJoinWorkforce', {
         wantsToJoinWorkforce,
       });
     if (search) {
@@ -121,6 +131,8 @@ export class FollowUpService {
         { search: `%${search.toLowerCase()}%` },
       );
     }
+    if (dateFrom) qb.andWhere('ft.createdAt >= :dateFrom', { dateFrom });
+    if (dateTo) qb.andWhere('ft.createdAt <= :dateTo', { dateTo });
 
     const [data, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(data, page, limit, total);
@@ -213,6 +225,7 @@ export class FollowUpService {
     if (dto.status) task.status = dto.status;
     if (dto.outcome) task.outcome = dto.outcome;
     if (dto.outcomeNotes !== undefined) task.outcomeNotes = dto.outcomeNotes;
+    task.lastActivityAt = new Date();
 
     const saved = await this.taskRepo.save(task);
     this.logger.log(
@@ -225,6 +238,7 @@ export class FollowUpService {
           task: saved,
           addedBy: profile,
           content: dto.noteContent,
+          contactMethod: dto.contactMethod ?? null,
         }),
       );
     }
@@ -281,6 +295,8 @@ export class FollowUpService {
             : 'Not set',
           churchName: this.churchName,
         },
+        undefined,
+        EmailCategory.FOLLOW_UP,
       );
     }
 
@@ -345,6 +361,8 @@ export class FollowUpService {
           dueDate: dueDate.toDateString(),
           churchName: this.churchName,
         },
+        undefined,
+        EmailCategory.FOLLOW_UP,
       );
     }
 
@@ -701,6 +719,8 @@ export class FollowUpService {
           dueDate: dueDate.toDateString(),
           churchName: this.churchName,
         },
+        undefined,
+        EmailCategory.FOLLOW_UP,
       );
     }
 
@@ -712,6 +732,7 @@ export class FollowUpService {
     const ft = await this.firstTimerRepo.findOne({ where: { id } });
     if (!ft) throw new NotFoundException('First-timer not found');
     if (!ft.email) throw new BadRequestException('This first-timer has no email address on record');
+    if (ft.inviteSentAt) return { queued: false };
     this.emailQueueService.queueEmailWithTemplate(
       ft.email,
       `You're Invited to Join ${this.churchName}`,
@@ -721,8 +742,207 @@ export class FollowUpService {
         lastname: ft.lastname,
         churchName: this.churchName,
       },
+      undefined,
+      EmailCategory.FOLLOW_UP,
     );
+    ft.inviteSentAt = new Date();
+    await this.firstTimerRepo.save(ft);
     this.logger.log(`Membership invitation queued for first-timer ${id}`);
     return { queued: true };
+  }
+
+  async markConverted(
+    firstTimerId: string,
+    memberId?: string,
+  ): Promise<FirstTimer> {
+    const ft = await this.firstTimerRepo.findOne({
+      where: { id: firstTimerId },
+    });
+    if (!ft) throw new NotFoundException('First-timer not found');
+    ft.convertedAt = new Date();
+    ft.convertedMember = memberId ? ({ id: memberId } as any) : null;
+    const saved = await this.firstTimerRepo.save(ft);
+    this.cacheService.flushNamespace('follow-up:report');
+    this.logger.log(
+      `First-timer ${firstTimerId} marked as converted${memberId ? ` → member ${memberId}` : ''}`,
+    );
+    return saved;
+  }
+
+  async adminUpdateTask(
+    taskId: string,
+    dto: AdminUpdateFollowUpTaskDto,
+  ): Promise<FollowUpTask> {
+    const task = await this.taskRepo.findOne({
+      where: { id: taskId },
+      relations: ['notes'],
+    });
+    if (!task) throw new NotFoundException('Task not found');
+
+    if (dto.status) task.status = dto.status;
+    if (dto.outcome) task.outcome = dto.outcome;
+    if (dto.outcomeNotes !== undefined) task.outcomeNotes = dto.outcomeNotes;
+    if (dto.dueDate) task.dueDate = new Date(dto.dueDate);
+    task.lastActivityAt = new Date();
+
+    const saved = await this.taskRepo.save(task);
+    this.logger.log(`Task ${taskId} updated by admin (status: ${saved.status})`);
+
+    if (dto.noteContent) {
+      await this.noteRepo.save(
+        this.noteRepo.create({
+          task: saved,
+          addedBy: null,
+          content: dto.noteContent,
+          contactMethod: dto.contactMethod ?? null,
+        }),
+      );
+    }
+
+    this.cacheService.flushNamespace('follow-up:report');
+    return saved;
+  }
+
+  async addNote(
+    taskId: string,
+    workerId: string,
+    dto: AddNoteDto,
+  ): Promise<FollowUpNote> {
+    await this.assertWorkerInFollowUpDept(workerId);
+
+    const profile = await this.workerProfileRepo.findOne({
+      where: { member: { id: workerId } },
+    });
+    if (!profile) throw new NotFoundException('Worker profile not found');
+
+    const task = await this.taskRepo.findOne({
+      where: { id: taskId, assignedTo: { id: profile.id } },
+    });
+    if (!task) throw new NotFoundException('Task not found or not assigned to you');
+
+    const note = await this.noteRepo.save(
+      this.noteRepo.create({
+        task,
+        addedBy: profile,
+        content: dto.content,
+        contactMethod: dto.contactMethod ?? null,
+      }),
+    );
+
+    task.lastActivityAt = new Date();
+    await this.taskRepo.save(task);
+
+    return note;
+  }
+
+  async logReturnVisit(
+    firstTimerId: string,
+    dto: LogVisitDto,
+  ): Promise<FirstTimerVisit> {
+    const ft = await this.firstTimerRepo.findOne({ where: { id: firstTimerId } });
+    if (!ft) throw new NotFoundException('First-timer not found');
+
+    const visit = await this.visitRepo.save(
+      this.visitRepo.create({
+        firstTimer: ft,
+        event: dto.eventId ? ({ id: dto.eventId } as any) : null,
+        visitedAt: dto.visitedAt ?? new Date().toISOString().split('T')[0],
+        notes: dto.notes ?? null,
+      }),
+    );
+
+    this.cacheService.flushNamespace('follow-up:report');
+    this.logger.log(`Return visit logged for first-timer ${firstTimerId}`);
+    return visit;
+  }
+
+  async getFirstTimerPipeline(
+    from?: string,
+    to?: string,
+  ): Promise<{
+    total: number;
+    untouched: number;
+    contacted: number;
+    returned: number;
+    invited: number;
+    converted: number;
+  }> {
+    const params: (string | null)[] = [from ?? null, to ?? null];
+    const [row] = await this.dataSource.query<
+      {
+        total: string;
+        untouched: string;
+        contacted: string;
+        returned: string;
+        invited: string;
+        converted: string;
+      }[]
+    >(
+      `SELECT
+         COUNT(*)                                                          AS total,
+         COUNT(*) FILTER (WHERE ft.converted_at IS NOT NULL)              AS converted,
+         COUNT(*) FILTER (WHERE ft.invite_sent_at IS NOT NULL
+                            AND ft.converted_at IS NULL)                  AS invited,
+         COUNT(*) FILTER (WHERE COALESCE(v.cnt, 0) > 0
+                            AND ft.invite_sent_at IS NULL
+                            AND ft.converted_at IS NULL)                  AS returned,
+         COUNT(*) FILTER (WHERE COALESCE(n.cnt, 0) > 0
+                            AND COALESCE(v.cnt, 0) = 0
+                            AND ft.invite_sent_at IS NULL
+                            AND ft.converted_at IS NULL)                  AS contacted,
+         COUNT(*) FILTER (WHERE COALESCE(n.cnt, 0) = 0
+                            AND COALESCE(v.cnt, 0) = 0
+                            AND ft.invite_sent_at IS NULL
+                            AND ft.converted_at IS NULL)                  AS untouched
+       FROM first_timers ft
+       LEFT JOIN (
+         SELECT first_timer_id, COUNT(*) AS cnt
+         FROM first_timer_visits
+         GROUP BY first_timer_id
+       ) v ON v.first_timer_id = ft.id
+       LEFT JOIN (
+         SELECT fut.first_timer_id, COUNT(fn.id) AS cnt
+         FROM follow_up_tasks fut
+         LEFT JOIN follow_up_notes fn ON fn.task_id = fut.id
+         WHERE fut.first_timer_id IS NOT NULL
+         GROUP BY fut.first_timer_id
+       ) n ON n.first_timer_id = ft.id
+       WHERE ($1::timestamptz IS NULL OR ft.created_at >= $1)
+         AND ($2::timestamptz IS NULL OR ft.created_at <= $2)`,
+      params,
+    );
+
+    return {
+      total: Number(row?.total ?? 0),
+      converted: Number(row?.converted ?? 0),
+      invited: Number(row?.invited ?? 0),
+      returned: Number(row?.returned ?? 0),
+      contacted: Number(row?.contacted ?? 0),
+      untouched: Number(row?.untouched ?? 0),
+    };
+  }
+
+  async getStaleTasks(
+    daysInactive: number,
+    page: number,
+    limit: number,
+  ): Promise<PaginationResponseDto<FollowUpTask>> {
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysInactive);
+
+    const [data, total] = await this.taskRepo
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.firstTimer', 'ft')
+      .leftJoinAndSelect('task.assignedTo', 'wp')
+      .leftJoinAndSelect('wp.member', 'm')
+      .where('task.status IN (:...statuses)', { statuses: OPEN_STATUSES })
+      .andWhere('task.lastActivityAt < :cutoff', { cutoff })
+      .orderBy('task.lastActivityAt', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 }

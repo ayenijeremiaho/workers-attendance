@@ -6,6 +6,7 @@ import { plainToInstance } from 'class-transformer';
 import { ClassConstructor } from 'class-transformer/types/interfaces';
 import { DATE_OF_BIRTH_REGEX } from '../constants/regex.constant';
 import { EmailQueueService } from './email-queue.service';
+import { EmailCategory } from '../email-provider/email-category.enum';
 
 @Injectable()
 export class UtilityService {
@@ -105,8 +106,9 @@ export class UtilityService {
     subject: string,
     body: string,
     cc?: string | [string],
+    category?: EmailCategory,
   ): void {
-    this.emailQueueService.queueEmail(to, subject, body, cc);
+    this.emailQueueService.queueEmail(to, subject, body, cc, undefined, category);
   }
 
   public sendEmailWithTemplate(
@@ -115,6 +117,7 @@ export class UtilityService {
     templateName: string,
     templateData: Record<string, any>,
     cc?: string | [string],
+    category?: EmailCategory,
   ): void {
     this.emailQueueService.queueEmailWithTemplate(
       to,
@@ -122,6 +125,7 @@ export class UtilityService {
       templateName,
       templateData,
       cc,
+      category,
     );
   }
 
@@ -131,6 +135,7 @@ export class UtilityService {
     templateName: string,
     templateData: Record<string, any>,
     attachments: Array<{ filename: string; content: Buffer }>,
+    category?: EmailCategory,
   ): void {
     this.emailQueueService.queueEmailWithTemplateAndAttachments(
       to,
@@ -138,6 +143,8 @@ export class UtilityService {
       templateName,
       templateData,
       attachments,
+      undefined,
+      category,
     );
   }
 }

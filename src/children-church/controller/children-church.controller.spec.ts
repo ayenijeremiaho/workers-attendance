@@ -143,13 +143,15 @@ describe('ChildrenChurchController', () => {
     ).toHaveBeenCalledWith('ag-1');
   });
 
-  it('getCheckInsBySlot — passes slotId', async () => {
-    mockChildrenChurchService.getCheckInsBySlot.mockResolvedValue([]);
+  it('getCheckInsBySlot — passes slotId with default pagination', async () => {
+    mockChildrenChurchService.getCheckInsBySlot.mockResolvedValue({ data: [], meta: {} });
 
-    await controller.getCheckInsBySlot('slot-1');
+    await controller.getCheckInsBySlot('slot-1', 1, 20);
 
     expect(mockChildrenChurchService.getCheckInsBySlot).toHaveBeenCalledWith(
       'slot-1',
+      1,
+      20,
     );
   });
 

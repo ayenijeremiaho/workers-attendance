@@ -3,6 +3,7 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
@@ -12,6 +13,7 @@ import { Member } from '../../member/entity/member.entity';
 import { Admin } from '../../admin/entity/admin.entity';
 import { FirstTimerSourceEnum } from '../enums/follow-up.enum';
 import { FollowUpTask } from './follow-up-task.entity';
+import { FirstTimerVisit } from './first-timer-visit.entity';
 
 @Entity({ name: 'first_timers' })
 export class FirstTimer extends BaseEntity {
@@ -57,6 +59,19 @@ export class FirstTimer extends BaseEntity {
   @JoinColumn({ name: 'created_by_admin_id' })
   createdByAdmin: Admin | null;
 
+  @ManyToOne(() => Member, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'converted_member_id' })
+  convertedMember: Member | null;
+
+  @Column({ name: 'converted_at', nullable: true, type: 'timestamptz' })
+  convertedAt: Date | null;
+
+  @Column({ name: 'invite_sent_at', nullable: true, type: 'timestamptz' })
+  inviteSentAt: Date | null;
+
   @OneToOne(() => FollowUpTask, (task) => task.firstTimer)
   followUpTask: FollowUpTask;
+
+  @OneToMany(() => FirstTimerVisit, (v) => v.firstTimer)
+  visits: FirstTimerVisit[];
 }

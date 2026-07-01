@@ -7,6 +7,7 @@ import { Asset } from '../entity/asset.entity';
 import { Admin } from '../../admin/entity/admin.entity';
 import { AdminPermission } from '../../admin/enum/admin-permission.enum';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { CacheService } from '../../utility/service/cache.service';
 
 @Injectable()
@@ -69,7 +70,7 @@ export class WarrantyAlertScheduler {
     today: Date,
     recipients: string[],
   ): Promise<void> {
-    const expiry = new Date(asset.warrantyExpiry!);
+    const expiry = new Date(asset.warrantyExpiry);
     expiry.setHours(0, 0, 0, 0);
     const daysUntilExpiry = Math.round(
       (expiry.getTime() - today.getTime()) / 86_400_000,
@@ -120,6 +121,8 @@ export class WarrantyAlertScheduler {
           vendorContact: asset.vendorContact ?? 'Not specified',
           admin_login_url: adminLoginUrl,
         },
+        undefined,
+        EmailCategory.ASSET_ALERTS,
       );
     }
   }

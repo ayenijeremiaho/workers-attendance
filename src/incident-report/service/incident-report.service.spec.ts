@@ -8,15 +8,26 @@ import { Admin } from '../../admin/entity/admin.entity';
 import { CacheService } from '../../utility/service/cache.service';
 import { UtilityService } from '../../utility/service/utility.service';
 import { AuditLogService } from '../../utility/service/audit-log.service';
+import { CloudinaryService } from '../../utility/service/cloudinary.service';
 import { ConfigService } from '@nestjs/config';
 
 const mockAdmin = { id: 'admin-1', member: { id: 'member-admin-1' } } as any;
+
+const mockReportQb = {
+  leftJoinAndSelect: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  skip: jest.fn().mockReturnThis(),
+  take: jest.fn().mockReturnThis(),
+  andWhere: jest.fn().mockReturnThis(),
+  getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+};
 
 const mockReportRepo = {
   create: jest.fn(),
   save: jest.fn(),
   findOne: jest.fn(),
   findAndCount: jest.fn(),
+  createQueryBuilder: jest.fn().mockReturnValue(mockReportQb),
 };
 
 const mockAdminRepo = {
@@ -46,6 +57,14 @@ const mockAuditLogService = {
   log: jest.fn(),
 };
 
+const mockCloudinaryService = {
+  uploadBuffer: jest.fn().mockResolvedValue({
+    secureUrl: 'https://res.cloudinary.com/test/image/upload/v1/incident-images/img.jpg',
+    publicId: 'incident-images/img',
+    resourceType: 'image',
+  }),
+};
+
 const mockQb = {
   leftJoinAndSelect: jest.fn().mockReturnThis(),
   where: jest.fn().mockReturnThis(),
@@ -73,6 +92,7 @@ describe('IncidentReportService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: UtilityService, useValue: mockUtilityService },
         { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: CloudinaryService, useValue: mockCloudinaryService },
       ],
     }).compile();
 
@@ -112,6 +132,21 @@ describe('IncidentReportService', () => {
 
       expect(mockReportRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ isAnonymous: false }),
+      );
+    });
+
+    it('uploads image files to cloudinary and stores urls', async () => {
+      const dto = { title: 'Broken window', description: 'Cracked glass' };
+      const fakeFile = { buffer: Buffer.from('img'), mimetype: 'image/jpeg' } as Express.Multer.File;
+      const created = { id: 'uuid-1', ...dto, images: null, isAnonymous: false, location: null, reporter: { id: 'member-1' } };
+      mockReportRepo.create.mockReturnValue(created);
+      mockReportRepo.save.mockResolvedValue({ ...created, images: ['https://res.cloudinary.com/test/image/upload/v1/incident-images/img.jpg'] });
+
+      await service.create(dto, 'member-1', [fakeFile]);
+
+      expect(mockCloudinaryService.uploadBuffer).toHaveBeenCalledWith(fakeFile.buffer, 'incident-images');
+      expect(mockReportRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ images: ['https://res.cloudinary.com/test/image/upload/v1/incident-images/img.jpg'] }),
       );
     });
 
@@ -177,6 +212,10 @@ describe('IncidentReportService', () => {
   });
 
   describe('findAll', () => {
+    beforeEach(() => {
+      mockReportRepo.findAndCount.mockResolvedValue([[], 0]);
+    });
+
     it('returns paginated incident reports', async () => {
       const reports = [{ id: 'uuid-1' }, { id: 'uuid-2' }];
       mockReportRepo.findAndCount.mockResolvedValue([reports, 2]);
@@ -185,6 +224,36 @@ describe('IncidentReportService', () => {
 
       expect(result.data).toEqual(reports);
       expect(result.totalCount).toBe(2);
+    });
+
+    it('applies status filter when provided', async () => {
+      await service.findAll(1, 20, { status: IncidentStatus.OPEN });
+
+      expect(mockReportRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: IncidentStatus.OPEN }) }),
+      );
+    });
+
+    it('applies dateFrom filter when provided', async () => {
+      await service.findAll(1, 20, { dateFrom: '2026-01-01' });
+
+      const call = mockReportRepo.findAndCount.mock.calls[0][0];
+      expect(call.where.createdAt).toBeDefined();
+    });
+
+    it('applies dateTo filter when provided', async () => {
+      await service.findAll(1, 20, { dateTo: '2026-01-31' });
+
+      const call = mockReportRepo.findAndCount.mock.calls[0][0];
+      expect(call.where.createdAt).toBeDefined();
+    });
+
+    it('passes no where conditions when no filters provided', async () => {
+      await service.findAll(1, 20, {});
+
+      expect(mockReportRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
     });
   });
 

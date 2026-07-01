@@ -148,6 +148,7 @@ describe('AttendanceService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -812,6 +813,66 @@ describe('AttendanceService', () => {
         memberId: 'member-1',
       });
     });
+
+    it('should apply ILIKE search filter across firstname, lastname, and email', async () => {
+      const qb = makeQb();
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+      mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+      jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
+        data: [],
+        page: 1,
+        limit: 10,
+        totalCount: 0,
+        totalPages: 1,
+      });
+
+      await service.getAllHistory(1, 10, undefined, undefined, undefined, undefined, undefined, 'john');
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(member.firstname ILIKE :search OR member.lastname ILIKE :search OR member.email ILIKE :search)',
+        { search: '%john%' },
+      );
+    });
+
+    it('should not apply search filter when search is undefined', async () => {
+      const qb = makeQb();
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+      mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+      jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
+        data: [],
+        page: 1,
+        limit: 10,
+        totalCount: 0,
+        totalPages: 1,
+      });
+
+      await service.getAllHistory(1, 10);
+
+      const ilikeCalls = (qb.andWhere as jest.Mock).mock.calls.filter(
+        (call) => typeof call[0] === 'string' && call[0].includes('ILIKE'),
+      );
+      expect(ilikeCalls).toHaveLength(0);
+    });
+
+    it('should wrap search term in % wildcards for partial matching', async () => {
+      const qb = makeQb();
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+      mockAttendanceRepo.createQueryBuilder.mockReturnValue(qb);
+      jest.spyOn(UtilityService, 'createPaginationResponse').mockReturnValue({
+        data: [],
+        page: 1,
+        limit: 10,
+        totalCount: 0,
+        totalPages: 1,
+      });
+
+      await service.getAllHistory(1, 10, undefined, undefined, undefined, undefined, undefined, 'doe');
+
+      const ilikeCall = (qb.andWhere as jest.Mock).mock.calls.find(
+        (call) => typeof call[0] === 'string' && call[0].includes('ILIKE'),
+      );
+      expect(ilikeCall[1]).toEqual({ search: '%doe%' });
+    });
   });
 
   describe('getWorkerAttendancePercentage', () => {
@@ -1010,6 +1071,105 @@ describe('AttendanceService', () => {
 
       expect(result.workers).toHaveLength(0);
       expect(mockAttendanceRepo.find).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── getAtRiskMembers ──────────────────────────────────────────────────────
+
+  describe('getAtRiskMembers', () => {
+    beforeEach(() => {
+      mockDataSource.query.mockReset();
+    });
+
+    it('throws BadRequestException when page < 1', async () => {
+      await expect(
+        service.getAtRiskMembers(3, undefined, undefined, 0, 20),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('returns paginated at-risk members with mapped fields', async () => {
+      const dataRows = [
+        {
+          id: 'member-1',
+          firstname: 'Ada',
+          lastname: 'Obi',
+          email: 'ada@test.com',
+          phone_number: '08011111111',
+          absence_count: '5',
+          last_seen_at: new Date('2026-05-01'),
+          has_open_task: true,
+        },
+      ];
+      let callCount = 0;
+      mockDataSource.query.mockImplementation(() => {
+        callCount++;
+        return callCount === 1
+          ? Promise.resolve(dataRows)
+          : Promise.resolve([{ total: '1' }]);
+      });
+
+      const result = await service.getAtRiskMembers(3, undefined, undefined, 1, 20);
+      expect(mockDataSource.query).toHaveBeenCalledTimes(2);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        id: 'member-1',
+        firstname: 'Ada',
+        lastname: 'Obi',
+        absenceCount: 5,
+        hasOpenFollowUpTask: true,
+        lastSeenAt: expect.any(Date),
+      });
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('returns empty list when no at-risk members', async () => {
+      let callCount = 0;
+      mockDataSource.query.mockImplementation(() => {
+        callCount++;
+        return callCount === 1
+          ? Promise.resolve([])
+          : Promise.resolve([{ total: '0' }]);
+      });
+
+      const result = await service.getAtRiskMembers(3, undefined, undefined, 1, 20);
+      expect(result.data).toHaveLength(0);
+      expect(result.totalCount).toBe(0);
+    });
+
+    it('passes date params to SQL when from/to provided', async () => {
+      mockDataSource.query.mockImplementation(() => Promise.resolve([]));
+
+      await service.getAtRiskMembers(2, '2026-01-01', '2026-06-30', 1, 10);
+
+      const firstCall = mockDataSource.query.mock.calls[0];
+      expect(firstCall[1]).toContain('2026-01-01');
+      expect(firstCall[1]).toContain('2026-06-30');
+    });
+
+    it('maps lastSeenAt to null when member has no presence records', async () => {
+      const dataRows = [
+        {
+          id: 'member-2',
+          firstname: 'Bola',
+          lastname: 'Ade',
+          email: 'bola@test.com',
+          phone_number: '08022222222',
+          absence_count: '4',
+          last_seen_at: null,
+          has_open_task: false,
+        },
+      ];
+      let callCount = 0;
+      mockDataSource.query.mockImplementation(() => {
+        callCount++;
+        return callCount === 1
+          ? Promise.resolve(dataRows)
+          : Promise.resolve([{ total: '1' }]);
+      });
+
+      const result = await service.getAtRiskMembers(3, undefined, undefined, 1, 20);
+      expect(result.data[0].lastSeenAt).toBeNull();
+      expect(result.data[0].hasOpenFollowUpTask).toBe(false);
     });
   });
 });

@@ -9,9 +9,78 @@ import {
   Matches,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
-import { PrayerDayMode, PrayerRuleType } from '../enum/prayer.enum';
+import { PrayerAudience, PrayerDayMode, PrayerRuleType } from '../enum/prayer.enum';
 import { DepartmentLeadTypeEnum } from '../../department/enums/department-lead-type.enum';
+
+export class CreatePrayerProgramDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsEnum(PrayerAudience)
+  audience: PrayerAudience;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  selectionWindowDays?: number;
+}
+
+export class UpdatePrayerProgramDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(PrayerAudience)
+  audience?: PrayerAudience;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  selectionWindowDays?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class ClonePrayerProgramDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(PrayerAudience)
+  audience?: PrayerAudience;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  selectionWindowDays?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  includeFixedAssignments?: boolean;
+}
 
 export class UpsertPrayerScheduleConfigDto {
   @IsInt()
@@ -138,4 +207,21 @@ export class SelfSelectPrayerSlotDto {
 export class ReschedulePrayerEntryDto {
   @IsUUID()
   newMeetingId: string;
+}
+
+export class ManualAssignDto {
+  @IsUUID()
+  meetingId: string;
+
+  @IsOptional()
+  @IsUUID()
+  workerProfileId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  memberId?: string;
+
+  @ValidateIf((o) => !o.workerProfileId && !o.memberId)
+  @IsUUID()
+  _requireOne?: string;
 }

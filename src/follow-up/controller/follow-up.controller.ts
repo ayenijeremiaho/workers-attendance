@@ -16,6 +16,7 @@ import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 import { FollowUpService } from '../service/follow-up.service';
 import { CreateFirstTimerDto } from '../dto/create-first-timer.dto';
 import { UpdateFollowUpTaskDto } from '../dto/update-follow-up-task.dto';
+import { AddNoteDto } from '../dto/add-note.dto';
 import { FollowUpTaskStatusEnum } from '../enums/follow-up.enum';
 
 @UseGuards(RolesGuard)
@@ -49,5 +50,14 @@ export class FollowUpController {
     @Body() dto: UpdateFollowUpTaskDto,
   ) {
     return this.followUpService.updateTask(id, dto, req.user.id);
+  }
+
+  @Post('tasks/:id/notes')
+  async addNote(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddNoteDto,
+  ) {
+    return this.followUpService.addNote(id, req.user.id, dto);
   }
 }

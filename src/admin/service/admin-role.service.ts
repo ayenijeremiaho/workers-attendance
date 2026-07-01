@@ -38,6 +38,7 @@ export class AdminRoleService {
     this.auditLogService.log('ADMIN_ROLE_CREATED', {
       actorId,
       targetId: saved.id,
+      targetName: saved.name,
       metadata: { name: saved.name, permissionCount: saved.permissions.length },
     });
     return saved;
@@ -68,6 +69,7 @@ export class AdminRoleService {
     this.auditLogService.log('ADMIN_ROLE_UPDATED', {
       actorId,
       targetId: id,
+      targetName: saved.name,
       metadata: { name: saved.name, changes: Object.keys(dto) },
     });
     return saved;
@@ -98,6 +100,7 @@ export class AdminRoleService {
     this.auditLogService.log('ADMIN_ROLE_DELETED', {
       actorId,
       targetId: id,
+      targetName: name,
       metadata: { name },
     });
   }

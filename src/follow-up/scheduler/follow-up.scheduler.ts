@@ -8,6 +8,7 @@ import { Admin } from '../../admin/entity/admin.entity';
 import { FollowUpTaskStatusEnum } from '../enums/follow-up.enum';
 import { AdminPermission } from '../../admin/enum/admin-permission.enum';
 import { EmailQueueService } from '../../utility/service/email-queue.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { CacheService } from '../../utility/service/cache.service';
 
 const OPEN_STATUSES = [
@@ -15,11 +16,13 @@ const OPEN_STATUSES = [
   FollowUpTaskStatusEnum.IN_PROGRESS,
 ];
 const ESCALATION_LOCK = 'lock:follow-up-escalation';
+const STALE_LOCK = 'lock:follow-up-stale';
 
 @Injectable()
 export class FollowUpScheduler {
   private readonly logger = new Logger(FollowUpScheduler.name);
   private readonly churchName: string;
+  private readonly staleDays: number;
 
   constructor(
     @InjectRepository(FollowUpTask)
@@ -31,6 +34,7 @@ export class FollowUpScheduler {
     private readonly cacheService: CacheService,
   ) {
     this.churchName = this.configService.get<string>('CHURCH_NAME');
+    this.staleDays = this.configService.get<number>('FOLLOW_UP_STALE_DAYS', 7);
   }
 
   @Cron('0 8 * * *')
@@ -109,6 +113,8 @@ export class FollowUpScheduler {
           tasks: data.tasks,
           churchName: this.churchName,
         },
+        undefined,
+        EmailCategory.FOLLOW_UP,
       );
     }
 
@@ -134,11 +140,74 @@ export class FollowUpScheduler {
           multiple: overdueTasks.length > 1,
           churchName: this.churchName,
         },
+        undefined,
+        EmailCategory.FOLLOW_UP,
       );
     }
 
     this.logger.log(
       `Overdue escalation: ${tasksByWorker.size} worker email(s), ${followUpAdmins.length} admin email(s)`,
     );
+  }
+
+  @Cron('0 9 * * *')
+  async notifyInactiveTasks(): Promise<void> {
+    const acquired = await this.cacheService.acquireLock(STALE_LOCK, 270);
+    if (!acquired) {
+      this.logger.debug('Stale task check skipped — another instance holds the lock');
+      return;
+    }
+    try {
+      await this.runStaleCheck();
+    } finally {
+      this.cacheService.releaseLock(STALE_LOCK);
+    }
+  }
+
+  private async runStaleCheck(): Promise<void> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - this.staleDays);
+
+    const count = await this.taskRepo
+      .createQueryBuilder('task')
+      .where('task.status IN (:...statuses)', { statuses: OPEN_STATUSES })
+      .andWhere('task.lastActivityAt < :cutoff', { cutoff })
+      .getCount();
+
+    if (!count) {
+      this.logger.log('No inactive follow-up tasks found');
+      return;
+    }
+
+    this.logger.log(`Found ${count} follow-up task(s) inactive for ${this.staleDays}+ day(s)`);
+
+    const admins = await this.adminRepo
+      .createQueryBuilder('a')
+      .innerJoinAndSelect('a.member', 'm')
+      .innerJoinAndSelect('a.adminRole', 'r')
+      .where('a.isActive = true')
+      .andWhere(':perm = ANY(r.permissions)', {
+        perm: AdminPermission.FOLLOW_UP_WRITE,
+      })
+      .getMany();
+
+    for (const admin of admins) {
+      if (!admin.member?.email) continue;
+      this.emailQueueService.queueEmailWithTemplate(
+        admin.member.email,
+        `Follow-Up Alert: ${count} Task(s) With No Activity for ${this.staleDays}+ Day(s)`,
+        'follow-up-stale-admin',
+        {
+          adminName: admin.member.firstname,
+          count,
+          staleDays: this.staleDays,
+          churchName: this.churchName,
+        },
+        undefined,
+        EmailCategory.FOLLOW_UP,
+      );
+    }
+
+    this.logger.log(`Stale task alert sent to ${admins.length} admin(s)`);
   }
 }

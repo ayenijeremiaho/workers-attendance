@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { PrayerRosterEntry } from '../entity/prayer-roster-entry.entity';
 import { PrayerMeetingStatus, PrayerRosterStatus } from '../enum/prayer.enum';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 
 @Injectable()
 export class PrayerReminderScheduler {
@@ -113,6 +114,8 @@ export class PrayerReminderScheduler {
         mode: dayConfig.mode,
         is_two_day: type === 'two-day',
       },
+      undefined,
+      EmailCategory.PRAYER_REMINDER,
     );
   }
 

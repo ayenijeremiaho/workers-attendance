@@ -6,16 +6,22 @@ import { CacheService } from './service/cache.service';
 import { SanitizationService } from './service/sanitization.service';
 import { EmailQueueService } from './service/email-queue.service';
 import { AuditLogService } from './service/audit-log.service';
+import { EmailLogService } from './service/email-log.service';
 import { AuditLog } from './entity/audit-log.entity';
 import { EmailLog } from './entity/email-log.entity';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UtilityController } from './controller/utility.controller';
 import { AuditLogController } from './controller/audit-log.controller';
+import { EmailLogController } from './controller/email-log.controller';
 import { EmailProcessor } from './processor/email.processor';
 import { CloudinaryService } from './service/cloudinary.service';
 import { PdfService } from './service/pdf.service';
 import { ExcelService } from './service/excel.service';
+import { EMAIL_PROVIDER_TOKEN } from './email-provider/email-provider.token';
+import { GmailProvider } from './email-provider/gmail.provider';
+import { ResendProvider } from './email-provider/resend.provider';
+import { IEmailProvider } from './email-provider/email-provider.interface';
 
 @Module({
   imports: [
@@ -24,18 +30,28 @@ import { ExcelService } from './service/excel.service';
     BullModule.registerQueue({ name: 'email' }),
   ],
   providers: [
+    {
+      provide: EMAIL_PROVIDER_TOKEN,
+      useFactory: (config: ConfigService): IEmailProvider => {
+        const provider = config.get<string>('EMAIL_PROVIDER') ?? 'gmail';
+        if (provider === 'resend') return new ResendProvider(config);
+        return new GmailProvider(config);
+      },
+      inject: [ConfigService],
+    },
     UtilityService,
     DateService,
     CacheService,
     SanitizationService,
     EmailQueueService,
     AuditLogService,
+    EmailLogService,
     EmailProcessor,
     CloudinaryService,
     PdfService,
     ExcelService,
   ],
-  controllers: [UtilityController, AuditLogController],
+  controllers: [UtilityController, AuditLogController, EmailLogController],
   exports: [
     UtilityService,
     DateService,

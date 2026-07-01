@@ -6,6 +6,7 @@ import { UtilityService } from '../../utility/service/utility.service';
 import { CacheService } from '../../utility/service/cache.service';
 import { Pledge } from '../entity/pledge.entity';
 import { PledgeFrequency } from '../enum/finance.enum';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 
 @Injectable()
 export class PledgeReminderScheduler {
@@ -100,6 +101,8 @@ export class PledgeReminderScheduler {
             : 'due in 7 days',
         login_url: loginUrl,
       },
+      undefined,
+      EmailCategory.FINANCE_ALERTS,
     );
 
     this.cacheService.set(cacheKey, '1', 86_400 * 2);

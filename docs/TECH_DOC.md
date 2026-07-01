@@ -70,7 +70,7 @@ src/
 ```
 
 **Stack:** NestJS · TypeORM · PostgreSQL · Redis · Bull · ioredis · Argon2 · Passport (JWT + Local) · class-validator · nestjs-schedule ·
-@nestjs/throttler · Handlebars · DOMPurify · ExcelJS · PDFKit · Cloudinary
+@nestjs/throttler · Handlebars · DOMPurify · ExcelJS · PDFKit · Cloudinary · Nodemailer (Gmail SMTP) · Resend SDK
 
 ---
 
@@ -133,6 +133,7 @@ A church gathering on a specific date.
 | attendanceMarked           | boolean          | Set to `true` by the cron job after absence records are created. Guards against double-processing.      |
 | onlineAttendanceEnabled    | boolean          | Default `false`. When `true`, absent members receive an online-confirm email after the event ends.      |
 | onlineNotificationSentAt   | timestamptz \| null | Set when the online-confirm emails are dispatched. Used to calculate the confirmation window.        |
+| thankYouSentAt             | timestamptz \| null | Set after thank-you emails are queued for the event; guards against resending on re-trigger.        |
 | recurringEventId           | UUID             | Groups events in a recurring series                                                                     |
 | serviceSlots      | ServiceSlot[]    | OneToMany — at least one slot is required at creation                                                   |
 | attendances       | Attendance[]     | OneToMany                                                                                               |
@@ -349,8 +350,9 @@ failure). Used for debugging delivery issues and compliance — answers "was thi
 | subject        | string      | Email subject line                                                        |
 | status         | varchar     | `sent` \| `failed`                                                       |
 | jobId          | string      | Bull queue job ID — correlate with Redis for in-flight inspection        |
-| errorMessage   | text        | SMTP error on permanent failure; null on success                         |
+| errorMessage   | text        | SMTP/API error on permanent failure; null on success                     |
 | attemptsMade   | int         | Number of send attempts before terminal outcome (max 5)                  |
+| provider       | varchar     | `gmail` or `resend` — which email provider delivered (or attempted) the message |
 | createdAt      | timestamptz | When the terminal outcome was recorded                                   |
 
 **Written by:** `@OnQueueCompleted` (status = `sent`) and `@OnQueueFailed` (status = `failed`, only on the final
@@ -697,7 +699,11 @@ A visitor recorded by a follow-up team worker or admin during or after a service
 | visitedEvent         | Event \| null           | ManyToOne, SET NULL on delete                                              |
 | createdByMember      | Member \| null          | ManyToOne, SET NULL on delete — the follow-up worker who created the record|
 | createdByAdmin       | Admin \| null           | ManyToOne, SET NULL on delete — the admin who created the record           |
+| convertedMember      | Member \| null          | ManyToOne, SET NULL on delete — linked when the first-timer becomes a member|
+| convertedAt          | timestamptz \| null     | Timestamp when admin marked this first-timer as converted                  |
+| inviteSentAt         | timestamptz \| null     | Timestamp when membership invitation email was last sent; guards against duplicates |
 | followUpTask         | FollowUpTask            | OneToOne — auto-created on registration                                    |
+| visits               | FirstTimerVisit[]       | OneToMany — return visit records                                           |
 
 ### FollowUpTask
 
@@ -714,8 +720,9 @@ A task assigned to a follow-up team worker to engage a first-timer or online non
 | assignedTo   | WorkerProfile           | ManyToOne, RESTRICT on delete — must be a FOLLOW_UP department worker                  |
 | outcome      | FollowUpOutcomeEnum \| null | JOINED \| DECLINED \| NO_ANSWER \| PRAYED_WITH                                     |
 | outcomeNotes | text \| null            |                                                                                        |
-| dueDate      | date \| null            | Optional target date                                                                   |
-| notes        | FollowUpNote[]          | OneToMany                                                                              |
+| dueDate        | date \| null            | Optional target date                                                                   |
+| notes          | FollowUpNote[]          | OneToMany                                                                              |
+| lastActivityAt | timestamptz             | Updated whenever a note is added or status changes; used to detect inactive tasks      |
 
 **Round-robin assignment:** The worker in the FOLLOW_UP department with the fewest open tasks (PENDING or IN_PROGRESS) is automatically selected. If no eligible worker exists, the API returns 400.
 
@@ -727,8 +734,21 @@ A note added by the assigned worker during follow-up interactions.
 |----------|-----------------|------------------------------------|
 | id       | UUID            | PK                                 |
 | task     | FollowUpTask    | ManyToOne, CASCADE on delete       |
-| addedBy  | WorkerProfile \| null | ManyToOne, SET NULL on delete |
-| content  | text            |                                    |
+| addedBy       | WorkerProfile \| null | ManyToOne, SET NULL on delete                                    |
+| content       | text                  |                                                                  |
+| contactMethod | ContactMethodEnum \| null | PHONE_CALL \| WHATSAPP \| IN_PERSON \| SMS \| EMAIL — optional |
+
+### FirstTimerVisit
+
+Records each return visit a first-timer makes before or after converting.
+
+| Field     | Type              | Notes                                           |
+|-----------|-------------------|-------------------------------------------------|
+| id        | UUID              | PK                                              |
+| firstTimer | FirstTimer       | ManyToOne, CASCADE on delete                    |
+| event     | Event \| null     | ManyToOne, SET NULL on delete — event attended  |
+| visitedAt | date              | YYYY-MM-DD — date of the visit                  |
+| notes     | text \| null      | Optional observation from the admin             |
 
 ---
 
@@ -857,9 +877,24 @@ Physical attendance count record for one service slot, broken down by demographi
 
 **Computed field:** `total` is not stored. It is computed on every read as the sum of all five fixed columns plus all values in `customGroups`. The value is appended to each response object.
 
+### PrayerProgram
+
+A named, configurable prayer program. All prayer entities (day configs, rules, meetings, roster entries) are scoped to a program, enabling multiple concurrent programs (e.g. "Morning Intercessory" for workers and "Friday Night" open to all members).
+
+| Field               | Type            | Notes                                                                              |
+|---------------------|-----------------|------------------------------------------------------------------------------------|
+| id                  | UUID            | PK                                                                                 |
+| name                | string          |                                                                                    |
+| description         | text \| null    | Optional                                                                           |
+| audience            | PrayerAudience  | WORKERS \| MEMBERS \| ALL — controls who may be assigned/self-select               |
+| selectionWindowDays | int             | Days before meeting when self-selection opens. Default 7.                          |
+| isActive            | boolean         | Inactive programs are excluded from normal operations. Default `true`.             |
+
+**Audience rules:** `WORKERS`-audience programs use auto-assign; `MEMBERS`-audience programs use self-selection and manual assignment only; `ALL` programs combine both.
+
 ### PrayerScheduleConfig
 
-Global configuration for the prayer roster module. One active record at a time.
+Global configuration for the prayer roster module (legacy — predates multi-program support). One active record at a time. New installations use `PrayerProgram.selectionWindowDays` instead.
 
 | Field               | Type    | Notes                                                            |
 |---------------------|---------|------------------------------------------------------------------|
@@ -869,38 +904,40 @@ Global configuration for the prayer roster module. One active record at a time.
 
 ### PrayerDayConfig
 
-Defines which days of the week prayer meetings occur and their capacity/mode.
+Defines which days of the week prayer meetings occur and their capacity/mode, scoped to a program.
 
-| Field       | Type           | Notes                                        |
-|-------------|----------------|----------------------------------------------|
-| id          | UUID           | PK                                           |
-| dayOfWeek   | int            | 0 = Sunday … 6 = Saturday (JS `Date.getDay`) |
-| mode        | PrayerDayMode  | PHYSICAL \| VIRTUAL                          |
-| startTime   | string (HH:mm) | Default `00:00`                              |
-| endTime     | string (HH:mm) | Default `01:00`                              |
-| maxCapacity | int            | Max workers assignable to this day           |
-| isActive    | boolean        | Inactive configs are skipped during generation |
+| Field       | Type           | Notes                                                          |
+|-------------|----------------|----------------------------------------------------------------|
+| id          | UUID           | PK                                                             |
+| program     | PrayerProgram  | ManyToOne, RESTRICT on delete. Indexed.                        |
+| dayOfWeek   | int            | 0 = Sunday … 6 = Saturday (JS `Date.getDay`)                   |
+| mode        | PrayerDayMode  | PHYSICAL \| VIRTUAL                                            |
+| startTime   | string (HH:mm) | Default `00:00`                                                |
+| endTime     | string (HH:mm) | Default `01:00`                                                |
+| maxCapacity | int            | Max assignees for this day                                     |
+| isActive    | boolean        | Inactive configs are skipped during generation                 |
 
-**Unique constraint (application-level):** Only one active config per `dayOfWeek`.
+**Unique constraint (application-level):** Only one active config per `(program, dayOfWeek)` pair.
 
 ### PrayerScheduleRule
 
-Configurable rules that govern frequency and capacity requirements.
+Configurable rules that govern frequency and capacity requirements, scoped to a program.
 
 | Field          | Type                      | Notes                                                             |
 |----------------|---------------------------|-------------------------------------------------------------------|
 | id             | UUID                      | PK                                                                |
+| program        | PrayerProgram             | ManyToOne, RESTRICT on delete. Indexed.                           |
 | type           | PrayerRuleType            | ROLE_FREQUENCY \| MIN_LEADERS_PER_MEETING \| MAX_PER_MEETING      |
 | targetLeadType | DepartmentLeadTypeEnum \| null | `null` = applies to all workers; set for HOD/D_HOD overrides |
 | value          | int                       | Times per month for ROLE_FREQUENCY; head-count for others         |
 | description    | string                    | Human-readable label                                              |
 | isActive       | boolean                   | Inactive rules are ignored during assignment                      |
 
-**Seeded defaults:** worker frequency = 1, HOD frequency = 2, D_HOD frequency = 2, min leaders per meeting = 1, max per meeting = 5.
+**Seeded defaults (on the default program):** worker frequency = 1, HOD frequency = 2, D_HOD frequency = 2, min leaders per meeting = 1, max per meeting = 5.
 
 ### PrayerFixedAssignment
 
-Permanently pins a worker to a specific prayer day across all months.
+Permanently pins a worker to a specific prayer day across all months, within a program.
 
 | Field         | Type           | Notes                                              |
 |---------------|----------------|----------------------------------------------------|
@@ -913,34 +950,36 @@ Permanently pins a worker to a specific prayer day across all months.
 
 ### PrayerMeeting
 
-One concrete meeting per calendar date generated from a day config.
+One concrete meeting per calendar date generated from a day config, scoped to a program.
 
 | Field           | Type                | Notes                                               |
 |-----------------|---------------------|-----------------------------------------------------|
 | id              | UUID                | PK                                                  |
+| program         | PrayerProgram       | ManyToOne, RESTRICT on delete. Indexed.             |
 | date            | string (YYYY-MM-DD) | Actual meeting date. Indexed.                       |
 | month           | int                 | Calendar month (1–12). Indexed.                     |
 | year            | int                 | Calendar year. Indexed.                             |
 | dayConfig       | PrayerDayConfig     | ManyToOne, RESTRICT on delete                       |
 | status          | PrayerMeetingStatus | SCHEDULED \| COMPLETED \| CANCELLED. Indexed.       |
 | selectionStatus | PrayerWindowStatus  | PENDING \| OPEN \| CLOSED. Indexed.                 |
-| currentCapacity | int                 | Current number of assigned workers                  |
+| currentCapacity | int                 | Current number of assigned workers/members          |
 | rosterEntries   | PrayerRosterEntry[] | OneToMany                                           |
 
 ### PrayerRosterEntry
 
-One assignment of a worker to a prayer meeting.
+One assignment of a worker or member to a prayer meeting. Exactly one of `workerProfile` or `member` is set; the other is null.
 
-| Field              | Type                  | Notes                                               |
-|--------------------|-----------------------|-----------------------------------------------------|
-| id                 | UUID                  | PK                                                  |
-| workerProfile      | WorkerProfile         | ManyToOne, CASCADE on delete. Indexed.              |
-| meeting            | PrayerMeeting         | ManyToOne, CASCADE on delete. Indexed.              |
-| assignmentType     | PrayerAssignmentType  | FIXED \| SELF_SELECTED \| AUTO_ASSIGNED             |
-| status             | PrayerRosterStatus    | SCHEDULED \| RESCHEDULED                            |
+| Field              | Type                  | Notes                                                                                   |
+|--------------------|-----------------------|-----------------------------------------------------------------------------------------|
+| id                 | UUID                  | PK                                                                                      |
+| workerProfile      | WorkerProfile \| null | ManyToOne, CASCADE on delete. Indexed. Null for member-only assignments.                |
+| member             | Member \| null        | ManyToOne, CASCADE on delete. Indexed. Null for worker assignments.                     |
+| meeting            | PrayerMeeting         | ManyToOne, CASCADE on delete. Indexed.                                                  |
+| assignmentType     | PrayerAssignmentType  | FIXED \| SELF_SELECTED \| AUTO_ASSIGNED \| MANUAL                                       |
+| status             | PrayerRosterStatus    | SCHEDULED \| RESCHEDULED                                                                |
 | rescheduledFrom    | PrayerRosterEntry \| null | Self-referencing nullable FK, SET NULL on delete — tracks origin of rescheduled entries |
-| reminderTwoDaySent | boolean               | 2-day-ahead reminder dispatched flag. Indexed (scheduler filter). |
-| reminderDaySent    | boolean               | Day-of reminder dispatched flag. Indexed (scheduler filter). |
+| reminderTwoDaySent | boolean               | 2-day-ahead reminder dispatched flag. Indexed (scheduler filter).                       |
+| reminderDaySent    | boolean               | Day-of reminder dispatched flag. Indexed (scheduler filter).                            |
 
 ---
 
@@ -1074,7 +1113,7 @@ The app has two independent entry points — the mobile app (`POST /auth/login`)
 
 There is no `ADMIN` role in the JWT. Admin portal access is determined at the route level by `AdminGuard` looking up the `admins` table.
 
-`validateAccessToken` returns `MemberAuth` which is set as `req.user`. For WORKER-role members, `req.user.workerProfileId` is populated from the loaded `workerProfile.id`. Worker-facing endpoints that need the worker's profile ID read it from `req.user.workerProfileId` — this is never embedded in the JWT itself.
+`validateAccessToken` returns `MemberAuth` which is set as `req.user`. For WORKER-role members, `req.user.workerProfileId` is populated from the loaded `workerProfile.id`. Worker-facing endpoints that need the worker's profile ID read it from `req.user.workerProfileId` — this is never embedded in the JWT itself. HOD status is not carried on `MemberAuth`; it is resolved once on `GET /auth/me` (see above) and can be cached by the client. Server-side HOD-gated endpoints query `department_leads` directly when they need it.
 
 ### Guards
 
@@ -1351,10 +1390,24 @@ required.
 
 Shared infrastructure used across the entire application.
 
-**Email queue (`EmailQueueService` + `EmailProcessor`):** All outbound email goes through a Bull queue backed by
-Redis. `EmailQueueService.queueEmailWithTemplate()` compiles the HTML template using **Handlebars** and adds a job to
-the `email` queue. `EmailProcessor` processes jobs via Nodemailer. Bull handles retries automatically — 5 attempts,
-5-second fixed backoff. On success or permanent failure, a row is written to `email_logs`.
+**Email queue (`EmailQueueService` + `EmailProcessor`):** All outbound email goes through a Bull queue backed by Redis. `EmailQueueService.queueEmailWithTemplate()` compiles the HTML template using **Handlebars** and adds a job to the `email` queue. The active email provider is resolved at startup from `EMAIL_PROVIDER` and injected via `EMAIL_PROVIDER_TOKEN`. Two providers are available: `GmailProvider` (Nodemailer/SMTP) and `ResendProvider` (Resend SDK). Bull handles retries automatically — 5 attempts, 5-second fixed backoff. On success or permanent failure, a row is written to `email_logs` with the `provider` field set to whichever provider processed the job.
+
+**Email category gating:** `queueEmail*` methods accept an optional `category?: EmailCategory` argument. If no category is supplied the email always sends (used for security-critical auth emails: OTP, password reset, account locked, etc.). Optional categories are gated by boolean config flags (`EMAIL_*_ENABLED`); setting a flag to `false` suppresses that category without touching any call sites. Current categories:
+
+| Category | Flag | Default |
+|---|---|---|
+| `ATTENDANCE_CHECKIN` | `EMAIL_ATTENDANCE_CHECKIN_ENABLED` | `true` |
+| `BIRTHDAY` | `EMAIL_BIRTHDAY_ENABLED` | `true` |
+| `EVENT_REMINDER` | `EMAIL_EVENT_REMINDER_ENABLED` | `true` |
+| `PRAYER_REMINDER` | `EMAIL_PRAYER_REMINDER_ENABLED` | `true` |
+| `FOLLOW_UP` | `EMAIL_FOLLOW_UP_ENABLED` | `true` |
+| `ASSET_ALERTS` | `EMAIL_ASSET_ALERTS_ENABLED` | `true` |
+| `GIVING_RECEIPT` | `EMAIL_GIVING_RECEIPT_ENABLED` | `true` |
+| `FINANCE_ALERTS` | `EMAIL_FINANCE_ALERTS_ENABLED` | `true` |
+| `SESSION_REPORT` | `EMAIL_SESSION_REPORT_ENABLED` | `true` |
+| `INCIDENT_REPORT` | `EMAIL_INCIDENT_REPORT_ENABLED` | `true` |
+| `CHILDREN_CHURCH` | `EMAIL_CHILDREN_CHURCH_ENABLED` | `true` |
+| `LOGIN_ALERT` | `EMAIL_LOGIN_ALERT_ENABLED` | `true` |
 
 Template files live in `src/utility/templates/*.html` and use `{{variable}}` for simple substitution, `{{#if}}` for
 conditionals, and `{{#each}}` for loops. Values are HTML-escaped automatically; use `{{{variable}}}` only for
@@ -1721,7 +1774,7 @@ Handles first-timer registration, follow-up task management, and post-event enga
 **Post-event jobs (Bull queue `follow-up`):**
 
 1. After `markAbsentees()` completes for an event, a `post-event` Bull job is dispatched.
-2. `PostEventProcessor.handlePostEvent` sends thank-you emails to all PRESENT/LATE members.
+2. `PostEventProcessor.handlePostEvent` sends thank-you emails to all PRESENT/LATE members if `event.thankYouSentAt` is null, then sets `thankYouSentAt` — preventing duplicate sends on re-trigger.
 3. If `event.onlineAttendanceEnabled = true`: sends online-confirm request emails to ABSENT members, sets `event.onlineNotificationSentAt`, and schedules a `online-window-closed` delayed job (`ONLINE_CHECKIN_WINDOW_HOURS` hours later, default 3).
 4. `handleOnlineWindowClosed` creates `ONLINE_NO_RESPONSE` follow-up tasks for all members still marked ABSENT.
 
@@ -1736,14 +1789,30 @@ Members receive an email after an online-attendance-enabled event. They confirm 
 
 **Overdue escalation (daily cron at 08:00):** `FollowUpScheduler.escalateOverdueTasks` runs every day at 08:00. It finds all tasks with status `PENDING` or `IN_PROGRESS` where `dueDate < NOW()`. Each affected worker receives a digest email (`follow-up-overdue-worker`) listing all their overdue contacts. All active admins with `FOLLOW_UP_WRITE` permission receive a summary count email (`follow-up-overdue-admin`).
 
+**Inactive task detection (daily cron at 09:00):** `FollowUpScheduler.notifyInactiveTasks` runs every day at 09:00. It finds open tasks whose `lastActivityAt < NOW() - FOLLOW_UP_STALE_DAYS` (default 7 days). All active admins with `FOLLOW_UP_WRITE` permission receive a count email (`follow-up-stale-admin`). `GET /admin/follow-up/tasks/stale` also exposes this list on demand.
+
 **Due date:** Tasks auto-set `dueDate = createdAt + FOLLOW_UP_DUE_DAYS` (default 3 days).
 
 **Pastoral report:** `GET /admin/follow-up/report?from=&to=` (requires `FOLLOW_UP_READ`) returns aggregate stats: first-timer totals, source breakdown, wants-to-join counts, task status/outcome breakdown, overdue snapshot, conversion rate, per-worker performance, and per-event first-timer counts. Date range is optional; omitting it returns all-time stats.
 
-**Membership invitation:** `POST /admin/follow-up/first-timers/:id/invite-to-membership` (requires `FOLLOW_UP_WRITE`) queues a personalised invitation email to the first-timer asking them to get in touch about joining the congregation. Returns `{ queued: true }`. Throws `404` if the first-timer is not found or `400` if no email address is on record.
+**Membership invitation:** `POST /admin/follow-up/first-timers/:id/invite-to-membership` (requires `FOLLOW_UP_WRITE`) queues a personalised invitation email to the first-timer. Returns `{ queued: true }` on success or `{ queued: false }` if the invitation was already sent (`inviteSentAt` is set). Throws `404` if the first-timer is not found or `400` if no email address is on record. Sets `FirstTimer.inviteSentAt` on first send to prevent duplicate emails.
 
-**Routes (worker mobile):** `/follow-up/first-timers`, `/follow-up/tasks/mine`, `/follow-up/tasks/:id`  
-**Routes (admin portal):** `/admin/follow-up/first-timers`, `/admin/follow-up/first-timers/:id/invite-to-membership`, `/admin/follow-up/tasks`, `/admin/follow-up/tasks/:id/reassign`, `/admin/follow-up/tasks/bulk`, `/admin/follow-up/report`
+**First-timer conversion:** `PATCH /admin/follow-up/first-timers/:id/mark-converted` (requires `FOLLOW_UP_WRITE`) marks a first-timer as having joined the congregation. Accepts an optional `memberId` (UUID) body field to link the first-timer to their new `Member` record. Sets `FirstTimer.convertedAt` and optionally `FirstTimer.convertedMember`.
+
+**Admin task update:** `PATCH /admin/follow-up/tasks/:id` (requires `FOLLOW_UP_WRITE`) lets an admin update any task's `status`, `outcome`, `outcomeNotes`, `dueDate`, and add a `noteContent` (with optional `contactMethod`) note. Unlike the worker endpoint, this is not restricted by assignment. Also sets `lastActivityAt`.
+
+**Worker standalone note:** `POST /follow-up/tasks/:id/notes` (FOLLOW_UP dept worker) adds a note with an optional `contactMethod` (PHONE_CALL \| WHATSAPP \| IN_PERSON \| SMS \| EMAIL) without requiring a status change. Updates `lastActivityAt`.
+
+**Return visit tracking:** `POST /admin/follow-up/first-timers/:id/visits` (requires `FOLLOW_UP_WRITE`) records that a first-timer attended again. Body: `{ eventId?, notes?, visitedAt? }` — `visitedAt` defaults to today.
+
+**Pipeline report:** `GET /admin/follow-up/first-timers/pipeline?from=&to=` (requires `FOLLOW_UP_READ`) returns a funnel breakdown: `{ total, untouched, contacted, returned, invited, converted }`. Each first-timer is placed in the highest stage they have reached.
+
+**Stale task list:** `GET /admin/follow-up/tasks/stale?daysInactive=7&page=1&limit=20` (requires `FOLLOW_UP_READ`) returns open tasks with no activity for ≥ N days, ordered oldest-activity-first.
+
+**Routes (worker mobile):** `/follow-up/first-timers`, `/follow-up/tasks/mine`, `/follow-up/tasks/:id`, `/follow-up/tasks/:id/notes`
+**First-timer list filtering:** `GET /admin/follow-up/first-timers` accepts optional `dateFrom` and `dateTo` (YYYY-MM-DD) to restrict results to first-timers registered within that date range. Both are optional; omitting either removes the respective bound.
+
+**Routes (admin portal):** `/admin/follow-up/first-timers`, `/admin/follow-up/first-timers/pipeline`, `/admin/follow-up/first-timers/:id/invite-to-membership`, `/admin/follow-up/first-timers/:id/mark-converted`, `/admin/follow-up/first-timers/:id/visits`, `/admin/follow-up/tasks`, `/admin/follow-up/tasks/:id`, `/admin/follow-up/tasks/stale`, `/admin/follow-up/tasks/:id/reassign`, `/admin/follow-up/tasks/bulk`, `/admin/follow-up/report`
 
 ### ServiceHeadcount Module
 
@@ -1759,18 +1828,21 @@ Records and retrieves physical attendance counts for services, broken down by de
 
 ### Prayer Roster Module
 
-Manages the monthly prayer meeting roster for workers. Admins configure which days prayer meetings occur, what capacity and frequency rules apply, and which workers have fixed assignments. Workers self-select available slots during an open window; unselected slots are filled by the auto-assign algorithm.
+Manages monthly prayer meeting rosters across one or more named programs. Each program has its own audience type (`WORKERS`, `MEMBERS`, or `ALL`), day configs, schedule rules, and roster entries. Multiple programs can run concurrently (e.g. a worker-only intercessory program alongside an open member prayer program).
 
 **Key flows:**
 
-- Admin configures prayer days (`POST /prayer/admin/day-configs`) and frequency rules (`POST /prayer/admin/rules`).
-- Admin generates meetings for a month (`POST /prayer/admin/meetings/generate`). Fixed assignments are auto-applied at generation time.
-- Admin opens the self-selection window (`POST /prayer/admin/meetings/open-selection`); workers browse open slots and submit their preference (`POST /prayer/select`).
-- Admin runs auto-assign (`POST /prayer/admin/roster/auto-assign?month=&year=`) to fill remaining gaps. The algorithm assigns leaders first, then regular workers, respecting exact per-role frequency rules and meeting capacity limits.
-- **Exact frequency enforcement:** Every worker (including HODs) must be assigned to exactly their required number of slots — not more, not fewer. `GET /prayer/my-status` returns `{ required, selected, canSubmit }` so the mobile UI can show the worker's progress.
-- **Concurrent self-selection:** The `selfSelect` flow runs inside a `DataSource.transaction()` with a `pessimistic_write` lock on the meeting row to prevent capacity over-booking under concurrent requests. The lock query uses `innerJoinAndSelect` (not `findOne` with `relations`) because PostgreSQL rejects `FOR UPDATE` on the nullable side of an outer join.
-- **Reschedule (soft-delete):** `PATCH /prayer/admin/roster/entries/:id/reschedule` does not delete the old entry. It marks the old entry's `status` as `RESCHEDULED`, creates a new entry on the target meeting with `rescheduledFrom` pointing to the old entry, and adjusts `currentCapacity` on both meetings. Only `SCHEDULED` entries can be rescheduled.
-- Admin validates the completed roster (`GET /prayer/admin/roster/validate?month=&year=`). All active-entry queries filter `status = SCHEDULED` so rescheduled entries are excluded.
+- Admin creates programs via `POST /prayer/admin/programs`. All subsequent operations pass `?programId=` to scope to one program.
+- Admin configures prayer days (`POST /prayer/admin/day-configs?programId=`) and frequency rules (`POST /prayer/admin/rules?programId=`).
+- Admin generates meetings for a month (`POST /prayer/admin/meetings/generate?programId=`). Fixed assignments are auto-applied at generation time.
+- Admin opens the self-selection window (`POST /prayer/admin/meetings/open-selection?programId=`); workers and/or members browse open slots and submit their preference (`POST /prayer/select?programId=`). Members can only self-select on programs with `audience = MEMBERS` or `ALL`.
+- Admin runs auto-assign (`POST /prayer/admin/roster/auto-assign?programId=&month=&year=`) to fill remaining gaps. Auto-assign is available for `WORKERS` and `ALL` programs; it clears all `AUTO_ASSIGNED` entries first (idempotent), then re-runs the algorithm on clean state. Returns `{ assigned, unassignable }`.
+- Admin may manually assign any worker or member via `POST /prayer/admin/roster/manual-assign?programId=` with `{ meetingId, workerProfileId? | memberId? }`.
+- Admin may remove any non-FIXED `SCHEDULED` entry via `DELETE /prayer/admin/roster/entries/:id`.
+- **Exact frequency enforcement (WORKERS/ALL programs):** Every worker must be assigned to exactly their required number of slots. `GET /prayer/my-status?programId=` returns `{ required, selected, canSubmit }`.
+- **Concurrent self-selection:** The `selfSelect` flow runs inside a `DataSource.transaction()` with a `pessimistic_write` lock on the meeting row to prevent capacity over-booking under concurrent requests.
+- **Reschedule (soft-delete):** `PATCH /prayer/admin/roster/entries/:id/reschedule` marks the old entry `RESCHEDULED`, creates a new entry with `rescheduledFrom` FK, and adjusts `currentCapacity` on both meetings.
+- Admin validates the completed roster (`GET /prayer/admin/roster/validate?programId=&month=&year=`). Returns `{ valid, issues[] }` with per-worker frequency and per-meeting leader checks.
 
 **Reminder scheduler (daily at 08:00):**
 Queries `prayer_roster_entries` where the meeting date is 2 days or 1 day away and the corresponding flag (`reminderTwoDaySent` / `reminderDaySent`) is `false`. Queues email via `UtilityService.sendEmailWithTemplate` (fire-and-forget). All flag updates are batched into a single `save()` call after the loop. Template: `prayer-reminder.html`.
@@ -1778,7 +1850,7 @@ Queries `prayer_roster_entries` where the meeting date is 2 days or 1 day away a
 **Routes prefix (admin):** `/prayer/admin`  
 **Routes prefix (worker):** `/prayer`
 
-**Entities:** `prayer_schedule_configs`, `prayer_day_configs`, `prayer_schedule_rules`, `prayer_fixed_assignments`, `prayer_meetings`, `prayer_roster_entries`.
+**Entities:** `prayer_programs`, `prayer_schedule_configs`, `prayer_day_configs`, `prayer_schedule_rules`, `prayer_fixed_assignments`, `prayer_meetings`, `prayer_roster_entries`.
 
 **Migrations:**
 - `1785369600000-CreatePrayerScheduleConfig`
@@ -1789,6 +1861,7 @@ Queries `prayer_roster_entries` where the meeting date is 2 days or 1 day away a
 - `1785801600000-CreatePrayerRosterEntries`
 - `1785888000000-AddPrayerIndexes` *(indexes on `reminder_two_day_sent`, `reminder_day_sent`, `status` on roster entries; `status`, `selection_status` on meetings)*
 - `1785974400000-PrayerColumnsToSnakeCase` *(renames all prayer table columns from camelCase SQL names to snake_case for TypeORM SnakeNamingStrategy compatibility)*
+- `1786233600000-AddPrayerPrograms` *(creates `prayer_programs` table; adds `program_id` FK to day configs, rules, meetings; adds `member_id` to roster entries; makes `worker_profile_id` nullable; backfills with a default "Prayer Program" row)*
 
 ---
 
@@ -1831,6 +1904,7 @@ Provides a security-grade check-in/check-out system for children. Key features:
 - Pickup is verified by code via `GET /children-church/checkin/verify/:code` before the checkout is submitted.
 - Any check-in can be flagged with `PATCH /children-church/checkin/:id/flag` (e.g. unknown pickup attempt).
 - Multiple guardians can be registered per child; `isAuthorizedPickup` controls who may collect.
+- Admins (not workers) can view live active check-ins across all classes via `GET /children-church/admin/checkin/active` and paginated history via `GET /children-church/admin/checkin/history`.
 
 **Routes prefix:** `/children-church`
 
@@ -1876,7 +1950,7 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | POST   | /auth/admin-login                                          | Public                                                        | Admin portal login — verifies active Admin record; no device check                                            |
 | POST   | /auth/refresh                                              | Public                                                        | Exchange refresh token                                                                                        |
 | POST   | /auth/logout                                               | Any                                                           | Invalidate session                                                                                            |
-| GET    | /auth/me                                                   | Any                                                           | Own profile                                                                                                   |
+| GET    | /auth/me                                                   | Any                                                           | Own profile. Includes `isHod: boolean` — `true` if the authenticated member has a row in `department_leads`. Clients should fetch this once on load to drive HOD-gated UI.                                  |
 | POST   | /auth/change-password                                      | Any                                                           | Change password (required when `requires_password_change` is true)                                            |
 | POST   | /auth/forgot-password                                      | Public                                                        | Request OTP reset code (rate-limited)                                                                         |
 | POST   | /auth/reset-password                                       | Public                                                        | Verify OTP and set new password; invalidates current session                                                  |
@@ -1887,7 +1961,7 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /members/workers                                           | AdminGuard (MEMBERS_READ)                                     | List workers (filterable by status)                                                                           |
 | GET    | /members/:id                                               | AdminGuard (MEMBERS_READ)                                     | Get member by ID                                                                                              |
 | PATCH  | /members/:id                                               | AdminGuard (MEMBERS_WRITE)                                    | Update member details                                                                                         |
-| POST   | /members/bulk-promote                                      | AdminGuard (MEMBERS_WRITE)                                    | Bulk promote members to workers; returns `{ promoted, skipped }`                                              |
+| POST   | /members/bulk-promote                                      | AdminGuard (MEMBERS_WRITE)                                    | Bulk promote members to workers; returns `{ promoted, skipped, failures: [{ memberId, reason }] }`            |
 | POST   | /members/:id/promote                                       | AdminGuard (MEMBERS_WRITE)                                    | Promote member to worker                                                                                      |
 | POST   | /members/:id/revoke-worker                                 | AdminGuard (MEMBERS_WRITE)                                    | Remove worker role                                                                                            |
 | PATCH  | /members/:id/worker-profile                                | AdminGuard (MEMBERS_WRITE)                                    | Update worker profile                                                                                         |
@@ -1908,22 +1982,29 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /admin/audit-logs                                          | AdminGuard (AUDIT_READ)                                       | Paginated audit log; filterable by action, actorId, targetId, dateFrom, dateTo                                |
 | POST   | /attendances/checkin                                       | Any                                                           | Check in to a service slot (workers must include `location`; one record per event per member)                 |
 | GET    | /attendances/my-history                                    | Any                                                           | Own attendance records                                                                                        |
-| GET    | /attendances/history                                       | AdminGuard (ATTENDANCE_READ)                                  | All attendance records                                                                                        |
+| GET    | /attendances/history                                       | AdminGuard (ATTENDANCE_READ)                                  | All attendance records; query: `page`, `limit`, `memberId`, `slotId`, `status`, `dateFrom`, `dateTo`, `search` (ILIKE on firstname, lastname, email) |
 | GET    | /attendances/history/department?slotId=                    | WORKER                                                        | Department attendance for a slot (scoped to caller's own department via lead role)                            |
 | GET    | /attendances/department/event/:eventId                     | WORKER                                                        | Worker attendance for all slots of an event (scoped to caller's own department via lead role)                 |
 | GET    | /attendances/summary/slot/:slotId                          | AdminGuard (ATTENDANCE_READ)                                  | Status counts for a slot                                                                                      |
 | GET    | /attendances/leaderboard                                   | AdminGuard (ATTENDANCE_READ)                                  | Top workers by attendance                                                                                     |
 | PATCH  | /attendances/:id/correct                                   | AdminGuard (ATTENDANCE_WRITE)                                 | Admin correction of an attendance record status                                                               |
+| GET    | /attendances/at-risk?minAbsences=&from=&to=&page=&limit=   | AdminGuard (ATTENDANCE_READ)                                  | Members with ≥ N ABSENT records in range; returns `absenceCount`, `lastSeenAt`, `hasOpenFollowUpTask`         |
 | POST   | /attendances/online-confirm                                | JwtAuthGuard (any authenticated member)                       | Confirm online attendance for an event (updates ABSENT → ATTENDED_ONLINE within window)                       |
 | POST   | /follow-up/first-timers                                    | WORKER (FOLLOW_UP dept)                                       | Register a first-timer (auto-creates FollowUpTask via round-robin)                                            |
 | GET    | /follow-up/tasks/mine                                      | WORKER (FOLLOW_UP dept)                                       | List follow-up tasks assigned to the caller                                                                   |
-| PATCH  | /follow-up/tasks/:id                                       | WORKER (FOLLOW_UP dept)                                       | Update task status/outcome/notes (caller must be the assignee)                                                |
+| PATCH  | /follow-up/tasks/:id                                       | WORKER (FOLLOW_UP dept)                                       | Update task status/outcome/notes+contactMethod (caller must be the assignee); sets `lastActivityAt`           |
+| POST   | /follow-up/tasks/:id/notes                                 | WORKER (FOLLOW_UP dept)                                       | Add a note (with optional `contactMethod`) without changing task status; sets `lastActivityAt`                |
 | POST   | /admin/follow-up/first-timers                              | AdminGuard (FOLLOW_UP_WRITE)                                  | Register a first-timer from admin portal                                                                      |
-| GET    | /admin/follow-up/first-timers                              | AdminGuard (FOLLOW_UP_READ)                                   | List first-timers; query: `page`, `limit`, `eventId`, `source`, `wantsToJoinChurch`, `wantsToJoinWorkforce`, `search` |
+| GET    | /admin/follow-up/first-timers                              | AdminGuard (FOLLOW_UP_READ)                                   | List first-timers; query: `page`, `limit`, `eventId`, `source`, `wantsToJoinChurch`, `wantsToJoinWorkforce`, `search`, `dateFrom`, `dateTo` (YYYY-MM-DD) |
+| GET    | /admin/follow-up/first-timers/pipeline                     | AdminGuard (FOLLOW_UP_READ)                                   | Funnel counts: `{ total, untouched, contacted, returned, invited, converted }`. Optional `from`/`to` filter. |
+| POST   | /admin/follow-up/first-timers/:id/visits                   | AdminGuard (FOLLOW_UP_WRITE)                                  | Log a return visit. Body: `{ eventId?, notes?, visitedAt? }` — `visitedAt` defaults to today (YYYY-MM-DD)    |
 | GET    | /admin/follow-up/tasks                                     | AdminGuard (FOLLOW_UP_READ)                                   | List follow-up tasks; query: `page`, `limit`, `status`, `type`, `search` (matches first-timer name)          |
+| GET    | /admin/follow-up/tasks/stale                               | AdminGuard (FOLLOW_UP_READ)                                   | Open tasks with no activity for ≥ `daysInactive` (default 7) days; paginated, ordered by oldest activity     |
 | PATCH  | /admin/follow-up/tasks/:id/reassign                        | AdminGuard (FOLLOW_UP_WRITE)                                  | Reassign a task to a different FOLLOW_UP-dept worker                                                          |
 | PATCH  | /admin/follow-up/tasks/bulk                                | AdminGuard (FOLLOW_UP_WRITE)                                  | Bulk update task statuses                                                                                     |
-| POST   | /admin/follow-up/first-timers/:id/invite-to-membership     | AdminGuard (FOLLOW_UP_WRITE)                                  | Queue membership invitation email to a first-timer. Returns `{ queued: true }`. 400 if no email on record.  |
+| POST   | /admin/follow-up/first-timers/:id/invite-to-membership     | AdminGuard (FOLLOW_UP_WRITE)                                  | Queue membership invitation email. Returns `{ queued: true/false }`. Deduped by `inviteSentAt`.              |
+| PATCH  | /admin/follow-up/first-timers/:id/mark-converted           | AdminGuard (FOLLOW_UP_WRITE)                                  | Mark first-timer as converted; optional `{ memberId }` body links to their Member record                     |
+| PATCH  | /admin/follow-up/tasks/:id                                 | AdminGuard (FOLLOW_UP_WRITE)                                  | Admin update of any task: `status`, `outcome`, `outcomeNotes`, `dueDate`, `noteContent`, `contactMethod`     |
 | GET    | /admin/follow-up/report                                    | AdminGuard (FOLLOW_UP_READ)                                   | Pastoral report: first-timer totals, task stats, overdue count, conversion rate, by-worker, by-event         |
 | POST   | /events                                                    | AdminGuard (EVENTS_WRITE)                                     | Create event (single or recurring)                                                                            |
 | PATCH  | /events/:id                                                | AdminGuard (EVENTS_WRITE)                                     | Update event                                                                                                  |
@@ -1961,9 +2042,9 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | POST   | /leave                                                     | WORKER                                                        | Request leave                                                                                                 |
 | PATCH  | /leave/:id/action                                          | AdminGuard (LEAVE_WRITE)                                      | Approve or reject leave                                                                                       |
 | DELETE | /leave/:id                                                 | WORKER                                                        | Delete own pending leave                                                                                      |
-| GET    | /leave/my-history                                          | WORKER                                                        | Own leave history                                                                                             |
+| GET    | /leave/my-history?page=&limit=&status=                     | WORKER                                                        | Own leave history (paginated)                                                                                 |
 | GET    | /leave/history                                             | AdminGuard (LEAVE_READ)                                       | All leave requests                                                                                            |
-| GET    | /leave/department                                          | WORKER                                                        | Department leave requests (lead only)                                                                         |
+| GET    | /leave/department?page=&limit=&status=                     | WORKER                                                        | Department leave requests (lead only, paginated)                                                              |
 | POST   | /classes                                                   | AdminGuard (CLASSES_WRITE)                                    | Create class                                                                                                  |
 | PATCH  | /classes/:id                                               | AdminGuard (CLASSES_WRITE)                                    | Update class                                                                                                  |
 | DELETE | /classes/:id                                               | AdminGuard (CLASSES_WRITE)                                    | Delete class                                                                                                  |
@@ -1980,7 +2061,7 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /announcements/feed                                        | Any                                                           | My filtered feed                                                                                              |
 | GET    | /announcements/:id                                         | Any                                                           | Get announcement                                                                                              |
 | GET    | /birthday/today                                            | Any (JwtAuthGuard)                                            | List active members with a birthday today (birthDay + birthMonth match current date)                          |
-| GET    | /birthday/upcoming                                         | AdminGuard (MEMBERS_READ)                                     | List active members with birthdays in the next 7 days, ordered by month/day                                  |
+| GET    | /birthday/upcoming                                         | AdminGuard (MEMBERS_READ)                                     | List active members with upcoming birthdays; `?days=N` (default 7) sets the lookahead window, ordered by month/day |
 | POST   | /birthday/wishes/:recipientId                              | Any                                                           | Send a birthday wish (once per year per sender; rate-limited to WISH_DAILY_LIMIT/day)                         |
 | GET    | /birthday/wishes/me                                        | Any                                                           | Read own birthday wishes (?year= filter optional)                                                             |
 | GET    | /birthday/wishes/:memberId                                 | AdminGuard (MEMBERS_READ)                                     | Read any member's birthday wishes                                                                             |
@@ -2048,7 +2129,9 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | POST   | /children-church/checkout                                  | WORKER (CC-dept)                                              | Check out a child                                                                                             |
 | PATCH  | /children-church/checkin/:id/flag                          | WORKER (CC-dept)                                              | Flag a check-in record                                                                                        |
 | GET    | /children-church/checkin/active?classGroupId=              | WORKER (CC-dept)                                              | List active check-ins                                                                                         |
-| GET    | /children-church/checkin/slot/:slotId                      | AdminGuard (CHILDREN_CHURCH_READ)                             | All check-ins for a service slot                                                                              |
+| GET    | /children-church/admin/checkin/active?classGroupId=        | AdminGuard (CHILDREN_CHURCH_READ)                             | Admin view — all active check-ins, optional class group filter                                                |
+| GET    | /children-church/admin/checkin/history?page=&limit=&classGroupId=&status=&slotId= | AdminGuard (CHILDREN_CHURCH_READ) | Admin paginated check-in history; filters: classGroupId, status (CHECKED_IN/CHECKED_OUT/FLAGGED), slotId |
+| GET    | /children-church/checkin/slot/:slotId?page=&limit=         | AdminGuard (CHILDREN_CHURCH_READ)                             | All check-ins for a service slot (paginated, default limit 20)                                                |
 | GET    | /admin/tithes/records                                      | AdminGuard (FINANCE_READ)                                     | List all confirmed tithe records (paginated); filters: `memberId`, `departmentId`, `fromMonth`, `toMonth`, `search` |
 | GET    | /admin/tithes/records/download                             | AdminGuard (FINANCE_READ)                                     | Download filtered tithe records as `.xlsx`; same query params as list endpoint, no pagination                 |
 | GET    | /admin/tithes/template                                     | AdminGuard (FINANCE_READ)                                     | Download the tithe upload Excel template (3-sheet workbook)                                                   |
@@ -2123,35 +2206,42 @@ Backend replacement for the Firebase-based Service Timer POC. Manages service pr
 | GET    | /admin/settings/:key                                       | AdminGuard (any admin)                                        | Get one module setting by key (e.g. `incident_report`, `asset_management`). Returns `required` flag.          |
 | PATCH  | /admin/settings/:key                                       | AdminGuard (ADMIN_WRITE)                                      | Enable or disable a module — body: `{ "enabled": boolean }`. Returns `400` if module is `required`. Upserts the row, invalidates cache, and writes `CHURCH_SETTING_UPDATED` audit log. |
 
-| POST   | /incidents                                                 | JwtAuthGuard + Module: incident_report                        | Submit a new incident report. Rate-limited to `INCIDENT_DAILY_REPORT_LIMIT` (default 2) per member per 24 h. Body: title, description, images? (Cloudinary URLs), location?, isAnonymous? (default false). Notifies admins with INCIDENT_REPORT_WRITE permission by email. |
+| POST   | /incidents                                                 | JwtAuthGuard + Module: incident_report                        | Submit a new incident report. `multipart/form-data`. Rate-limited to `INCIDENT_DAILY_REPORT_LIMIT` (default 2) per member per 24 h. Fields: `title`, `description`, `location?`, `isAnonymous?` (default false). File field: `images` (up to 5 image files, max 5 MB each — uploaded to Cloudinary; `incident-images` folder). Notifies admins with INCIDENT_REPORT_WRITE permission by email. |
 | GET    | /incidents?page=&limit=                                    | JwtAuthGuard + Module: incident_report                        | Returns only the current member's own reports. Members cannot see reports submitted by others.                |
 | GET    | /incidents/:id                                             | JwtAuthGuard + Module: incident_report                        | Returns a single report only if it was submitted by the current member. Returns `404` otherwise.             |
-| GET    | /admin/incidents?page=&limit=                              | AdminGuard (INCIDENT_REPORT_READ)                             | Paginated list of all incidents with full reporter identity and admin notes.                                  |
+| GET    | /admin/incidents?page=&limit=&status=&dateFrom=&dateTo=    | AdminGuard (INCIDENT_REPORT_READ)                             | Paginated list of all incidents. Optional filters: `status` (`OPEN`/`IN_PROGRESS`/`RESOLVED`), `dateFrom` and `dateTo` (ISO date strings, inclusive). Reporter masked to `null` for anonymous reports. |
 | GET    | /admin/incidents/:id                                       | AdminGuard (INCIDENT_REPORT_READ)                             | Get a single incident report with full details.                                                               |
 | PATCH  | /admin/incidents/:id/status                                | AdminGuard (INCIDENT_REPORT_WRITE)                            | Update incident status (`OPEN` → `IN_PROGRESS` → `RESOLVED`) and optionally set adminNotes. Sets `resolvedAt` automatically when status is `RESOLVED`. |
 
+| GET    | /prayer/admin/programs                                     | AdminGuard (PRAYER_READ)                                      | List all prayer programs                                                                                      |
+| POST   | /prayer/admin/programs                                     | AdminGuard (PRAYER_WRITE)                                     | Create a prayer program; body: `name`, `audience` (WORKERS\|MEMBERS\|ALL), `description?`, `selectionWindowDays?` |
+| PATCH  | /prayer/admin/programs/:id                                 | AdminGuard (PRAYER_WRITE)                                     | Update a prayer program (any field including `isActive`)                                                      |
+| DELETE | /prayer/admin/programs/:id                                 | AdminGuard (PRAYER_WRITE)                                     | Deactivate a prayer program (sets `isActive = false`)                                                         |
+| POST   | /prayer/admin/programs/:id/clone                           | AdminGuard (PRAYER_WRITE)                                     | Clone a program: copies all day configs and rules into a new program; body: `name`, `description?`, `audience?`, `selectionWindowDays?`, `includeFixedAssignments?` |
 | GET    | /prayer/admin/config                                       | AdminGuard (PRAYER_READ)                                      | Get the active schedule config (selectionWindowDays)                                                          |
 | PATCH  | /prayer/admin/config                                       | AdminGuard (PRAYER_WRITE)                                     | Upsert the active schedule config                                                                             |
-| GET    | /prayer/admin/day-configs                                  | AdminGuard (PRAYER_READ)                                      | List all prayer day configs ordered by dayOfWeek                                                              |
-| POST   | /prayer/admin/day-configs                                  | AdminGuard (PRAYER_WRITE)                                     | Create a prayer day config (one active config per day of week)                                                |
+| GET    | /prayer/admin/day-configs?programId=                       | AdminGuard (PRAYER_READ)                                      | List prayer day configs for a program, ordered by dayOfWeek                                                   |
+| POST   | /prayer/admin/day-configs?programId=                       | AdminGuard (PRAYER_WRITE)                                     | Create a prayer day config for a program (one active config per day per program)                              |
 | PATCH  | /prayer/admin/day-configs/:id                              | AdminGuard (PRAYER_WRITE)                                     | Update a prayer day config (mode, startTime, endTime, maxCapacity, isActive)                                  |
-| GET    | /prayer/admin/rules                                        | AdminGuard (PRAYER_READ)                                      | List all schedule rules                                                                                       |
-| POST   | /prayer/admin/rules                                        | AdminGuard (PRAYER_WRITE)                                     | Create a schedule rule                                                                                        |
+| GET    | /prayer/admin/rules?programId=                             | AdminGuard (PRAYER_READ)                                      | List schedule rules for a program                                                                             |
+| POST   | /prayer/admin/rules?programId=                             | AdminGuard (PRAYER_WRITE)                                     | Create a schedule rule for a program                                                                          |
 | PATCH  | /prayer/admin/rules/:id                                    | AdminGuard (PRAYER_WRITE)                                     | Update a schedule rule (value, isActive, etc.)                                                                |
-| GET    | /prayer/admin/fixed-assignments                            | AdminGuard (PRAYER_READ)                                      | List all active fixed assignments with worker and day config relations                                        |
-| POST   | /prayer/admin/fixed-assignments                            | AdminGuard (PRAYER_WRITE)                                     | Create a fixed assignment (workerProfileId, dayConfigId)                                                      |
+| GET    | /prayer/admin/fixed-assignments?programId=                 | AdminGuard (PRAYER_READ)                                      | List active fixed assignments for a program with worker and day config relations                               |
+| POST   | /prayer/admin/fixed-assignments?programId=                 | AdminGuard (PRAYER_WRITE)                                     | Create a fixed assignment; body: `workerProfileId`, `dayConfigId`                                             |
 | DELETE | /prayer/admin/fixed-assignments/:id                        | AdminGuard (PRAYER_WRITE)                                     | Soft-deactivate a fixed assignment                                                                            |
-| POST   | /prayer/admin/meetings/generate                            | AdminGuard (PRAYER_WRITE)                                     | Generate all meetings for a month; auto-applies fixed assignments; 409 if meetings already exist              |
-| POST   | /prayer/admin/meetings/open-selection                      | AdminGuard (PRAYER_WRITE)                                     | Open self-selection window for all PENDING meetings in a month                                                |
-| POST   | /prayer/admin/meetings/close-selection                     | AdminGuard (PRAYER_WRITE)                                     | Close self-selection window for all OPEN meetings in a month                                                  |
-| POST   | /prayer/admin/roster/auto-assign?month=&year=              | AdminGuard (PRAYER_WRITE)                                     | Auto-assign remaining unassigned workers to meetings; returns `{ assigned, unassignable }`                    |
-| GET    | /prayer/admin/roster/validate?month=&year=                 | AdminGuard (PRAYER_READ)                                      | Validate roster completeness; returns `{ valid, issues }` with per-worker frequency and per-meeting leader checks |
-| GET    | /prayer/admin/roster/:month/:year                          | AdminGuard (PRAYER_READ)                                      | Get full monthly roster with all meetings, day configs, and roster entries                                    |
+| POST   | /prayer/admin/meetings/generate?programId=                 | AdminGuard (PRAYER_WRITE)                                     | Generate all meetings for a month for a program; auto-applies fixed assignments; 409 if meetings already exist |
+| POST   | /prayer/admin/meetings/open-selection?programId=           | AdminGuard (PRAYER_WRITE)                                     | Open self-selection window for all PENDING meetings in a month for a program                                  |
+| POST   | /prayer/admin/meetings/close-selection?programId=          | AdminGuard (PRAYER_WRITE)                                     | Close self-selection window for all OPEN meetings in a month for a program                                    |
+| POST   | /prayer/admin/roster/auto-assign?programId=&month=&year=   | AdminGuard (PRAYER_WRITE)                                     | Auto-assign workers to a program's meetings (clears AUTO_ASSIGNED first for idempotency); returns `{ assigned, unassignable }` |
+| POST   | /prayer/admin/roster/manual-assign?programId=              | AdminGuard (PRAYER_WRITE)                                     | Manually assign a worker or member to a meeting; body: `meetingId`, `workerProfileId?` \| `memberId?`         |
+| DELETE | /prayer/admin/roster/entries/:id                           | AdminGuard (PRAYER_WRITE)                                     | Remove a SCHEDULED non-FIXED roster entry and decrement meeting capacity                                      |
+| GET    | /prayer/admin/roster/validate?programId=&month=&year=      | AdminGuard (PRAYER_READ)                                      | Validate roster completeness; returns `{ valid, issues[] }` with per-worker frequency and per-meeting leader checks |
+| GET    | /prayer/admin/roster/:month/:year?programId=               | AdminGuard (PRAYER_READ)                                      | Get full monthly roster for a program with all meetings, day configs, and roster entries                      |
 | PATCH  | /prayer/admin/roster/entries/:id/reschedule                | AdminGuard (PRAYER_WRITE)                                     | Soft-reschedule: marks old entry `RESCHEDULED`, creates new entry on target meeting with `rescheduledFrom` FK; body: `{ newMeetingId }` |
-| GET    | /prayer/available?month=&year=                             | WORKER                                                        | List open prayer meetings with remaining capacity for the given month                                         |
-| GET    | /prayer/my-roster?month=&year=                             | WORKER                                                        | Authenticated worker's own roster entries for the month                                                       |
-| GET    | /prayer/my-status?month=&year=                             | WORKER                                                        | Returns `{ required, selected, canSubmit, entries }` — shows progress toward frequency quota                  |
-| POST   | /prayer/select                                             | WORKER                                                        | Self-select a prayer slot; body: `{ meetingId }`; enforced with pessimistic DB lock to prevent overbooking    |
+| GET    | /prayer/available?programId=&month=&year=                  | WORKER                                                        | List open prayer meetings for a program with remaining capacity for the given month                           |
+| GET    | /prayer/my-roster?programId=&month=&year=                  | WORKER                                                        | Authenticated worker's own roster entries for a program in the given month                                    |
+| GET    | /prayer/my-status?programId=&month=&year=                  | WORKER                                                        | Returns `{ required, selected, canSubmit, entries }` — shows progress toward frequency quota for a program    |
+| POST   | /prayer/select?programId=                                  | WORKER                                                        | Self-select a prayer slot; body: `{ meetingId }`; enforced with pessimistic DB lock to prevent overbooking    |
 
 | POST   | /facility-rental/admin/facilities                          | AdminGuard (FACILITY_RENTAL_WRITE)                            | Create a rental facility; body: `name`, `basePrice`, `description?`, `capacity?`                             |
 | GET    | /facility-rental/admin/facilities                          | AdminGuard (FACILITY_RENTAL_READ)                             | List all facilities                                                                                           |
@@ -2381,16 +2471,50 @@ loaded correctly before use.
 | `REFRESH_JWT_SECRET`    | — *(required, min 32 chars)* | Refresh token signing secret                 |
 | `REFRESH_JWT_EXPIRY_IN` | `7d`                         | Refresh token expiry                         |
 
-### Email (SMTP)
+### Email
 
-| Variable         | Default        | Description                                  |
-|------------------|----------------|----------------------------------------------|
-| `EMAIL_HOST`     | — *(required)* | SMTP host                                    |
-| `EMAIL_PORT`     | — *(required)* | SMTP port                                    |
-| `EMAIL_SECURE`   | `false`        | `true` for port 465, `false` for 587         |
-| `EMAIL_SERVICE`  | —              | e.g. `gmail` (optional if HOST/PORT are set) |
-| `EMAIL_USER`     | — *(required)* | SMTP username / sender address               |
-| `EMAIL_PASSWORD` | — *(required)* | SMTP password                                |
+Set `EMAIL_PROVIDER` to choose between Gmail SMTP (`gmail`) and the Resend API (`resend`). Only the variables for the active provider are required at runtime.
+
+| Variable          | Default   | Description                                                           |
+|-------------------|-----------|-----------------------------------------------------------------------|
+| `EMAIL_PROVIDER`  | `gmail`   | Active provider: `gmail` \| `resend`                                  |
+| `EMAIL_FROM`      | —         | Sender address used for all outbound email (overrides `EMAIL_USER`)   |
+
+#### Gmail SMTP
+
+| Variable         | Default | Description                                  |
+|------------------|---------|----------------------------------------------|
+| `EMAIL_HOST`     | —       | SMTP host                                    |
+| `EMAIL_PORT`     | —       | SMTP port                                    |
+| `EMAIL_SECURE`   | `false` | `true` for port 465, `false` for 587         |
+| `EMAIL_SERVICE`  | —       | e.g. `gmail` (optional if HOST/PORT are set) |
+| `EMAIL_USER`     | —       | SMTP username / sender address               |
+| `EMAIL_PASSWORD` | —       | SMTP password / app password                 |
+
+#### Resend
+
+| Variable         | Default | Description                         |
+|------------------|---------|-------------------------------------|
+| `RESEND_API_KEY` | —       | Resend API key (`re_*…`)            |
+
+#### Email Category Gates
+
+Each flag defaults to `true`. Set to `false` to suppress that category of emails (useful when on Resend's free tier to stay under the daily limit). Auth and admin emails are not gated.
+
+| Variable                           | Default | Category suppressed           |
+|------------------------------------|---------|-------------------------------|
+| `EMAIL_ATTENDANCE_CHECKIN_ENABLED` | `true`  | Attendance check-in receipts  |
+| `EMAIL_BIRTHDAY_ENABLED`           | `true`  | Birthday greetings            |
+| `EMAIL_EVENT_REMINDER_ENABLED`     | `true`  | Event slot reminders          |
+| `EMAIL_PRAYER_REMINDER_ENABLED`    | `true`  | Prayer roster reminders       |
+| `EMAIL_FOLLOW_UP_ENABLED`          | `true`  | Follow-up task emails         |
+| `EMAIL_ASSET_ALERTS_ENABLED`       | `true`  | Asset maintenance/overdue alerts |
+| `EMAIL_GIVING_RECEIPT_ENABLED`     | `true`  | Tithe receipts and statements |
+| `EMAIL_FINANCE_ALERTS_ENABLED`     | `true`  | Budget and pledge alerts      |
+| `EMAIL_SESSION_REPORT_ENABLED`     | `true`  | Session completion reports    |
+| `EMAIL_INCIDENT_REPORT_ENABLED`    | `true`  | Incident report notifications |
+| `EMAIL_CHILDREN_CHURCH_ENABLED`    | `true`  | Children church pickup codes  |
+| `EMAIL_LOGIN_ALERT_ENABLED`        | `true`  | New device login notifications |
 
 ### Auth / OTP
 
@@ -2447,6 +2571,7 @@ with application cache keys.
 | `ENFORCE_DISTANCE_CHECK`      | `false` | Require members to be within `allowedDistanceInMeters` to check in |
 | `ONLINE_CHECKIN_WINDOW_HOURS` | `3`     | Hours after online-confirm emails are sent during which members can confirm online attendance |
 | `FOLLOW_UP_DUE_DAYS`          | `3`     | Days from task creation before a follow-up task is considered overdue (sets `dueDate`) |
+| `FOLLOW_UP_STALE_DAYS`        | `7`     | Days of inactivity before an open task is flagged stale (daily cron + stale endpoint)  |
 
 ### Default Seed Data (applied on first boot)
 

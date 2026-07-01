@@ -60,4 +60,11 @@ export class FollowUpTask extends BaseEntity {
 
   @OneToMany(() => FollowUpNote, (note) => note.task)
   notes: FollowUpNote[];
+
+  @Column({
+    name: 'last_activity_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  lastActivityAt: Date;
 }

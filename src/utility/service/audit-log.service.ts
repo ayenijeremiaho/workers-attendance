@@ -130,6 +130,7 @@ export interface AuditContext {
   actorId?: string;
   targetId?: string;
   targetEmail?: string;
+  targetName?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -137,6 +138,7 @@ export interface AuditLogFilters {
   action?: AuditAction;
   actorId?: string;
   targetId?: string;
+  targetEmail?: string;
   dateFrom?: Date;
   dateTo?: Date;
 }
@@ -159,6 +161,7 @@ export class AuditLogService {
         actor: context.actorId ? ({ id: context.actorId } as Member) : null,
         targetId: context.targetId ?? null,
         targetEmail: context.targetEmail ?? null,
+        targetName: context.targetName ?? null,
         metadata: context.metadata ?? null,
       })
       .catch((err) =>
@@ -184,6 +187,10 @@ export class AuditLogService {
       qb.andWhere('actor.id = :actorId', { actorId: filters.actorId });
     if (filters.targetId)
       qb.andWhere('log.targetId = :targetId', { targetId: filters.targetId });
+    if (filters.targetEmail)
+      qb.andWhere('log.targetEmail ILIKE :targetEmail', {
+        targetEmail: `%${filters.targetEmail}%`,
+      });
     if (filters.dateFrom)
       qb.andWhere('log.createdAt >= :dateFrom', { dateFrom: filters.dateFrom });
     if (filters.dateTo)

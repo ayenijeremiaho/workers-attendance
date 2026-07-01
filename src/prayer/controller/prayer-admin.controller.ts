@@ -16,15 +16,18 @@ import { PrayerConfigService } from '../service/prayer-config.service';
 import { PrayerMeetingService } from '../service/prayer-meeting.service';
 import { PrayerRosterService } from '../service/prayer-roster.service';
 import {
+  ClonePrayerProgramDto,
   CreatePrayerDayConfigDto,
   CreatePrayerFixedAssignmentDto,
+  CreatePrayerProgramDto,
   CreatePrayerScheduleRuleDto,
   GenerateMonthlyMeetingsDto,
+  ManualAssignDto,
   OpenSelectionWindowDto,
   ReschedulePrayerEntryDto,
   UpdatePrayerDayConfigDto,
+  UpdatePrayerProgramDto,
   UpdatePrayerScheduleRuleDto,
-  UpsertPrayerScheduleConfigDto,
 } from '../dto/prayer.dto';
 
 @UseGuards(AdminGuard)
@@ -36,28 +39,53 @@ export class PrayerAdminController {
     private readonly rosterService: PrayerRosterService,
   ) {}
 
-  @Get('config')
+  // ── Programs ────────────────────────────────────────────────────────────────
+
+  @Get('programs')
   @RequiresPermission(AdminPermission.PRAYER_READ)
-  getConfig() {
-    return this.configService.getConfig();
+  listPrograms() {
+    return this.configService.listPrograms();
   }
 
-  @Patch('config')
+  @Post('programs')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
-  upsertConfig(@Body() dto: UpsertPrayerScheduleConfigDto) {
-    return this.configService.upsertConfig(dto);
+  createProgram(@Body() dto: CreatePrayerProgramDto) {
+    return this.configService.createProgram(dto);
   }
+
+  @Patch('programs/:id')
+  @RequiresPermission(AdminPermission.PRAYER_WRITE)
+  updateProgram(@Param('id') id: string, @Body() dto: UpdatePrayerProgramDto) {
+    return this.configService.updateProgram(id, dto);
+  }
+
+  @Delete('programs/:id')
+  @RequiresPermission(AdminPermission.PRAYER_WRITE)
+  deactivateProgram(@Param('id') id: string) {
+    return this.configService.deactivateProgram(id);
+  }
+
+  @Post('programs/:id/clone')
+  @RequiresPermission(AdminPermission.PRAYER_WRITE)
+  cloneProgram(@Param('id') id: string, @Body() dto: ClonePrayerProgramDto) {
+    return this.configService.cloneProgram(id, dto);
+  }
+
+  // ── Day Configs (scoped to program) ────────────────────────────────────────
 
   @Get('day-configs')
   @RequiresPermission(AdminPermission.PRAYER_READ)
-  getDayConfigs() {
-    return this.configService.getDayConfigs();
+  getDayConfigs(@Query('programId') programId: string) {
+    return this.configService.getDayConfigs(programId);
   }
 
   @Post('day-configs')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
-  createDayConfig(@Body() dto: CreatePrayerDayConfigDto) {
-    return this.configService.createDayConfig(dto);
+  createDayConfig(
+    @Query('programId') programId: string,
+    @Body() dto: CreatePrayerDayConfigDto,
+  ) {
+    return this.configService.createDayConfig(programId, dto);
   }
 
   @Patch('day-configs/:id')
@@ -69,16 +97,21 @@ export class PrayerAdminController {
     return this.configService.updateDayConfig(id, dto);
   }
 
+  // ── Rules (scoped to program) ───────────────────────────────────────────────
+
   @Get('rules')
   @RequiresPermission(AdminPermission.PRAYER_READ)
-  getRules() {
-    return this.configService.getRules();
+  getRules(@Query('programId') programId: string) {
+    return this.configService.getRules(programId);
   }
 
   @Post('rules')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
-  createRule(@Body() dto: CreatePrayerScheduleRuleDto) {
-    return this.configService.createRule(dto);
+  createRule(
+    @Query('programId') programId: string,
+    @Body() dto: CreatePrayerScheduleRuleDto,
+  ) {
+    return this.configService.createRule(programId, dto);
   }
 
   @Patch('rules/:id')
@@ -90,16 +123,21 @@ export class PrayerAdminController {
     return this.configService.updateRule(id, dto);
   }
 
+  // ── Fixed Assignments (scoped to program) ───────────────────────────────────
+
   @Get('fixed-assignments')
   @RequiresPermission(AdminPermission.PRAYER_READ)
-  getFixedAssignments() {
-    return this.configService.getFixedAssignments();
+  getFixedAssignments(@Query('programId') programId: string) {
+    return this.configService.getFixedAssignments(programId);
   }
 
   @Post('fixed-assignments')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
-  createFixedAssignment(@Body() dto: CreatePrayerFixedAssignmentDto) {
-    return this.configService.createFixedAssignment(dto);
+  createFixedAssignment(
+    @Query('programId') programId: string,
+    @Body() dto: CreatePrayerFixedAssignmentDto,
+  ) {
+    return this.configService.createFixedAssignment(programId, dto);
   }
 
   @Delete('fixed-assignments/:id')
@@ -108,45 +146,85 @@ export class PrayerAdminController {
     return this.configService.removeFixedAssignment(id);
   }
 
+  // ── Meetings ────────────────────────────────────────────────────────────────
+
   @Post('meetings/generate')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
-  generateMeetings(@Body() dto: GenerateMonthlyMeetingsDto) {
-    return this.meetingService.generateMonthlyMeetings(dto);
+  generateMeetings(
+    @Query('programId') programId: string,
+    @Body() dto: GenerateMonthlyMeetingsDto,
+  ) {
+    return this.meetingService.generateMonthlyMeetings(programId, dto);
   }
 
   @Post('meetings/open-selection')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
-  openSelection(@Body() dto: OpenSelectionWindowDto) {
-    return this.meetingService.openSelectionWindow(dto);
+  openSelection(
+    @Query('programId') programId: string,
+    @Body() dto: OpenSelectionWindowDto,
+  ) {
+    return this.meetingService.openSelectionWindow(programId, dto);
   }
 
   @Post('meetings/close-selection')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
-  closeSelection(@Body() dto: OpenSelectionWindowDto) {
-    return this.meetingService.closeSelectionWindow(dto);
+  closeSelection(
+    @Query('programId') programId: string,
+    @Body() dto: OpenSelectionWindowDto,
+  ) {
+    return this.meetingService.closeSelectionWindow(programId, dto);
   }
+
+  // ── Roster ──────────────────────────────────────────────────────────────────
 
   @Post('roster/auto-assign')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
-  autoAssign(@Query('month') month: string, @Query('year') year: string) {
-    return this.rosterService.autoAssign(Number(month), Number(year));
+  autoAssign(
+    @Query('programId') programId: string,
+    @Query('month') month: string,
+    @Query('year') year: string,
+  ) {
+    return this.rosterService.autoAssign(programId, Number(month), Number(year));
+  }
+
+  @Post('roster/manual-assign')
+  @RequiresPermission(AdminPermission.PRAYER_WRITE)
+  manualAssign(
+    @Query('programId') programId: string,
+    @Body() dto: ManualAssignDto,
+  ) {
+    return this.rosterService.manualAssign(programId, dto);
   }
 
   @Get('roster/validate')
   @RequiresPermission(AdminPermission.PRAYER_READ)
-  validateRoster(@Query('month') month: string, @Query('year') year: string) {
-    return this.rosterService.validateRoster(Number(month), Number(year));
+  validateRoster(
+    @Query('programId') programId: string,
+    @Query('month') month: string,
+    @Query('year') year: string,
+  ) {
+    return this.rosterService.validateRoster(programId, Number(month), Number(year));
   }
 
   @Get('roster/:month/:year')
   @RequiresPermission(AdminPermission.PRAYER_READ)
-  getMonthlyRoster(@Param('month') month: string, @Param('year') year: string) {
-    return this.meetingService.getMonthlyRoster(Number(month), Number(year));
+  getMonthlyRoster(
+    @Param('month') month: string,
+    @Param('year') year: string,
+    @Query('programId') programId: string,
+  ) {
+    return this.meetingService.getMonthlyRoster(programId, Number(month), Number(year));
   }
 
   @Patch('roster/entries/:id/reschedule')
   @RequiresPermission(AdminPermission.PRAYER_WRITE)
   reschedule(@Param('id') id: string, @Body() dto: ReschedulePrayerEntryDto) {
     return this.rosterService.reschedule(id, dto);
+  }
+
+  @Delete('roster/entries/:id')
+  @RequiresPermission(AdminPermission.PRAYER_WRITE)
+  removeEntry(@Param('id') id: string) {
+    return this.rosterService.removeEntry(id);
   }
 }

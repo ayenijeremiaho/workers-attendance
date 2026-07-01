@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { IsOptional, IsUUID } from 'class-validator';
 import { AdminGuard } from '../../admin/guard/admin.guard';
 import { RequiresPermission } from '../../admin/decorator/requires-permission.decorator';
 import { AdminPermission } from '../../admin/enum/admin-permission.enum';
@@ -18,11 +19,19 @@ import { FollowUpService } from '../service/follow-up.service';
 import { CreateFirstTimerDto } from '../dto/create-first-timer.dto';
 import { ReassignTaskDto } from '../dto/reassign-task.dto';
 import { BulkUpdateTasksDto } from '../dto/bulk-update-tasks.dto';
+import { AdminUpdateFollowUpTaskDto } from '../dto/admin-update-follow-up-task.dto';
+import { LogVisitDto } from '../dto/log-visit.dto';
 import {
   FirstTimerSourceEnum,
   FollowUpTaskStatusEnum,
   FollowUpTaskTypeEnum,
 } from '../enums/follow-up.enum';
+
+class MarkConvertedDto {
+  @IsOptional()
+  @IsUUID()
+  memberId?: string;
+}
 
 @UseGuards(AdminGuard)
 @Controller('admin/follow-up')
@@ -48,6 +57,8 @@ export class FollowUpAdminController {
     @Query('wantsToJoinChurch') wantsToJoinChurch?: string,
     @Query('wantsToJoinWorkforce') wantsToJoinWorkforce?: string,
     @Query('search') search?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
     let joinChurch: boolean | undefined;
     if (wantsToJoinChurch === 'true') joinChurch = true;
@@ -64,6 +75,8 @@ export class FollowUpAdminController {
       joinChurch,
       joinWorkforce,
       search,
+      dateFrom,
+      dateTo,
     );
   }
 
@@ -101,6 +114,24 @@ export class FollowUpAdminController {
     return this.followUpService.inviteFirstTimerToMembership(id);
   }
 
+  @RequiresPermission(AdminPermission.FOLLOW_UP_WRITE)
+  @Patch('first-timers/:id/mark-converted')
+  async markConverted(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MarkConvertedDto,
+  ) {
+    return this.followUpService.markConverted(id, dto.memberId);
+  }
+
+  @RequiresPermission(AdminPermission.FOLLOW_UP_WRITE)
+  @Patch('tasks/:id')
+  async adminUpdateTask(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminUpdateFollowUpTaskDto,
+  ) {
+    return this.followUpService.adminUpdateTask(id, dto);
+  }
+
   @RequiresPermission(AdminPermission.FOLLOW_UP_READ)
   @Get('report')
   async getReport(@Query('from') from?: string, @Query('to') to?: string) {
@@ -108,5 +139,30 @@ export class FollowUpAdminController {
       from ? new Date(from) : undefined,
       to ? new Date(to) : undefined,
     );
+  }
+
+  @RequiresPermission(AdminPermission.FOLLOW_UP_READ)
+  @Get('first-timers/pipeline')
+  async getPipeline(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.followUpService.getFirstTimerPipeline(from, to);
+  }
+
+  @RequiresPermission(AdminPermission.FOLLOW_UP_WRITE)
+  @Post('first-timers/:id/visits')
+  async logVisit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: LogVisitDto,
+  ) {
+    return this.followUpService.logReturnVisit(id, dto);
+  }
+
+  @RequiresPermission(AdminPermission.FOLLOW_UP_READ)
+  @Get('tasks/stale')
+  async getStaleTasks(
+    @Query('daysInactive') daysInactive = 7,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.followUpService.getStaleTasks(+daysInactive, +page, +limit);
   }
 }

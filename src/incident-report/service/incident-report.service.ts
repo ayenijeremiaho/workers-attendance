@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { IncidentReport } from '../entity/incident-report.entity';
 import {
@@ -16,7 +16,9 @@ import {
 import { IncidentStatus } from '../enum/incident-status.enum';
 import { CacheService } from '../../utility/service/cache.service';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { AuditLogService } from '../../utility/service/audit-log.service';
+import { CloudinaryService } from '../../utility/service/cloudinary.service';
 import { Admin } from '../../admin/entity/admin.entity';
 import { AdminPermission } from '../../admin/enum/admin-permission.enum';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
@@ -34,6 +36,7 @@ export class IncidentReportService {
     private readonly configService: ConfigService,
     private readonly utilityService: UtilityService,
     private readonly auditLogService: AuditLogService,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   private rateLimitKey(memberId: string): string {
@@ -43,6 +46,7 @@ export class IncidentReportService {
   async create(
     dto: CreateIncidentReportDto,
     memberId: string,
+    imageFiles?: Express.Multer.File[],
   ): Promise<IncidentReport> {
     const limit = this.configService.get<number>(
       'INCIDENT_DAILY_REPORT_LIMIT',
@@ -63,10 +67,20 @@ export class IncidentReportService {
       );
     }
 
+    let imageUrls: string[] | null = null;
+    if (imageFiles?.length) {
+      const uploads = await Promise.all(
+        imageFiles.map((f) =>
+          this.cloudinaryService.uploadBuffer(f.buffer, 'incident-images'),
+        ),
+      );
+      imageUrls = uploads.map((u) => u.secureUrl);
+    }
+
     const report = this.reportRepo.create({
       title: dto.title,
       description: dto.description,
-      images: dto.images ?? null,
+      images: imageUrls,
       location: dto.location ?? null,
       isAnonymous: dto.isAnonymous ?? false,
       reporter: { id: memberId } as any,
@@ -110,8 +124,20 @@ export class IncidentReportService {
   async findAll(
     page: number,
     limit: number,
+    filters: { status?: IncidentStatus; dateFrom?: string; dateTo?: string } = {},
   ): Promise<PaginationResponseDto<IncidentReport>> {
+    const where: any = {};
+    if (filters.status) where.status = filters.status;
+    if (filters.dateFrom && filters.dateTo) {
+      where.createdAt = Between(new Date(filters.dateFrom), new Date(`${filters.dateTo}T23:59:59.999Z`));
+    } else if (filters.dateFrom) {
+      where.createdAt = MoreThanOrEqual(new Date(filters.dateFrom));
+    } else if (filters.dateTo) {
+      where.createdAt = LessThan(new Date(`${filters.dateTo}T23:59:59.999Z`));
+    }
+
     const [reports, total] = await this.reportRepo.findAndCount({
+      where,
       relations: ['reporter'],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
@@ -185,6 +211,8 @@ export class IncidentReportService {
           reportId: report.id,
           admin_login_url: adminLoginUrl,
         },
+        undefined,
+        EmailCategory.INCIDENT_REPORT,
       );
     }
   }

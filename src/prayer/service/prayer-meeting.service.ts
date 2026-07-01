@@ -10,11 +10,13 @@ import { PrayerMeeting } from '../entity/prayer-meeting.entity';
 import { PrayerRosterEntry } from '../entity/prayer-roster-entry.entity';
 import { PrayerFixedAssignment } from '../entity/prayer-fixed-assignment.entity';
 import { PrayerDayConfig } from '../entity/prayer-day-config.entity';
+import { PrayerProgram } from '../entity/prayer-program.entity';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
 import { DepartmentLead } from '../../department/entity/department-lead.entity';
 import { PrayerScheduleRule } from '../entity/prayer-schedule-rule.entity';
 import {
   PrayerAssignmentType,
+  PrayerAudience,
   PrayerMeetingStatus,
   PrayerRosterStatus,
   PrayerRuleType,
@@ -37,6 +39,8 @@ export class PrayerMeetingService {
     private readonly fixedRepo: Repository<PrayerFixedAssignment>,
     @InjectRepository(PrayerDayConfig)
     private readonly dayConfigRepo: Repository<PrayerDayConfig>,
+    @InjectRepository(PrayerProgram)
+    private readonly programRepo: Repository<PrayerProgram>,
     @InjectRepository(WorkerProfile)
     private readonly workerRepo: Repository<WorkerProfile>,
     @InjectRepository(DepartmentLead)
@@ -47,22 +51,26 @@ export class PrayerMeetingService {
   ) {}
 
   async generateMonthlyMeetings(
+    programId: string,
     dto: GenerateMonthlyMeetingsDto,
   ): Promise<PrayerMeeting[]> {
+    const program = await this.programRepo.findOne({ where: { id: programId } });
+    if (!program) throw new NotFoundException('Prayer program not found.');
+
     const existing = await this.meetingRepo.findOne({
-      where: { month: dto.month, year: dto.year },
+      where: { month: dto.month, year: dto.year, program: { id: programId } },
     });
     if (existing)
       throw new ConflictException(
-        `Prayer meetings for ${dto.year}-${dto.month} already exist.`,
+        `Prayer meetings for ${dto.year}-${dto.month} already exist for this program.`,
       );
 
     const dayConfigs = await this.dayConfigRepo.find({
-      where: { isActive: true },
+      where: { isActive: true, program: { id: programId } },
     });
     if (!dayConfigs.length)
       throw new BadRequestException(
-        'No active prayer day configs found. Configure prayer days first.',
+        'No active prayer day configs found for this program. Configure prayer days first.',
       );
 
     const dayConfigMap = new Map(dayConfigs.map((d) => [d.dayOfWeek, d]));
@@ -76,30 +84,35 @@ export class PrayerMeetingService {
       if (!config) continue;
 
       const dateStr = `${dto.year}-${String(dto.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const meeting = this.meetingRepo.create({
-        date: dateStr,
-        month: dto.month,
-        year: dto.year,
-        dayConfig: config,
-        status: PrayerMeetingStatus.SCHEDULED,
-        selectionStatus: PrayerWindowStatus.PENDING,
-        currentCapacity: 0,
-      });
-      meetings.push(meeting);
+      meetings.push(
+        this.meetingRepo.create({
+          date: dateStr,
+          month: dto.month,
+          year: dto.year,
+          program,
+          dayConfig: config,
+          status: PrayerMeetingStatus.SCHEDULED,
+          selectionStatus: PrayerWindowStatus.PENDING,
+          currentCapacity: 0,
+        }),
+      );
     }
 
     const saved = await this.meetingRepo.save(meetings);
-    await this.applyFixedAssignments(saved);
+    await this.applyFixedAssignments(programId, saved);
     return this.meetingRepo.find({
-      where: { month: dto.month, year: dto.year },
+      where: { month: dto.month, year: dto.year, program: { id: programId } },
       relations: ['dayConfig', 'rosterEntries'],
       order: { date: 'ASC' },
     });
   }
 
-  async openSelectionWindow(dto: OpenSelectionWindowDto): Promise<void> {
+  async openSelectionWindow(
+    programId: string,
+    dto: OpenSelectionWindowDto,
+  ): Promise<void> {
     const meetings = await this.meetingRepo.find({
-      where: { month: dto.month, year: dto.year },
+      where: { month: dto.month, year: dto.year, program: { id: programId } },
     });
     if (!meetings.length)
       throw new NotFoundException(
@@ -110,17 +123,22 @@ export class PrayerMeetingService {
       {
         month: dto.month,
         year: dto.year,
+        program: { id: programId } as any,
         selectionStatus: PrayerWindowStatus.PENDING,
       },
       { selectionStatus: PrayerWindowStatus.OPEN },
     );
   }
 
-  async closeSelectionWindow(dto: OpenSelectionWindowDto): Promise<void> {
+  async closeSelectionWindow(
+    programId: string,
+    dto: OpenSelectionWindowDto,
+  ): Promise<void> {
     await this.meetingRepo.update(
       {
         month: dto.month,
         year: dto.year,
+        program: { id: programId } as any,
         selectionStatus: PrayerWindowStatus.OPEN,
       },
       { selectionStatus: PrayerWindowStatus.CLOSED },
@@ -128,6 +146,7 @@ export class PrayerMeetingService {
   }
 
   async getAvailableMeetings(
+    programId: string,
     month: number,
     year: number,
   ): Promise<PrayerMeeting[]> {
@@ -135,6 +154,7 @@ export class PrayerMeetingService {
       .createQueryBuilder('m')
       .leftJoinAndSelect('m.dayConfig', 'dc')
       .where('m.month = :month AND m.year = :year', { month, year })
+      .andWhere('m.program_id = :programId', { programId })
       .andWhere('m.selectionStatus = :open', { open: PrayerWindowStatus.OPEN })
       .andWhere('m.currentCapacity < dc.maxCapacity')
       .orderBy('m.date', 'ASC')
@@ -142,9 +162,18 @@ export class PrayerMeetingService {
   }
 
   async selfSelect(
+    programId: string,
     workerProfileId: string,
     dto: SelfSelectPrayerSlotDto,
   ): Promise<PrayerRosterEntry> {
+    const program = await this.programRepo.findOne({ where: { id: programId } });
+    if (!program) throw new NotFoundException('Prayer program not found.');
+    if (program.audience === PrayerAudience.MEMBERS) {
+      throw new BadRequestException(
+        'This prayer program is for members only. Workers cannot self-select.',
+      );
+    }
+
     const workerProfile = await this.workerRepo.findOne({
       where: { id: workerProfileId },
     });
@@ -156,10 +185,14 @@ export class PrayerMeetingService {
         .getRepository(PrayerMeeting)
         .createQueryBuilder('m')
         .innerJoinAndSelect('m.dayConfig', 'dc')
+        .innerJoinAndSelect('m.program', 'p')
         .where('m.id = :id', { id: dto.meetingId })
         .setLock('pessimistic_write')
         .getOne();
       if (!meeting) throw new NotFoundException('Prayer meeting not found.');
+      if (meeting.program.id !== programId) {
+        throw new BadRequestException('Meeting does not belong to this program.');
+      }
       if (meeting.selectionStatus !== PrayerWindowStatus.OPEN) {
         throw new BadRequestException(
           'Selection window is not open for this meeting.',
@@ -182,12 +215,14 @@ export class PrayerMeetingService {
         );
       }
 
-      const requiredFrequency =
-        await this.getRequiredFrequency(workerProfileId);
+      const requiredFrequency = await this.getRequiredFrequency(
+        programId,
+        workerProfileId,
+      );
       const existingCount = await manager.count(PrayerRosterEntry, {
         where: {
           workerProfile: { id: workerProfileId },
-          meeting: { month: meeting.month, year: meeting.year },
+          meeting: { month: meeting.month, year: meeting.year, program: { id: programId } as any },
           status: PrayerRosterStatus.SCHEDULED,
         },
       });
@@ -228,13 +263,14 @@ export class PrayerMeetingService {
 
   async getMyRoster(
     workerProfileId: string,
+    programId: string,
     month: number,
     year: number,
   ): Promise<PrayerRosterEntry[]> {
     return this.rosterRepo.find({
       where: {
         workerProfile: { id: workerProfileId },
-        meeting: { month, year },
+        meeting: { month, year, program: { id: programId } as any },
         status: PrayerRosterStatus.SCHEDULED,
       },
       relations: ['meeting', 'meeting.dayConfig'],
@@ -243,23 +279,28 @@ export class PrayerMeetingService {
   }
 
   async getMonthlyRoster(
+    programId: string,
     month: number,
     year: number,
   ): Promise<PrayerMeeting[]> {
     return this.meetingRepo
       .createQueryBuilder('m')
       .leftJoinAndSelect('m.dayConfig', 'dc')
+      .leftJoinAndSelect('m.program', 'p')
       .leftJoinAndSelect('m.rosterEntries', 're', 're.status = :status', {
         status: PrayerRosterStatus.SCHEDULED,
       })
       .leftJoinAndSelect('re.workerProfile', 'wp')
-      .leftJoinAndSelect('wp.member', 'mem')
+      .leftJoinAndSelect('wp.member', 'wpmem')
+      .leftJoinAndSelect('re.member', 'mem')
       .where('m.month = :month AND m.year = :year', { month, year })
+      .andWhere('m.program_id = :programId', { programId })
       .orderBy('m.date', 'ASC')
       .getMany();
   }
 
   async getSelectionStatus(
+    programId: string,
     workerProfileId: string,
     month: number,
     year: number,
@@ -269,11 +310,11 @@ export class PrayerMeetingService {
     canSubmit: boolean;
     entries: PrayerRosterEntry[];
   }> {
-    const required = await this.getRequiredFrequency(workerProfileId);
+    const required = await this.getRequiredFrequency(programId, workerProfileId);
     const entries = await this.rosterRepo.find({
       where: {
         workerProfile: { id: workerProfileId },
-        meeting: { month, year },
+        meeting: { month, year, program: { id: programId } as any },
         status: PrayerRosterStatus.SCHEDULED,
       },
       relations: ['meeting', 'meeting.dayConfig'],
@@ -283,10 +324,14 @@ export class PrayerMeetingService {
   }
 
   private async applyFixedAssignments(
+    programId: string,
     meetings: PrayerMeeting[],
   ): Promise<void> {
+    const dayConfigIds = [...new Set(meetings.map((m) => m.dayConfig.id))];
+    if (!dayConfigIds.length) return;
+
     const fixedAssignments = await this.fixedRepo.find({
-      where: { isActive: true },
+      where: { isActive: true, dayConfig: { program: { id: programId } } },
       relations: ['workerProfile', 'dayConfig'],
     });
     if (!fixedAssignments.length) return;
@@ -315,9 +360,16 @@ export class PrayerMeetingService {
     }
   }
 
-  private async getRequiredFrequency(workerProfileId: string): Promise<number> {
+  private async getRequiredFrequency(
+    programId: string,
+    workerProfileId: string,
+  ): Promise<number> {
     const rules = await this.ruleRepo.find({
-      where: { type: PrayerRuleType.ROLE_FREQUENCY, isActive: true },
+      where: {
+        type: PrayerRuleType.ROLE_FREQUENCY,
+        isActive: true,
+        program: { id: programId },
+      },
     });
     const lead = await this.deptLeadRepo.findOne({
       where: { workerProfile: { id: workerProfileId } },

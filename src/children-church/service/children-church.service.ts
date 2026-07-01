@@ -34,8 +34,10 @@ import { WorkerProfile } from '../../member/entity/worker-profile.entity';
 import { MemberAuth } from '../../auth/interface/auth.interface';
 import { DepartmentKeyEnum } from '../../department/enums/department-key.enum';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 import { randomBytes } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
 
 const PICKUP_CODE_CHARSET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const PICKUP_CODE_LENGTH = 6;
@@ -43,6 +45,7 @@ const PICKUP_CODE_LENGTH = 6;
 @Injectable()
 export class ChildrenChurchService {
   private readonly logger = new Logger(ChildrenChurchService.name);
+  private readonly productName: string;
 
   constructor(
     @InjectRepository(ChildAgeGroup)
@@ -58,7 +61,10 @@ export class ChildrenChurchService {
     @InjectRepository(WorkerProfile)
     private readonly workerProfileRepo: Repository<WorkerProfile>,
     private readonly utilityService: UtilityService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.productName = this.configService.get<string>('PRODUCT_NAME');
+  }
 
   // ─── Age Groups ───────────────────────────────────────────────────────────
 
@@ -583,8 +589,13 @@ export class ChildrenChurchService {
     });
   }
 
-  async getCheckInsBySlot(slotId: string): Promise<ChildCheckIn[]> {
-    return this.checkInRepo.find({
+  async getCheckInsBySlot(
+    slotId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<PaginationResponseDto<ChildCheckIn>> {
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
+    const [checkIns, total] = await this.checkInRepo.findAndCount({
       where: { serviceSlot: { id: slotId } },
       relations: [
         'child',
@@ -595,7 +606,10 @@ export class ChildrenChurchService {
         'checkedInBy',
       ],
       order: { checkinTime: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+    return UtilityService.createPaginationResponse(checkIns, page, limit, total);
   }
 
   async getChildCheckInHistory(
@@ -623,6 +637,55 @@ export class ChildrenChurchService {
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
     };
+  }
+
+  async getActiveCheckInsAdmin(classGroupId?: string): Promise<ChildCheckIn[]> {
+    const where: any = { status: ChildCheckInStatusEnum.CHECKED_IN };
+    if (classGroupId) {
+      where.child = { classGroup: { id: classGroupId } };
+    }
+    return this.checkInRepo.find({
+      where,
+      relations: [
+        'child',
+        'child.classGroup',
+        'child.ageGroup',
+        'droppedOffBy',
+        'serviceSlot',
+        'checkedInBy',
+      ],
+      order: { checkinTime: 'ASC' },
+    });
+  }
+
+  async getCheckInHistoryAdmin(
+    page = 1,
+    limit = 20,
+    classGroupId?: string,
+    status?: ChildCheckInStatusEnum,
+    slotId?: string,
+  ): Promise<PaginationResponseDto<ChildCheckIn>> {
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
+    const where: any = {};
+    if (status) where.status = status;
+    if (classGroupId) where.child = { classGroup: { id: classGroupId } };
+    if (slotId) where.serviceSlot = { id: slotId };
+    const [data, totalCount] = await this.checkInRepo.findAndCount({
+      where,
+      relations: [
+        'child',
+        'child.classGroup',
+        'child.ageGroup',
+        'droppedOffBy',
+        'pickedUpBy',
+        'checkedInBy',
+        'serviceSlot',
+      ],
+      order: { checkinTime: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return UtilityService.createPaginationResponse(data, page, limit, totalCount);
   }
 
   // ─── Authorization Helpers ────────────────────────────────────────────────
@@ -731,7 +794,7 @@ export class ChildrenChurchService {
       if (!email) continue;
       this.utilityService.sendEmailWithTemplate(
         email,
-        `Discovery Hub Pickup Confirmation: ${childName}`,
+        `${this.productName} Pickup Confirmation: ${childName}`,
         'child-pickup',
         {
           guardianName: guardian.fullName,
@@ -740,6 +803,8 @@ export class ChildrenChurchService {
           checkoutTime: checkoutTimeStr,
           classGroup: classGroupName,
         },
+        undefined,
+        EmailCategory.CHILDREN_CHURCH,
       );
     }
   }

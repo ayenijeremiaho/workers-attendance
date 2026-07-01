@@ -31,6 +31,9 @@ export class EmailLog {
   @Column({ nullable: true, type: 'text' })
   errorMessage: string;
 
+  @Column({ nullable: true })
+  provider: string;
+
   @Column({ type: 'int', default: 0 })
   attemptsMade: number;
 

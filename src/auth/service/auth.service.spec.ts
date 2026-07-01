@@ -12,6 +12,7 @@ import { AuditLogService } from '../../utility/service/audit-log.service';
 import { CacheService } from '../../utility/service/cache.service';
 import { PasswordResetOtp } from '../entity/password-reset-otp.entity';
 import { DeviceResetOtp } from '../entity/device-reset-otp.entity';
+import { DepartmentLead } from '../../department/entity/department-lead.entity';
 import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 import { MemberStatusEnum } from '../../member/enums/member-status.enum';
 import refreshJwtConfig from '../../config/refresh.jwt.config';
@@ -54,6 +55,8 @@ const mockDeviceResetOtpRepository = {
   create: jest.fn(),
   delete: jest.fn(),
 };
+
+const mockDepartmentLeadRepo = { exists: jest.fn().mockResolvedValue(false) };
 
 const mockAdminService = {
   findByMemberId: jest.fn(),
@@ -119,6 +122,10 @@ describe('AuthService', () => {
         {
           provide: getRepositoryToken(DeviceResetOtp),
           useValue: mockDeviceResetOtpRepository,
+        },
+        {
+          provide: getRepositoryToken(DepartmentLead),
+          useValue: mockDepartmentLeadRepo,
         },
       ],
     }).compile();

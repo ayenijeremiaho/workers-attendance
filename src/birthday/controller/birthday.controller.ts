@@ -30,8 +30,8 @@ export class BirthdayController {
   @UseGuards(AdminGuard)
   @RequiresPermission(AdminPermission.MEMBERS_READ)
   @Get('upcoming')
-  getUpcomingBirthdays() {
-    return this.birthdayService.getUpcomingBirthdays();
+  getUpcomingBirthdays(@Query('days') days?: string) {
+    return this.birthdayService.getUpcomingBirthdays(days ? Number(days) : 7);
   }
 
   @Post('wishes/:recipientId')

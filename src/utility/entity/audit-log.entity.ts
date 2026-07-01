@@ -40,6 +40,9 @@ export class AuditLog {
   @Column({ nullable: true })
   targetEmail: string | null;
 
+  @Column({ nullable: true })
+  targetName: string | null;
+
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, unknown> | null;
 

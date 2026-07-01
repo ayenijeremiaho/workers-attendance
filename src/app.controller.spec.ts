@@ -19,6 +19,7 @@ const mockConfigService = {
 
 describe('AppController', () => {
   let appController: AppController;
+  let appService: AppService;
 
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
@@ -32,12 +33,13 @@ describe('AppController', () => {
     }).compile();
 
     appController = app.get<AppController>(AppController);
+    appService = app.get<AppService>(AppService);
   });
 
   describe('root', () => {
-    it('should render the welcome page as HTML', () => {
+    it('should serve the homepage as HTML', () => {
       const mockRes = { setHeader: jest.fn(), end: jest.fn() };
-      appController.getHello(mockRes as any);
+      appController.getHomepage(mockRes as any);
       expect(mockRes.setHeader).toHaveBeenCalledWith(
         'Content-Type',
         'text/html; charset=utf-8',
@@ -45,6 +47,28 @@ describe('AppController', () => {
       expect(mockRes.end).toHaveBeenCalledWith(
         expect.stringContaining('Discovery Hub'),
       );
+    });
+
+    it('homepage contains rendered markdown content', () => {
+      const html = appService.getHomepage();
+      expect(html).toContain('<h');
+      expect(html).toContain('TECH_DOC.md');
+    });
+  });
+
+  describe('docs redirect', () => {
+    it('should redirect /docs to /', () => {
+      const mockRes = { redirect: jest.fn() };
+      appController.redirectDocs(mockRes as any);
+      expect(mockRes.redirect).toHaveBeenCalledWith(301, '/');
+    });
+  });
+
+  describe('health', () => {
+    it('returns ok when db and redis are healthy', async () => {
+      const result = await appController.health();
+      expect(result.status).toBe('ok');
+      expect(typeof result.uptime).toBe('number');
     });
   });
 });

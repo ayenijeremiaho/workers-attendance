@@ -19,6 +19,7 @@ import { Member } from '../../member/entity/member.entity';
 import { DepartmentLead } from '../../department/entity/department-lead.entity';
 import { AuditLogService } from '../../utility/service/audit-log.service';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 
 @Injectable()
@@ -252,6 +253,8 @@ export class AssetCheckoutService {
             recipientName: `${member.firstname} ${member.lastname}`,
             recipientLabel: `${member.firstname} ${member.lastname}`,
           },
+          undefined,
+          EmailCategory.ASSET_ALERTS,
         );
       }
     }
@@ -279,6 +282,8 @@ export class AssetCheckoutService {
               recipientName: name,
               recipientLabel: departmentName,
             },
+            undefined,
+            EmailCategory.ASSET_ALERTS,
           );
         }
       }
@@ -321,6 +326,8 @@ export class AssetCheckoutService {
             recipientName: `${member.firstname} ${member.lastname}`,
             recipientLabel: `${member.firstname} ${member.lastname}`,
           },
+          undefined,
+          EmailCategory.ASSET_ALERTS,
         );
       }
     }
@@ -348,6 +355,8 @@ export class AssetCheckoutService {
               recipientName: name,
               recipientLabel: departmentName,
             },
+            undefined,
+            EmailCategory.ASSET_ALERTS,
           );
         }
       }

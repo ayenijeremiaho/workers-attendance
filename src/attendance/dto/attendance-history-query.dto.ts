@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Min,
 } from 'class-validator';
@@ -43,4 +44,8 @@ export class AdminAttendanceHistoryQueryDto extends AttendanceHistoryQueryDto {
   @IsOptional()
   @IsUUID()
   slotId?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

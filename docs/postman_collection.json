@@ -473,7 +473,7 @@
                 "me"
               ]
             },
-            "description": "Returns the authenticated user's profile including workerProfile and department if applicable."
+            "description": "Returns own member profile including isHod: boolean (true if the member is a Head of Department). Clients should call this once on load to determine HOD status."
           },
           "response": [
             {
@@ -1921,7 +1921,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/attendances/history?page=1&limit=10&memberId=&slotId=&status=ABSENT&dateFrom=2025-01-01&dateTo=2025-12-31",
+              "raw": "{{baseUrl}}/attendances/history?page=1&limit=10&memberId=&slotId=&status=ABSENT&dateFrom=2025-01-01&dateTo=2025-12-31&search=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1960,6 +1960,12 @@
                 {
                   "key": "dateTo",
                   "value": "2025-12-31"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "ILIKE search on member firstname, lastname, or email (optional)",
+                  "disabled": true
                 }
               ]
             }
@@ -2220,6 +2226,50 @@
               "body": "{ \"statusCode\": 404, \"message\": \"No attendance record found for this event\" }"
             }
           ]
+        },
+        {
+          "name": "Get At-Risk Members",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/attendances/at-risk?minAbsences=3&from=2026-01-01&to=2026-06-30&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendances",
+                "at-risk"
+              ],
+              "query": [
+                {
+                  "key": "minAbsences",
+                  "value": "3"
+                },
+                {
+                  "key": "from",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-06-30"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -3519,7 +3569,7 @@
             "method": "GET",
             "description": "WORKER only. Returns all leave requests submitted by the authenticated worker. Optionally filter by status: PENDING | APPROVED | REJECTED.",
             "url": {
-              "raw": "{{baseUrl}}/leave/my-history?status=PENDING",
+              "raw": "{{baseUrl}}/leave/my-history?page=1&limit=10&status=PENDING",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -3528,6 +3578,16 @@
                 "my-history"
               ],
               "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false
+                },
                 {
                   "key": "status",
                   "value": "PENDING",
@@ -3602,7 +3662,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/leave/department?status=PENDING",
+              "raw": "{{baseUrl}}/leave/department?page=1&limit=10&status=PENDING",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -3611,6 +3671,16 @@
                 "department"
               ],
               "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false
+                },
                 {
                   "key": "status",
                   "value": "PENDING",
@@ -7456,11 +7526,93 @@
           ]
         },
         {
+          "name": "Admin \u2014 Get Active Check-Ins",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/children-church/admin/checkin/active?classGroupId={{classGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "admin",
+                "checkin",
+                "active"
+              ],
+              "query": [
+                {
+                  "key": "classGroupId",
+                  "value": "{{classGroupId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin \u2014 Get Check-In History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/children-church/admin/checkin/history?page=1&limit=20&classGroupId={{classGroupId}}&status=&slotId=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "admin",
+                "checkin",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "classGroupId",
+                  "value": "{{classGroupId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "slotId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "Get Check-Ins by Service Slot",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/children-church/checkin/slot/{{slotId}}",
+              "raw": "{{baseUrl}}/children-church/checkin/slot/{{slotId}}?page=1&limit=20",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -7474,6 +7626,18 @@
                 {
                   "key": "slotId",
                   "value": "{{slotId}}"
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
                 }
               ]
             },
@@ -7669,13 +7833,21 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/birthday/upcoming",
+              "raw": "{{baseUrl}}/birthday/upcoming?days=30",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "birthday",
                 "upcoming"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30",
+                  "description": "Lookahead window in days (default: 7). Options: 7, 30, 90, 180, 365",
+                  "disabled": true
+                }
               ]
             }
           }
@@ -10368,6 +10540,40 @@
               "body": "{ \"statusCode\": 404, \"message\": \"Task not found or not assigned to you\" }"
             }
           ]
+        },
+        {
+          "name": "Add Note to Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/follow-up/tasks/:id/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "follow-up",
+                "tasks",
+                ":id",
+                "notes"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{taskId}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Spoke via WhatsApp, they will visit Sunday.\",\n  \"contactMethod\": \"WHATSAPP\"\n}"
+            }
+          }
         }
       ]
     },
@@ -10422,7 +10628,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/follow-up/first-timers?page=1&limit=20",
+              "raw": "{{baseUrl}}/admin/follow-up/first-timers?page=1&limit=20&eventId={{eventId}}&source=WALK_IN&wantsToJoinChurch=true&wantsToJoinWorkforce=true&search=&dateFrom=&dateTo=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -10463,6 +10669,18 @@
                 {
                   "key": "search",
                   "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "",
+                  "description": "Filter first-timers registered on or after this date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "",
+                  "description": "Filter first-timers registered on or before this date (YYYY-MM-DD)",
                   "disabled": true
                 }
               ]
@@ -10651,6 +10869,77 @@
           "response": []
         },
         {
+          "name": "Mark First-Timer Converted",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": \"{{memberId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/first-timers/{{firstTimerId}}/mark-converted",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "first-timers",
+                "{{firstTimerId}}",
+                "mark-converted"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin Update Task",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"outcomeNotes\": \"\",\n  \"dueDate\": \"2026-07-01\",\n  \"noteContent\": \"Called and spoke briefly\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "tasks",
+                "{{taskId}}"
+              ]
+            }
+          }
+        },
+        {
           "name": "Follow-Up Report (Admin)",
           "request": {
             "method": "GET",
@@ -10688,6 +10977,105 @@
               "body": "{\n  \"period\": {\n    \"from\": \"2026-01-01T00:00:00.000Z\",\n    \"to\": \"2026-06-30T00:00:00.000Z\"\n  },\n  \"firstTimers\": {\n    \"total\": 47,\n    \"bySource\": {\n      \"WALK_IN\": 38,\n      \"ONLINE\": 6,\n      \"REFERRAL\": 3\n    },\n    \"wantsToJoinChurch\": 29,\n    \"wantsToJoinWorkforce\": 14\n  },\n  \"tasks\": {\n    \"total\": 47,\n    \"byStatus\": {\n      \"PENDING\": 5,\n      \"IN_PROGRESS\": 8,\n      \"COMPLETED\": 30,\n      \"UNREACHABLE\": 4\n    },\n    \"byOutcome\": {\n      \"JOINED\": 18,\n      \"DECLINED\": 7,\n      \"NO_ANSWER\": 4,\n      \"PRAYED_WITH\": 1\n    },\n    \"overdue\": 3,\n    \"conversionRate\": \"38.3%\"\n  },\n  \"byWorker\": [\n    {\n      \"workerName\": \"Ada Obi\",\n      \"assigned\": 12,\n      \"completed\": 10,\n      \"joined\": 5\n    }\n  ],\n  \"byEvent\": [\n    {\n      \"eventName\": \"Sunday 1st June\",\n      \"firstTimers\": 8\n    }\n  ]\n}"
             }
           ]
+        },
+        {
+          "name": "Log Return Visit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/first-timers/:id/visits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "first-timers",
+                ":id",
+                "visits"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{firstTimerId}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"notes\": \"Came back on their own\",\n  \"visitedAt\": \"2026-06-30\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get First-Timer Pipeline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/first-timers/pipeline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "first-timers",
+                "pipeline"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Stale Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/follow-up/tasks/stale?daysInactive=7&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "follow-up",
+                "tasks",
+                "stale"
+              ],
+              "query": [
+                {
+                  "key": "daysInactive",
+                  "value": "7"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -12567,13 +12955,35 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Broken window\",\n  \"description\": \"Window in hall B is shattered\",\n  \"location\": \"Hall B\",\n  \"isAnonymous\": false,\n  \"images\": []\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Broken equipment in hall B",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "The projector in hall B is not working and poses a safety risk.",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "Hall B",
+                  "type": "text"
+                },
+                {
+                  "key": "isAnonymous",
+                  "value": "false",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "src": [],
+                  "type": "file",
+                  "description": "Up to 5 image files (max 5 MB each)"
                 }
-              }
+              ]
             },
             "description": "Rate-limited to INCIDENT_DAILY_REPORT_LIMIT (default 2) per member per 24 hours. Requires module to be enabled."
           },
@@ -12661,7 +13071,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/v1/admin/incidents?page=1&limit=20",
+              "raw": "{{baseUrl}}/v1/admin/incidents?page=1&limit=20&status=&dateFrom=&dateTo=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -12678,6 +13088,24 @@
                 {
                   "key": "limit",
                   "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter by status: OPEN, IN_PROGRESS, RESOLVED (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "",
+                  "description": "Filter from date (YYYY-MM-DD, inclusive)",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "",
+                  "description": "Filter to date (YYYY-MM-DD, inclusive)",
+                  "disabled": true
                 }
               ]
             },
@@ -15460,6 +15888,147 @@
       "name": "Prayer (Admin)",
       "item": [
         {
+          "name": "List Programs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/programs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "programs"
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Create Program",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/programs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "programs"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Morning Intercessory Prayer\",\n  \"description\": \"Weekly worker intercessory session\",\n  \"audience\": \"WORKERS\",\n  \"selectionWindowDays\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Program",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/programs/{{programId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "programs",
+                "{{programId}}"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Morning Intercessory Prayer\",\n  \"audience\": \"WORKERS\",\n  \"selectionWindowDays\": 7,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Deactivate Program",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/programs/{{programId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "programs",
+                "{{programId}}"
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Clone Program",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/programs/{{programId}}/clone",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "programs",
+                "{{programId}}",
+                "clone"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Morning Intercessory Prayer (Copy)\",\n  \"audience\": \"WORKERS\",\n  \"selectionWindowDays\": 7,\n  \"includeFixedAssignments\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "Get Schedule Config",
           "request": {
             "method": "GET",
@@ -15510,7 +16079,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/day-configs",
+              "raw": "{{baseUrl}}/prayer/admin/day-configs?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15518,6 +16087,13 @@
                 "prayer",
                 "admin",
                 "day-configs"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15537,7 +16113,7 @@
               "raw": "{\"dayOfWeek\": 3, \"mode\": \"PHYSICAL\", \"startTime\": \"06:00\", \"endTime\": \"07:00\", \"maxCapacity\": 10}"
             },
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/day-configs",
+              "raw": "{{baseUrl}}/prayer/admin/day-configs?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15545,6 +16121,13 @@
                 "prayer",
                 "admin",
                 "day-configs"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15589,7 +16172,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/rules",
+              "raw": "{{baseUrl}}/prayer/admin/rules?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15597,6 +16180,13 @@
                 "prayer",
                 "admin",
                 "rules"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15616,7 +16206,7 @@
               "raw": "{\"type\": \"ROLE_FREQUENCY\", \"targetLeadType\": null, \"value\": 1, \"description\": \"Default worker frequency\", \"isActive\": true}"
             },
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/rules",
+              "raw": "{{baseUrl}}/prayer/admin/rules?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15624,6 +16214,13 @@
                 "prayer",
                 "admin",
                 "rules"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15668,7 +16265,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/fixed-assignments",
+              "raw": "{{baseUrl}}/prayer/admin/fixed-assignments?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15676,6 +16273,13 @@
                 "prayer",
                 "admin",
                 "fixed-assignments"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15695,7 +16299,7 @@
               "raw": "{\"workerProfileId\": \"{{workerProfileId}}\", \"dayConfigId\": \"{{dayConfigId}}\"}"
             },
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/fixed-assignments",
+              "raw": "{{baseUrl}}/prayer/admin/fixed-assignments?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15703,6 +16307,13 @@
                 "prayer",
                 "admin",
                 "fixed-assignments"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15747,7 +16358,7 @@
               "raw": "{\"month\": 7, \"year\": 2026}"
             },
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/meetings/generate",
+              "raw": "{{baseUrl}}/prayer/admin/meetings/generate?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15756,6 +16367,13 @@
                 "admin",
                 "meetings",
                 "generate"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15775,7 +16393,7 @@
               "raw": "{\"month\": 7, \"year\": 2026}"
             },
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/meetings/open-selection",
+              "raw": "{{baseUrl}}/prayer/admin/meetings/open-selection?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15784,6 +16402,13 @@
                 "admin",
                 "meetings",
                 "open-selection"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15803,7 +16428,7 @@
               "raw": "{\"month\": 7, \"year\": 2026}"
             },
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/meetings/close-selection",
+              "raw": "{{baseUrl}}/prayer/admin/meetings/close-selection?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15812,6 +16437,13 @@
                 "admin",
                 "meetings",
                 "close-selection"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -15822,7 +16454,7 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/roster/auto-assign?month=7&year=2026",
+              "raw": "{{baseUrl}}/prayer/admin/roster/auto-assign?month=7&year=2026&programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15840,6 +16472,11 @@
                 {
                   "key": "year",
                   "value": "2026"
+                },
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
                 }
               ]
             }
@@ -15851,7 +16488,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/roster/validate?month=7&year=2026",
+              "raw": "{{baseUrl}}/prayer/admin/roster/validate?month=7&year=2026&programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15869,6 +16506,11 @@
                 {
                   "key": "year",
                   "value": "2026"
+                },
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
                 }
               ]
             }
@@ -15880,7 +16522,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/roster/:month/:year",
+              "raw": "{{baseUrl}}/prayer/admin/roster/:month/:year?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15899,6 +16541,13 @@
                 {
                   "key": "year",
                   "value": "2026"
+                }
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
                 }
               ]
             }
@@ -15919,7 +16568,7 @@
               "raw": "{\"newMeetingId\": \"{{meetingId}}\"}"
             },
             "url": {
-              "raw": "{{baseUrl}}/prayer/admin/roster/entries/{{rosterEntryId}}/reschedule",
+              "raw": "{{baseUrl}}/prayer/admin/roster/entries/{{rosterEntryId}}/reschedule?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15936,7 +16585,75 @@
                   "key": "id",
                   "value": ""
                 }
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
+            }
+          }
+        },
+        {
+          "name": "Manual Assign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/roster/manual-assign?programId={{programId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "roster",
+                "manual-assign"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meetingId\": \"{{meetingId}}\",\n  \"workerProfileId\": \"{{workerProfileId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Remove Roster Entry",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/admin/roster/entries/{{entryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "admin",
+                "roster",
+                "entries",
+                "{{entryId}}"
+              ],
+              "query": []
             }
           }
         }
@@ -15951,7 +16668,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/available?month=7&year=2026",
+              "raw": "{{baseUrl}}/prayer/available?month=7&year=2026&programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15967,6 +16684,11 @@
                 {
                   "key": "year",
                   "value": "2026"
+                },
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
                 }
               ]
             }
@@ -15978,7 +16700,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/my-roster?month=7&year=2026",
+              "raw": "{{baseUrl}}/prayer/my-roster?month=7&year=2026&programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -15994,6 +16716,11 @@
                 {
                   "key": "year",
                   "value": "2026"
+                },
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
                 }
               ]
             }
@@ -16005,7 +16732,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/prayer/my-status?month=7&year=2026",
+              "raw": "{{baseUrl}}/prayer/my-status?month=7&year=2026&programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -16021,6 +16748,11 @@
                 {
                   "key": "year",
                   "value": "2026"
+                },
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
                 }
               ]
             }
@@ -16041,13 +16773,20 @@
               "raw": "{\"meetingId\": \"{{meetingId}}\"}"
             },
             "url": {
-              "raw": "{{baseUrl}}/prayer/select",
+              "raw": "{{baseUrl}}/prayer/select?programId={{programId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "prayer",
                 "select"
+              ],
+              "query": [
+                {
+                  "key": "programId",
+                  "value": "{{programId}}",
+                  "disabled": false
+                }
               ]
             }
           }

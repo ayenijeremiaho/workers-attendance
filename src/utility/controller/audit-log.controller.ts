@@ -23,6 +23,7 @@ export class AuditLogController {
       action,
       actorId,
       targetId,
+      targetEmail,
       dateFrom,
       dateTo,
     } = query;
@@ -30,6 +31,7 @@ export class AuditLogController {
       action,
       actorId,
       targetId,
+      targetEmail,
       dateFrom: dateFrom ? new Date(dateFrom) : undefined,
       dateTo: dateTo ? new Date(dateTo) : undefined,
     });

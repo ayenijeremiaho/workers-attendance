@@ -221,7 +221,7 @@ export class RentalBookingService {
       .andWhere('b.status NOT IN (:...excluded)', {
         excluded: [RentalBookingStatus.CANCELLED, RentalBookingStatus.REJECTED],
       })
-      .andWhere('b.start_date_time < :end AND b.end_date_time > :start', {
+      .andWhere('b.startDateTime < :end AND b.endDateTime > :start', {
         start,
         end,
       })
@@ -230,7 +230,7 @@ export class RentalBookingService {
     const adminBlocks = await this.blockRepo
       .createQueryBuilder('bl')
       .where('bl.facility_id = :fid', { fid: facilityId })
-      .andWhere('bl.start_date_time < :end AND bl.end_date_time > :start', {
+      .andWhere('bl.startDateTime < :end AND bl.endDateTime > :start', {
         start,
         end,
       })
@@ -326,7 +326,7 @@ export class RentalBookingService {
       .andWhere('b.status NOT IN (:...excluded)', {
         excluded: [RentalBookingStatus.CANCELLED, RentalBookingStatus.REJECTED],
       })
-      .andWhere('b.start_date_time < :end AND b.end_date_time > :start', {
+      .andWhere('b.startDateTime < :end AND b.endDateTime > :start', {
         start,
         end,
       });
@@ -345,7 +345,7 @@ export class RentalBookingService {
     const block = await this.blockRepo
       .createQueryBuilder('bl')
       .where('bl.facility_id = :fid', { fid: facilityId })
-      .andWhere('bl.start_date_time < :end AND bl.end_date_time > :start', {
+      .andWhere('bl.startDateTime < :end AND bl.endDateTime > :start', {
         start,
         end,
       })

@@ -253,6 +253,59 @@ describe('MemberService', () => {
     });
   });
 
+  describe('bulkPromoteToWorker', () => {
+    it('should count promoted and skipped correctly', async () => {
+      const promoted = { id: 'm1', role: MemberRoleEnum.WORKER } as any;
+      jest
+        .spyOn(service, 'promoteToWorker')
+        .mockResolvedValueOnce(promoted)
+        .mockRejectedValueOnce(new NotFoundException('Member not found'))
+        .mockResolvedValueOnce({ ...promoted, id: 'm3' });
+
+      const result = await service.bulkPromoteToWorker(
+        { memberIds: ['m1', 'm2', 'm3'], departmentId: 'dept-1' } as any,
+        'actor-1',
+      );
+
+      expect(result.promoted).toBe(2);
+      expect(result.skipped).toBe(1);
+      expect(result.failures).toHaveLength(1);
+      expect(result.failures[0].memberId).toBe('m2');
+      expect(result.failures[0].reason).toBe('Member not found');
+    });
+
+    it('should include reason in failures when promoteToWorker throws', async () => {
+      jest
+        .spyOn(service, 'promoteToWorker')
+        .mockRejectedValueOnce(new BadRequestException('Already a worker'));
+
+      const result = await service.bulkPromoteToWorker(
+        { memberIds: ['bad-id'], departmentId: 'dept-1' } as any,
+        'actor-1',
+      );
+
+      expect(result.skipped).toBe(1);
+      expect(result.failures[0]).toMatchObject({
+        memberId: 'bad-id',
+        reason: 'Already a worker',
+      });
+    });
+
+    it('should return empty failures array on full success', async () => {
+      const promoted = { id: 'm1', role: MemberRoleEnum.WORKER } as any;
+      jest.spyOn(service, 'promoteToWorker').mockResolvedValue(promoted);
+
+      const result = await service.bulkPromoteToWorker(
+        { memberIds: ['m1'], departmentId: 'dept-1' } as any,
+        'actor-1',
+      );
+
+      expect(result.promoted).toBe(1);
+      expect(result.skipped).toBe(0);
+      expect(result.failures).toEqual([]);
+    });
+  });
+
   describe('revokeWorker', () => {
     it('should throw BadRequestException if member is not a worker', async () => {
       const member = {

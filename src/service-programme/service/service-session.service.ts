@@ -24,6 +24,7 @@ import { DepartmentKeyEnum } from '../../department/enums/department-key.enum';
 import { WorkerStatusEnum } from '../../member/enums/worker-status.enum';
 import { CacheService } from '../../utility/service/cache.service';
 import { EmailQueueService } from '../../utility/service/email-queue.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { PdfService } from '../../utility/service/pdf.service';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
 
@@ -209,7 +210,7 @@ export class ServiceSessionService {
       isPaused: false,
       pausedAt: null,
     };
-    await this.cacheService.set(
+    this.cacheService.set(
       this.anchorKey(sessionCode),
       anchor,
       SESSION_TTL_LIVE,
@@ -277,7 +278,7 @@ export class ServiceSessionService {
       isPaused: false,
       pausedAt: null,
     };
-    await this.cacheService.set(
+    this.cacheService.set(
       this.anchorKey(sessionCode),
       newAnchor,
       SESSION_TTL_LIVE,
@@ -334,7 +335,7 @@ export class ServiceSessionService {
       isPaused: false,
       pausedAt: null,
     };
-    await this.cacheService.set(
+    this.cacheService.set(
       this.anchorKey(sessionCode),
       newAnchor,
       SESSION_TTL_LIVE,
@@ -379,7 +380,7 @@ export class ServiceSessionService {
       isPaused: true,
       pausedAt: now,
     };
-    await this.cacheService.set(
+    this.cacheService.set(
       this.anchorKey(sessionCode),
       newAnchor,
       SESSION_TTL_LIVE,
@@ -422,7 +423,7 @@ export class ServiceSessionService {
       isPaused: false,
       pausedAt: null,
     };
-    await this.cacheService.set(
+    this.cacheService.set(
       this.anchorKey(sessionCode),
       newAnchor,
       SESSION_TTL_LIVE,
@@ -534,7 +535,7 @@ export class ServiceSessionService {
       ...anchor,
       status: ServiceSessionStatusEnum.COMPLETED,
     };
-    await this.cacheService.set(
+    this.cacheService.set(
       this.anchorKey(sessionCode),
       completedAnchor,
       SESSION_TTL_COMPLETED,
@@ -1237,6 +1238,8 @@ export class ServiceSessionService {
               content: pdfBuffer,
             },
           ],
+          undefined,
+          EmailCategory.SESSION_REPORT,
         );
       })
       .catch((err) =>

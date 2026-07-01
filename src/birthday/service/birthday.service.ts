@@ -15,6 +15,7 @@ import { Announcement } from '../../announcement/entity/announcement.entity';
 import { AnnouncementAudienceEnum } from '../../announcement/enum/announcement-audience.enum';
 import { ConfigService } from '@nestjs/config';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { SanitizationService } from '../../utility/service/sanitization.service';
 import { CacheService } from '../../utility/service/cache.service';
 import { MemberStatusEnum } from '../../member/enums/member-status.enum';
@@ -131,20 +132,20 @@ export class BirthdayService implements OnApplicationBootstrap {
       .getMany();
   }
 
-  async getUpcomingBirthdays(): Promise<
+  async getUpcomingBirthdays(days: number = 7): Promise<
     Pick<Member, 'id' | 'firstname' | 'lastname' | 'email' | 'phoneNumber' | 'birthMonth' | 'birthDay'>[]
   > {
     const today = new Date();
 
     const upcoming: { month: number; day: number }[] = [];
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= days; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       upcoming.push({ month: d.getMonth() + 1, day: d.getDate() });
     }
 
     const conditions = upcoming
-      .map((_, i) => `(m.birth_month = :month${i} AND m.birth_day = :day${i})`)
+      .map((_, i) => `(m.birthMonth = :month${i} AND m.birthDay = :day${i})`)
       .join(' OR ');
 
     const params: Record<string, number> = {};
@@ -262,6 +263,8 @@ export class BirthdayService implements OnApplicationBootstrap {
         name: member.firstname,
         full_name: `${member.firstname} ${member.lastname}`,
       },
+      undefined,
+      EmailCategory.BIRTHDAY,
     );
   }
 }

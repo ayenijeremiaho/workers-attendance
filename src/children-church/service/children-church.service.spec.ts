@@ -19,6 +19,7 @@ import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 import { DepartmentKeyEnum } from '../../department/enums/department-key.enum';
 import { UtilityService } from '../../utility/service/utility.service';
 import { SessionSurface } from '../../auth/enum/session-surface.enum';
+import { ConfigService } from '@nestjs/config';
 
 const mockAgeGroupRepo = {
   create: jest.fn(),
@@ -184,6 +185,7 @@ describe('ChildrenChurchService', () => {
           useValue: mockWorkerProfileRepo,
         },
         { provide: UtilityService, useValue: mockUtilityService },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('Test App') } },
       ],
     }).compile();
 
@@ -638,12 +640,16 @@ describe('ChildrenChurchService', () => {
         expect.stringContaining('Alice Smith'),
         'child-pickup',
         expect.objectContaining({ guardianName: 'Dad', pickedUpBy: 'Mum' }),
+        undefined,
+        'CHILDREN_CHURCH',
       );
       expect(mockUtilityService.sendEmailWithTemplate).toHaveBeenCalledWith(
         'grandma@church.org',
         expect.any(String),
         'child-pickup',
         expect.objectContaining({ guardianName: 'Grandma' }),
+        undefined,
+        'CHILDREN_CHURCH',
       );
     });
 

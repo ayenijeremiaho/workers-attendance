@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule } from '@nestjs/config';
 import { FirstTimer } from './entity/first-timer.entity';
+import { FirstTimerVisit } from './entity/first-timer-visit.entity';
 import { FollowUpTask } from './entity/follow-up-task.entity';
 import { FollowUpNote } from './entity/follow-up-note.entity';
 import { WorkerProfile } from '../member/entity/worker-profile.entity';
@@ -25,6 +26,7 @@ import { UtilityModule } from '../utility/utility.module';
     ConfigModule,
     TypeOrmModule.forFeature([
       FirstTimer,
+      FirstTimerVisit,
       FollowUpTask,
       FollowUpNote,
       WorkerProfile,

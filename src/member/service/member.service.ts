@@ -149,6 +149,7 @@ export class MemberService {
       actorId,
       targetId: member.id,
       targetEmail: member.email,
+      targetName: `${member.firstname} ${member.lastname}`,
       metadata: { departmentId: dto.departmentId },
     });
 
@@ -182,9 +183,14 @@ export class MemberService {
   async bulkPromoteToWorker(
     dto: BulkPromoteToWorkerDto,
     actorId: string,
-  ): Promise<{ promoted: number; skipped: number }> {
+  ): Promise<{
+    promoted: number;
+    skipped: number;
+    failures: { memberId: string; reason: string }[];
+  }> {
     let promoted = 0;
     let skipped = 0;
+    const failures: { memberId: string; reason: string }[] = [];
 
     for (const memberId of dto.memberIds) {
       try {
@@ -198,8 +204,13 @@ export class MemberService {
           actorId,
         );
         promoted++;
-      } catch {
+      } catch (err: any) {
         skipped++;
+        const reason = err?.message ?? 'Unknown error';
+        failures.push({ memberId, reason });
+        this.logger.warn(
+          `bulkPromoteToWorker: skipped member ${memberId} — ${reason}`,
+        );
       }
     }
 
@@ -208,7 +219,7 @@ export class MemberService {
       metadata: { promoted, skipped, departmentId: dto.departmentId },
     });
 
-    return { promoted, skipped };
+    return { promoted, skipped, failures };
   }
 
   async revokeWorker(memberId: string, actorId: string): Promise<void> {

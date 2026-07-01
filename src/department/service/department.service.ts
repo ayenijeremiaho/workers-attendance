@@ -79,6 +79,7 @@ export class DepartmentService {
     this.auditLogService.log('DEPARTMENT_CREATED', {
       actorId,
       targetId: dept.id,
+      targetName: dept.name,
       metadata: { name: dept.name },
     });
     return dept;
@@ -120,6 +121,7 @@ export class DepartmentService {
     this.auditLogService.log('DEPARTMENT_UPDATED', {
       actorId,
       targetId: id,
+      targetName: updated.name,
       metadata: { name: updated.name, changes: Object.keys(dto) },
     });
     return updated;
@@ -149,6 +151,7 @@ export class DepartmentService {
     this.auditLogService.log('DEPARTMENT_DELETED', {
       actorId,
       targetId: id,
+      targetName: name,
       metadata: { name },
     });
   }
@@ -199,6 +202,7 @@ export class DepartmentService {
     this.auditLogService.log('DEPARTMENT_LEAD_ASSIGNED', {
       actorId,
       targetId: departmentId,
+      targetName: department.name,
       metadata: { memberId, type },
     });
     return department;
@@ -226,6 +230,7 @@ export class DepartmentService {
     this.auditLogService.log('DEPARTMENT_LEAD_REMOVED', {
       actorId,
       targetId: departmentId,
+      targetName: department.name,
       metadata: { type },
     });
     return department;
@@ -440,6 +445,7 @@ export class DepartmentService {
     this.auditLogService.log('BULK_DEPARTMENT_ASSIGNED', {
       actorId,
       targetId: departmentId,
+      targetName: department.name,
       metadata: { updated, skipped, memberIds: dto.memberIds },
     });
 

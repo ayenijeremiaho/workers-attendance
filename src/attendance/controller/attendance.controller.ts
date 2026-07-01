@@ -81,6 +81,7 @@ export class AttendanceController {
       status,
       dateFrom,
       dateTo,
+      search,
     } = query;
     return this.attendanceService.getAllHistory(
       page,
@@ -90,6 +91,7 @@ export class AttendanceController {
       status,
       dateFrom,
       dateTo,
+      search,
     );
   }
 
@@ -130,6 +132,25 @@ export class AttendanceController {
     return this.attendanceService.getDepartmentEventAttendance(
       req.user,
       eventId,
+    );
+  }
+
+  @UseGuards(AdminGuard)
+  @RequiresPermission(AdminPermission.ATTENDANCE_READ)
+  @Get('at-risk')
+  async getAtRiskMembers(
+    @Query('minAbsences') minAbsences = 3,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.attendanceService.getAtRiskMembers(
+      +minAbsences,
+      from,
+      to,
+      +page,
+      +limit,
     );
   }
 

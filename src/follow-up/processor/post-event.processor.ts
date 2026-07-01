@@ -8,6 +8,7 @@ import { Event } from '../../event/entity/event.entity';
 import { Attendance } from '../../attendance/entity/attendance.entity';
 import { AttendanceStatusEnum } from '../../attendance/enums/check-in.enum';
 import { EmailQueueService } from '../../utility/service/email-queue.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { FollowUpService } from '../service/follow-up.service';
 
 export const FOLLOW_UP_QUEUE = 'follow-up';
@@ -62,29 +63,34 @@ export class PostEventProcessor {
       relations: ['member'],
     });
 
-    const presentMembers = attendances.filter(
-      (a) =>
-        a.status === AttendanceStatusEnum.PRESENT ||
-        a.status === AttendanceStatusEnum.LATE,
-    );
+    if (!event.thankYouSentAt) {
+      const presentMembers = attendances.filter(
+        (a) =>
+          a.status === AttendanceStatusEnum.PRESENT ||
+          a.status === AttendanceStatusEnum.LATE,
+      );
 
-    for (const record of presentMembers) {
-      if (!record.member?.email) continue;
-      this.emailQueueService.queueEmailWithTemplate(
-        record.member.email,
-        `Thank you for attending — ${event.name}`,
-        'thank-you-attendance',
-        {
-          name: record.member.firstname,
-          eventName: event.name,
-          churchName: this.churchName,
-        },
+      for (const record of presentMembers) {
+        if (!record.member?.email) continue;
+        this.emailQueueService.queueEmailWithTemplate(
+          record.member.email,
+          `Thank you for attending — ${event.name}`,
+          'thank-you-attendance',
+          {
+            name: record.member.firstname,
+            eventName: event.name,
+            churchName: this.churchName,
+          },
+          undefined,
+          EmailCategory.FOLLOW_UP,
+        );
+      }
+
+      await this.eventRepo.update(eventId, { thankYouSentAt: new Date() });
+      this.logger.log(
+        `Queued ${presentMembers.length} thank-you email(s) for event "${event.name}"`,
       );
     }
-
-    this.logger.log(
-      `Queued ${presentMembers.length} thank-you email(s) for event "${event.name}"`,
-    );
 
     if (!event.onlineAttendanceEnabled || event.onlineNotificationSentAt)
       return;
@@ -112,6 +118,8 @@ export class PostEventProcessor {
           eventId,
           windowHours: this.onlineWindowHours,
         },
+        undefined,
+        EmailCategory.FOLLOW_UP,
       );
     }
 

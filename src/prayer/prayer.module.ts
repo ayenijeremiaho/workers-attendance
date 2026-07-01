@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { PrayerProgram } from './entity/prayer-program.entity';
 import { PrayerScheduleConfig } from './entity/prayer-schedule-config.entity';
 import { PrayerDayConfig } from './entity/prayer-day-config.entity';
 import { PrayerScheduleRule } from './entity/prayer-schedule-rule.entity';
@@ -7,6 +8,7 @@ import { PrayerFixedAssignment } from './entity/prayer-fixed-assignment.entity';
 import { PrayerMeeting } from './entity/prayer-meeting.entity';
 import { PrayerRosterEntry } from './entity/prayer-roster-entry.entity';
 import { WorkerProfile } from '../member/entity/worker-profile.entity';
+import { Member } from '../member/entity/member.entity';
 import { DepartmentLead } from '../department/entity/department-lead.entity';
 import { PrayerConfigService } from './service/prayer-config.service';
 import { PrayerMeetingService } from './service/prayer-meeting.service';
@@ -20,6 +22,7 @@ import { AdminModule } from '../admin/admin.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      PrayerProgram,
       PrayerScheduleConfig,
       PrayerDayConfig,
       PrayerScheduleRule,
@@ -27,6 +30,7 @@ import { AdminModule } from '../admin/admin.module';
       PrayerMeeting,
       PrayerRosterEntry,
       WorkerProfile,
+      Member,
       DepartmentLead,
     ]),
     UtilityModule,

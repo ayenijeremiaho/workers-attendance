@@ -58,9 +58,11 @@ export class RequestLeaveController {
   @Get('my-history')
   async getMyHistory(
     @Request() req: any,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
     @Query('status') status?: LeaveStatusEnum,
   ) {
-    return this.requestLeaveService.getMyLeaveHistory(req.user, status);
+    return this.requestLeaveService.getMyLeaveHistory(req.user, +page, +limit, status);
   }
 
   @UseGuards(AdminGuard)
@@ -79,10 +81,14 @@ export class RequestLeaveController {
   @Get('department')
   async getDepartmentHistory(
     @Request() req: any,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
     @Query('status') status?: LeaveStatusEnum,
   ) {
     return this.requestLeaveService.getDepartmentLeaveRequests(
       req.user,
+      +page,
+      +limit,
       status,
     );
   }

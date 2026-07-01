@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { BaseEntity } from '../../utility/entity/base.entity';
 import { PrayerDayConfig } from './prayer-day-config.entity';
+import { PrayerProgram } from './prayer-program.entity';
 import { PrayerMeetingStatus, PrayerWindowStatus } from '../enum/prayer.enum';
 import { PrayerRosterEntry } from './prayer-roster-entry.entity';
 
@@ -16,6 +17,11 @@ import { PrayerRosterEntry } from './prayer-roster-entry.entity';
 export class PrayerMeeting extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Index()
+  @ManyToOne(() => PrayerProgram, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'program_id' })
+  program: PrayerProgram;
 
   @Index()
   @Column({ type: 'date' })

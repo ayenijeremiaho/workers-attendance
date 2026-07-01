@@ -12,6 +12,7 @@ import { RefreshJwtStrategy } from './strategy/refresh.jwt.strategy';
 import { LocalStrategy } from './strategy/local.strategy';
 import { PasswordResetOtp } from './entity/password-reset-otp.entity';
 import { DeviceResetOtp } from './entity/device-reset-otp.entity';
+import { DepartmentLead } from '../department/entity/department-lead.entity';
 import jwtConfig from '../config/jwt.config';
 import refreshJwtConfig from '../config/refresh.jwt.config';
 import { MemberModule } from '../member/member.module';
@@ -21,7 +22,7 @@ import { UtilityModule } from '../utility/utility.module';
   imports: [
     MemberModule,
     UtilityModule,
-    TypeOrmModule.forFeature([PasswordResetOtp, DeviceResetOtp]),
+    TypeOrmModule.forFeature([PasswordResetOtp, DeviceResetOtp, DepartmentLead]),
     JwtModule.registerAsync(jwtConfig.asProvider()),
     ConfigModule.forFeature(jwtConfig),
     ConfigModule.forFeature(refreshJwtConfig),

@@ -29,6 +29,7 @@ import { Event } from '../../event/entity/event.entity';
 import { EventService } from '../../event/service/event.service';
 import { DepartmentService } from '../../department/service/department.service';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { DateService } from '../../utility/service/date.service';
 import { CacheService } from '../../utility/service/cache.service';
 import { PaginationResponseDto } from '../../utility/dto/pagination-response.dto';
@@ -184,6 +185,8 @@ export class AttendanceService {
         churchName: this.churchName,
         churchAddress: this.churchAddress,
       },
+      undefined,
+      EmailCategory.ATTENDANCE_CHECKIN,
     );
 
     return { message: 'Check-in successful' };
@@ -295,6 +298,7 @@ export class AttendanceService {
     status?: AttendanceStatusEnum,
     dateFrom?: string,
     dateTo?: string,
+    search?: string,
   ): Promise<PaginationResponseDto<Attendance>> {
     if (page < 1) throw new BadRequestException('Page must be greater than 0');
 
@@ -320,6 +324,11 @@ export class AttendanceService {
       qb.andWhere('attendance.checkinTime <= :dateTo', {
         dateTo: new Date(dateTo),
       });
+    if (search)
+      qb.andWhere(
+        "(member.firstname ILIKE :search OR member.lastname ILIKE :search OR member.email ILIKE :search)",
+        { search: `%${search}%` },
+      );
 
     const [data, total] = await qb.getManyAndCount();
     return UtilityService.createPaginationResponse(data, page, limit, total);
@@ -703,6 +712,7 @@ export class AttendanceService {
       where: { member: { id: memberId }, roleAtCheckin: role },
       order: { createdAt: 'DESC' },
       select: ['status'],
+      take: 500,
     });
 
     let streak = 0;
@@ -1080,5 +1090,89 @@ export class AttendanceService {
 
   private enforceDistance(): boolean {
     return this.enforceDistanceCheck;
+  }
+
+  async getAtRiskMembers(
+    minAbsences = 3,
+    from?: string,
+    to?: string,
+    page = 1,
+    limit = 20,
+  ) {
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
+    const offset = (page - 1) * limit;
+
+    const params: (string | number)[] = [
+      AttendanceStatusEnum.ABSENT,
+      minAbsences,
+      limit,
+      offset,
+    ];
+    let dateFilter = '';
+    if (from && to) {
+      dateFilter = `AND a.created_at BETWEEN $5 AND $6`;
+      params.push(from, to);
+    }
+
+    const rows: {
+      id: string;
+      firstname: string;
+      lastname: string;
+      email: string;
+      phone_number: string;
+      absence_count: string;
+      last_seen_at: Date | null;
+      has_open_task: boolean;
+    }[] = await this.dataSource.query(
+      `SELECT
+         m.id,
+         m.firstname,
+         m.lastname,
+         m.email,
+         m.phone_number,
+         COUNT(a.id)::int AS absence_count,
+         (SELECT MAX(a2.checkin_time)
+          FROM attendances a2
+          WHERE a2.member_id = m.id
+            AND a2.status IN ('PRESENT','LATE','ATTENDED_ONLINE')) AS last_seen_at,
+         EXISTS(
+           SELECT 1 FROM follow_up_tasks ft
+           WHERE ft.member_id = m.id
+             AND ft.status IN ('PENDING','IN_PROGRESS')
+         ) AS has_open_task
+       FROM members m
+       JOIN attendances a ON a.member_id = m.id AND a.status = $1 ${dateFilter}
+       GROUP BY m.id, m.firstname, m.lastname, m.email, m.phone_number
+       HAVING COUNT(a.id) >= $2
+       ORDER BY COUNT(a.id) DESC
+       LIMIT $3 OFFSET $4`,
+      params,
+    );
+
+    const countRows: { total: string }[] = await this.dataSource.query(
+      `SELECT COUNT(*) AS total
+       FROM (
+         SELECT m.id
+         FROM members m
+         JOIN attendances a ON a.member_id = m.id AND a.status = $1 ${dateFilter}
+         GROUP BY m.id
+         HAVING COUNT(a.id) >= $2
+       ) sub`,
+      from && to ? [AttendanceStatusEnum.ABSENT, minAbsences, from, to] : [AttendanceStatusEnum.ABSENT, minAbsences],
+    );
+
+    const total = Number(countRows[0]?.total ?? 0);
+    const data = rows.map((r) => ({
+      id: r.id,
+      firstname: r.firstname,
+      lastname: r.lastname,
+      email: r.email,
+      phoneNumber: r.phone_number,
+      absenceCount: Number(r.absence_count),
+      lastSeenAt: r.last_seen_at ?? null,
+      hasOpenFollowUpTask: r.has_open_task,
+    }));
+
+    return UtilityService.createPaginationResponse(data, page, limit, total);
   }
 }

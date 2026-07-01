@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Param,
-  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Query,
@@ -15,7 +14,10 @@ import { AdminPermission } from '../../admin/enum/admin-permission.enum';
 import { CurrentAdmin } from '../../admin/decorator/current-admin.decorator';
 import { Admin } from '../../admin/entity/admin.entity';
 import { IncidentReportService } from '../service/incident-report.service';
-import { UpdateIncidentStatusDto } from '../dto/incident-report.dto';
+import {
+  IncidentReportQueryDto,
+  UpdateIncidentStatusDto,
+} from '../dto/incident-report.dto';
 
 @UseGuards(AdminGuard)
 @Controller('admin/incidents')
@@ -24,11 +26,13 @@ export class AdminIncidentReportController {
 
   @RequiresPermission(AdminPermission.INCIDENT_REPORT_READ)
   @Get()
-  async findAll(
-    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
-  ) {
-    const result = await this.incidentReportService.findAll(page, limit);
+  async findAll(@Query() query: IncidentReportQueryDto) {
+    const { page = 1, limit = 20, status, dateFrom, dateTo } = query;
+    const result = await this.incidentReportService.findAll(page, limit, {
+      status,
+      dateFrom,
+      dateTo,
+    });
     return {
       ...result,
       data: result.data.map((r) => this.incidentReportService.maskReporter(r)),

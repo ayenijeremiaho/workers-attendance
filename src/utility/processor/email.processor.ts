@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -9,9 +9,9 @@ import {
 } from '@nestjs/bull';
 import { Job } from 'bull';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import Mail from 'nodemailer/lib/mailer';
 import { EmailLog } from '../entity/email-log.entity';
+import { IEmailProvider } from '../email-provider/email-provider.interface';
+import { EMAIL_PROVIDER_TOKEN } from '../email-provider/email-provider.token';
 
 export interface EmailAttachment {
   filename: string;
@@ -31,37 +31,31 @@ export interface EmailJobData {
 @Processor('email')
 export class EmailProcessor {
   private readonly logger = new Logger(EmailProcessor.name);
-  private readonly mailTransport: nodemailer.Transporter;
+  private readonly fromAddress: string;
 
   constructor(
     private readonly configService: ConfigService,
     @InjectRepository(EmailLog)
     private readonly emailLogRepository: Repository<EmailLog>,
+    @Inject(EMAIL_PROVIDER_TOKEN)
+    private readonly emailProvider: IEmailProvider,
   ) {
-    this.mailTransport = nodemailer.createTransport({
-      host: this.configService.get<string>('EMAIL_HOST'),
-      port: this.configService.get<number>('EMAIL_PORT'),
-      secure: this.configService.get<boolean>('EMAIL_SECURE'),
-      service: this.configService.get<string>('EMAIL_SERVICE'),
-      auth: {
-        user: this.configService.get<string>('EMAIL_USER'),
-        pass: this.configService.get<string>('EMAIL_PASSWORD'),
-      },
-    });
+    this.fromAddress =
+      this.configService.get<string>('EMAIL_FROM') ??
+      this.configService.get<string>('EMAIL_USER');
   }
 
   @Process('send')
   async handleSend(job: Job<EmailJobData>): Promise<void> {
     const { to, cc, subject, html, attachments } = job.data;
-    const mailOptions: Mail.Options = {
-      from: this.configService.get<string>('EMAIL_USER'),
+    await this.emailProvider.sendMail({
+      from: this.fromAddress,
       to,
       cc,
       subject,
       html,
       attachments,
-    };
-    await this.mailTransport.sendMail(mailOptions);
+    });
     this.logger.debug(
       `Email sent: "${subject}" to ${Array.isArray(to) ? to.join(', ') : to} (attempt ${job.attemptsMade + 1})`,
     );
@@ -77,6 +71,7 @@ export class EmailProcessor {
         subject,
         status: 'sent',
         jobId: String(job.id),
+        provider: this.emailProvider.providerName,
         attemptsMade: job.attemptsMade,
       }),
     );
@@ -98,6 +93,7 @@ export class EmailProcessor {
         subject,
         status: 'failed',
         jobId: String(job.id),
+        provider: this.emailProvider.providerName,
         errorMessage: error.message,
         attemptsMade: job.attemptsMade,
       }),

@@ -13,6 +13,7 @@ import { AdminPermission } from '../../admin/enum/admin-permission.enum';
 import { Member } from '../../member/entity/member.entity';
 import { DepartmentLead } from '../../department/entity/department-lead.entity';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { CacheService } from '../../utility/service/cache.service';
 
 @Injectable()
@@ -179,6 +180,8 @@ export class OverdueCheckoutScheduler {
             ...templateData,
             recipientName: `${member.firstname} ${member.lastname}`,
           },
+          undefined,
+          EmailCategory.ASSET_ALERTS,
         );
       }
     }
@@ -204,6 +207,8 @@ export class OverdueCheckoutScheduler {
               ...templateData,
               recipientName: name,
             },
+            undefined,
+            EmailCategory.ASSET_ALERTS,
           );
         }
       }
@@ -218,6 +223,8 @@ export class OverdueCheckoutScheduler {
           ...templateData,
           recipientName: 'Admin',
         },
+        undefined,
+        EmailCategory.ASSET_ALERTS,
       );
     }
   }

@@ -20,6 +20,7 @@ import {
 import { AnnouncementAudienceEnum } from '../../announcement/enum/announcement-audience.enum';
 import { PRESET_MINUTES } from '../enum/reminder-interval-preset.enum';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { CacheService } from '../../utility/service/cache.service';
 import { MemberStatusEnum } from '../../member/enums/member-status.enum';
 import { MemberRoleEnum } from '../../member/enums/member-role.enum';
@@ -211,6 +212,8 @@ export class EventReminderService {
             minute: '2-digit',
           }),
         },
+        undefined,
+        EmailCategory.EVENT_REMINDER,
       );
     }
 

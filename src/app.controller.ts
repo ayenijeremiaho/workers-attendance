@@ -25,13 +25,22 @@ export class AppController {
   @SkipThrottle()
   @Version(VERSION_NEUTRAL)
   @Get()
-  getHello(@Res() res: Response): void {
+  getHomepage(@Res() res: Response): void {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.end(this.appService.getWelcomePage());
+    res.end(this.appService.getHomepage());
   }
 
   @Public()
   @SkipThrottle()
+  @Version(VERSION_NEUTRAL)
+  @Get('docs')
+  redirectDocs(@Res() res: Response): void {
+    res.redirect(301, '/');
+  }
+
+  @Public()
+  @SkipThrottle()
+  @Version(VERSION_NEUTRAL)
   @Get('health')
   async health(): Promise<{ status: string; uptime: number }> {
     const errors: string[] = [];

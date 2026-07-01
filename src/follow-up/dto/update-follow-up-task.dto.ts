@@ -1,5 +1,6 @@
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import {
+  ContactMethodEnum,
   FollowUpOutcomeEnum,
   FollowUpTaskStatusEnum,
 } from '../enums/follow-up.enum';
@@ -22,4 +23,8 @@ export class UpdateFollowUpTaskDto {
   @IsString()
   @MaxLength(2000)
   noteContent?: string;
+
+  @IsOptional()
+  @IsEnum(ContactMethodEnum)
+  contactMethod?: ContactMethodEnum;
 }

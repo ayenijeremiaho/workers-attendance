@@ -40,6 +40,9 @@ export class Event extends BaseEntity {
   })
   onlineNotificationSentAt: Date | null;
 
+  @Column({ name: 'thank_you_sent_at', nullable: true, type: 'timestamptz' })
+  thankYouSentAt: Date | null;
+
   @Column({ nullable: true })
   @Index()
   recurringEventId: string;

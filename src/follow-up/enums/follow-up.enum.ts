@@ -23,3 +23,11 @@ export enum FollowUpOutcomeEnum {
   NO_ANSWER = 'NO_ANSWER',
   PRAYED_WITH = 'PRAYED_WITH',
 }
+
+export enum ContactMethodEnum {
+  PHONE_CALL = 'PHONE_CALL',
+  WHATSAPP = 'WHATSAPP',
+  IN_PERSON = 'IN_PERSON',
+  SMS = 'SMS',
+  EMAIL = 'EMAIL',
+}

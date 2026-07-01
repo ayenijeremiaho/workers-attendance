@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,8 +8,11 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../auth/guard/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorator/current-user.decorator';
 import { MemberAuth } from '../../auth/interface/auth.interface';
@@ -24,11 +28,26 @@ export class IncidentReportController {
   constructor(private readonly incidentReportService: IncidentReportService) {}
 
   @Post()
+  @UseInterceptors(
+    FilesInterceptor('images', 5, {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return cb(
+            new BadRequestException('Only image files are allowed'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
   create(
     @Body() dto: CreateIncidentReportDto,
     @CurrentUser() user: MemberAuth,
+    @UploadedFiles() images?: Express.Multer.File[],
   ) {
-    return this.incidentReportService.create(dto, user.id);
+    return this.incidentReportService.create(dto, user.id, images);
   }
 
   @Get()

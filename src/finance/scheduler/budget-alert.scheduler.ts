@@ -8,6 +8,7 @@ import { JournalEntryLine } from '../entity/journal-entry-line.entity';
 import { Admin } from '../../admin/entity/admin.entity';
 import { AdminPermission } from '../../admin/enum/admin-permission.enum';
 import { UtilityService } from '../../utility/service/utility.service';
+import { EmailCategory } from '../../utility/email-provider/email-category.enum';
 import { CacheService } from '../../utility/service/cache.service';
 import { JournalEntryStatus } from '../enum/finance.enum';
 
@@ -151,6 +152,8 @@ export class BudgetAlertScheduler {
           isExhausted,
           admin_login_url: adminLoginUrl,
         },
+        undefined,
+        EmailCategory.FINANCE_ALERTS,
       );
     }
   }

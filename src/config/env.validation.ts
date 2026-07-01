@@ -24,11 +24,18 @@ export const envValidationSchema = Joi.object({
   REDIS_PASSWORD: Joi.string().allow('').optional(),
   REDIS_DB: Joi.number().default(0),
 
-  EMAIL_HOST: Joi.string().required(),
-  EMAIL_PORT: Joi.number().required(),
+  EMAIL_PROVIDER: Joi.string().valid('gmail', 'resend').default('gmail'),
+  EMAIL_FROM: Joi.string().optional(),
+
+  // Gmail provider
+  EMAIL_HOST: Joi.string().optional(),
+  EMAIL_PORT: Joi.number().optional(),
   EMAIL_SECURE: Joi.boolean().default(false),
-  EMAIL_USER: Joi.string().required(),
-  EMAIL_PASSWORD: Joi.string().required(),
+  EMAIL_USER: Joi.string().optional(),
+  EMAIL_PASSWORD: Joi.string().optional(),
+
+  // Resend provider
+  RESEND_API_KEY: Joi.string().optional(),
 
   LOGIN_URL: Joi.string().uri().required(),
   ADMIN_LOGIN_URL: Joi.string().uri().required(),
@@ -73,6 +80,7 @@ export const envValidationSchema = Joi.object({
 
   ONLINE_CHECKIN_WINDOW_HOURS: Joi.number().default(3),
   FOLLOW_UP_DUE_DAYS: Joi.number().default(3),
+  FOLLOW_UP_STALE_DAYS: Joi.number().default(7),
   ENFORCE_DISTANCE_CHECK: Joi.boolean().default(false),
   ANNUAL_GIVING_STATEMENT_ENABLED: Joi.boolean().default(false),
 
@@ -105,4 +113,17 @@ export const envValidationSchema = Joi.object({
   CHECKIN_STOP_OFFSET_SECONDS: Joi.number().default(3600),
 
   EMAIL_SERVICE: Joi.string().default('gmail'),
+
+  EMAIL_ATTENDANCE_CHECKIN_ENABLED: Joi.boolean().default(true),
+  EMAIL_BIRTHDAY_ENABLED: Joi.boolean().default(true),
+  EMAIL_EVENT_REMINDER_ENABLED: Joi.boolean().default(true),
+  EMAIL_PRAYER_REMINDER_ENABLED: Joi.boolean().default(true),
+  EMAIL_FOLLOW_UP_ENABLED: Joi.boolean().default(true),
+  EMAIL_ASSET_ALERTS_ENABLED: Joi.boolean().default(true),
+  EMAIL_GIVING_RECEIPT_ENABLED: Joi.boolean().default(true),
+  EMAIL_FINANCE_ALERTS_ENABLED: Joi.boolean().default(true),
+  EMAIL_SESSION_REPORT_ENABLED: Joi.boolean().default(true),
+  EMAIL_INCIDENT_REPORT_ENABLED: Joi.boolean().default(true),
+  EMAIL_CHILDREN_CHURCH_ENABLED: Joi.boolean().default(true),
+  EMAIL_LOGIN_ALERT_ENABLED: Joi.boolean().default(true),
 }).options({ allowUnknown: true });

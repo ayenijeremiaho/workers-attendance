@@ -35,6 +35,10 @@ export class AuditLogQueryDto {
   targetId?: string;
 
   @IsOptional()
+  @IsString()
+  targetEmail?: string;
+
+  @IsOptional()
   @IsDateString()
   dateFrom?: string;
 

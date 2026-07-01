@@ -22,10 +22,12 @@ export class PrayerWorkerController {
 
   @Get('available')
   getAvailableMeetings(
+    @Query('programId') programId: string,
     @Query('month') month: string,
     @Query('year') year: string,
   ) {
     return this.meetingService.getAvailableMeetings(
+      programId,
       Number(month),
       Number(year),
     );
@@ -34,11 +36,13 @@ export class PrayerWorkerController {
   @Get('my-roster')
   getMyRoster(
     @Req() req: any,
+    @Query('programId') programId: string,
     @Query('month') month: string,
     @Query('year') year: string,
   ) {
     return this.meetingService.getMyRoster(
       req.user.workerProfileId,
+      programId,
       Number(month),
       Number(year),
     );
@@ -47,10 +51,12 @@ export class PrayerWorkerController {
   @Get('my-status')
   getMyStatus(
     @Req() req: any,
+    @Query('programId') programId: string,
     @Query('month') month: string,
     @Query('year') year: string,
   ) {
     return this.meetingService.getSelectionStatus(
+      programId,
       req.user.workerProfileId,
       Number(month),
       Number(year),
@@ -58,7 +64,15 @@ export class PrayerWorkerController {
   }
 
   @Post('select')
-  selfSelect(@Req() req: any, @Body() dto: SelfSelectPrayerSlotDto) {
-    return this.meetingService.selfSelect(req.user.workerProfileId, dto);
+  selfSelect(
+    @Req() req: any,
+    @Query('programId') programId: string,
+    @Body() dto: SelfSelectPrayerSlotDto,
+  ) {
+    return this.meetingService.selfSelect(
+      programId,
+      req.user.workerProfileId,
+      dto,
+    );
   }
 }

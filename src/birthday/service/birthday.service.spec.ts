@@ -305,6 +305,60 @@ describe('BirthdayService', () => {
     });
   });
 
+  describe('getUpcomingBirthdays', () => {
+    const makeUpcomingQb = () => ({
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    });
+
+    it('defaults to a 7-day window when no days argument is given', async () => {
+      const qb = makeUpcomingQb();
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getUpcomingBirthdays();
+
+      const whereCall = qb.where.mock.calls[0][0] as string;
+      const conditionCount = (whereCall.match(/m\.birthMonth/g) ?? []).length;
+      expect(conditionCount).toBe(7);
+    });
+
+    it('generates the correct number of day conditions for a custom window', async () => {
+      const qb = makeUpcomingQb();
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getUpcomingBirthdays(30);
+
+      const whereCall = qb.where.mock.calls[0][0] as string;
+      const conditionCount = (whereCall.match(/m\.birthMonth/g) ?? []).length;
+      expect(conditionCount).toBe(30);
+    });
+
+    it('filters only ACTIVE members', async () => {
+      const qb = makeUpcomingQb();
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getUpcomingBirthdays(7);
+
+      expect(qb.andWhere).toHaveBeenCalledWith('m.status = :status', {
+        status: MemberStatusEnum.ACTIVE,
+      });
+    });
+
+    it('orders results by birthMonth then birthDay', async () => {
+      const qb = makeUpcomingQb();
+      mockMemberRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getUpcomingBirthdays(7);
+
+      expect(qb.orderBy).toHaveBeenCalledWith('m.birthMonth', 'ASC');
+      expect(qb.addOrderBy).toHaveBeenCalledWith('m.birthDay', 'ASC');
+    });
+  });
+
   describe('getWishesForMember', () => {
     it('returns wishes without year filter', async () => {
       const wishes = [{ id: 'w1', message: 'HB!' }];

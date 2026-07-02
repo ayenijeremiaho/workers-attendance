@@ -12,13 +12,23 @@ import { RolesGuard } from '../../auth/guard/roles.guard';
 import { Roles } from '../../auth/decorator/roles.decorator';
 import { MemberRoleEnum } from '../../member/enums/member-role.enum';
 import { PrayerMeetingService } from '../service/prayer-meeting.service';
+import { PrayerConfigService } from '../service/prayer-config.service';
+import { PrayerAudience } from '../enum/prayer.enum';
 import { SelfSelectPrayerSlotDto } from '../dto/prayer.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(MemberRoleEnum.WORKER)
 @Controller('prayer')
 export class PrayerWorkerController {
-  constructor(private readonly meetingService: PrayerMeetingService) {}
+  constructor(
+    private readonly meetingService: PrayerMeetingService,
+    private readonly configService: PrayerConfigService,
+  ) {}
+
+  @Get('programs')
+  listPrograms(@Query('name') name?: string) {
+    return this.configService.listPrograms([PrayerAudience.WORKERS, PrayerAudience.ALL], name);
+  }
 
   @Get('available')
   getAvailableMeetings(

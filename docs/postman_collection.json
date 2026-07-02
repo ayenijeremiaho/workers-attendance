@@ -6663,8 +6663,7 @@
       ]
     },
     {
-      "name": "Children Church",
-      "description": "Security check-in/check-out system for children. Access requires ADMIN role or a worker whose primary or secondary department has key=CHILDREN_CHURCH. Age group and class group management is ADMIN-only.",
+      "name": "Children Church (Admin)",
       "item": [
         {
           "name": "Create Age Group",
@@ -7062,6 +7061,154 @@
             }
           ]
         },
+        {
+          "name": "Admin \u2014 Get Active Check-Ins",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/children-church/admin/checkin/active?classGroupId={{classGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "admin",
+                "checkin",
+                "active"
+              ],
+              "query": [
+                {
+                  "key": "classGroupId",
+                  "value": "{{classGroupId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"ci1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n      \"child\": {\n        \"id\": \"cp1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n        \"firstname\": \"Blessing\",\n        \"lastname\": \"Okafor\",\n        \"dateOfBirth\": \"2019-03-15\",\n        \"photoUrl\": null,\n        \"specialNotes\": \"Allergic to peanuts\",\n        \"ageGroup\": {\n          \"id\": \"ag1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n          \"name\": \"Toddlers\",\n          \"minAgeMonths\": 24,\n          \"maxAgeMonths\": 48,\n          \"displayOrder\": 1\n        },\n        \"classGroup\": {\n          \"id\": \"cg1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n          \"name\": \"Class A\",\n          \"capacity\": 15,\n          \"teacherNote\": null\n        },\n        \"registeredBy\": null,\n        \"guardians\": [],\n        \"createdAt\": \"2026-07-02T08:00:00.000Z\",\n        \"updatedAt\": \"2026-07-02T08:00:00.000Z\"\n      },\n      \"serviceSlot\": null,\n      \"droppedOffBy\": null,\n      \"droppedOffByName\": \"Mrs. Okafor\",\n      \"pickedUpBy\": null,\n      \"pickedUpByName\": null,\n      \"checkinTime\": \"2026-07-06T08:45:00.000Z\",\n      \"checkoutTime\": null,\n      \"pickupCode\": \"A7K3\",\n      \"status\": \"CHECKED_IN\",\n      \"checkedInBy\": null,\n      \"flagReason\": null,\n      \"createdAt\": \"2026-07-06T08:45:00.000Z\",\n      \"updatedAt\": \"2026-07-06T08:45:00.000Z\"\n    }\n  ],\n  \"page\": 1,\n  \"limit\": 20,\n  \"totalCount\": 1,\n  \"totalPages\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Admin \u2014 Get Check-In History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/children-church/admin/checkin/history?page=1&limit=20&classGroupId={{classGroupId}}&status=&slotId=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "admin",
+                "checkin",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "classGroupId",
+                  "value": "{{classGroupId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "slotId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"ci2a2b3c-d4e5-f6a7-8901-abcdef123456\",\n      \"child\": {\n        \"id\": \"cp1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n        \"firstname\": \"Blessing\",\n        \"lastname\": \"Okafor\",\n        \"dateOfBirth\": \"2019-03-15\",\n        \"photoUrl\": null,\n        \"specialNotes\": \"Allergic to peanuts\",\n        \"ageGroup\": {\n          \"id\": \"ag1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n          \"name\": \"Toddlers\",\n          \"minAgeMonths\": 24,\n          \"maxAgeMonths\": 48,\n          \"displayOrder\": 1\n        },\n        \"classGroup\": {\n          \"id\": \"cg1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n          \"name\": \"Class A\",\n          \"capacity\": 15,\n          \"teacherNote\": null\n        },\n        \"registeredBy\": null,\n        \"guardians\": [],\n        \"createdAt\": \"2026-07-02T08:00:00.000Z\",\n        \"updatedAt\": \"2026-07-02T08:00:00.000Z\"\n      },\n      \"serviceSlot\": null,\n      \"droppedOffBy\": null,\n      \"droppedOffByName\": \"Mrs. Okafor\",\n      \"pickedUpBy\": null,\n      \"pickedUpByName\": \"Mr. Okafor\",\n      \"checkinTime\": \"2026-07-06T08:45:00.000Z\",\n      \"checkoutTime\": \"2026-07-06T12:00:00.000Z\",\n      \"pickupCode\": \"A7K3\",\n      \"status\": \"CHECKED_OUT\",\n      \"checkedInBy\": null,\n      \"flagReason\": null,\n      \"createdAt\": \"2026-07-06T08:45:00.000Z\",\n      \"updatedAt\": \"2026-07-06T08:45:00.000Z\"\n    }\n  ],\n  \"page\": 1,\n  \"limit\": 20,\n  \"totalCount\": 1,\n  \"totalPages\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Check-Ins by Service Slot",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/children-church/checkin/slot/{{slotId}}?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "children-church",
+                "checkin",
+                "slot",
+                "{{slotId}}"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "{{slotId}}"
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "ADMIN only. Returns all check-in records (any status) for a given service slot."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  { \"id\": \"uuid\", \"pickupCode\": \"ABC123\", \"status\": \"CHECKED_OUT\", \"child\": { \"firstname\": \"Emma\", \"lastname\": \"Johnson\" }, \"checkinTime\": \"...\", \"checkoutTime\": \"...\" }\n]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Children Church (Worker)",
+      "item": [
         {
           "name": "Register Child",
           "request": {
@@ -7660,149 +7807,6 @@
               "status": "OK",
               "code": 200,
               "body": "[\n  { \"id\": \"uuid\", \"pickupCode\": \"ABC123\", \"status\": \"CHECKED_IN\", \"child\": { \"id\": \"uuid\", \"firstname\": \"Emma\", \"lastname\": \"Johnson\", \"classGroup\": { \"name\": \"Nursery Room A\" } }, \"checkinTime\": \"2026-06-15T09:00:00.000Z\" }\n]"
-            }
-          ]
-        },
-        {
-          "name": "Admin \u2014 Get Active Check-Ins",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/children-church/admin/checkin/active?classGroupId={{classGroupId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "children-church",
-                "admin",
-                "checkin",
-                "active"
-              ],
-              "query": [
-                {
-                  "key": "classGroupId",
-                  "value": "{{classGroupId}}",
-                  "disabled": true
-                }
-              ]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "body": "{\n  \"data\": [\n    {\n      \"id\": \"ci1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n      \"child\": {\n        \"id\": \"cp1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n        \"firstname\": \"Blessing\",\n        \"lastname\": \"Okafor\",\n        \"dateOfBirth\": \"2019-03-15\",\n        \"photoUrl\": null,\n        \"specialNotes\": \"Allergic to peanuts\",\n        \"ageGroup\": {\n          \"id\": \"ag1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n          \"name\": \"Toddlers\",\n          \"minAgeMonths\": 24,\n          \"maxAgeMonths\": 48,\n          \"displayOrder\": 1\n        },\n        \"classGroup\": {\n          \"id\": \"cg1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n          \"name\": \"Class A\",\n          \"capacity\": 15,\n          \"teacherNote\": null\n        },\n        \"registeredBy\": null,\n        \"guardians\": [],\n        \"createdAt\": \"2026-07-02T08:00:00.000Z\",\n        \"updatedAt\": \"2026-07-02T08:00:00.000Z\"\n      },\n      \"serviceSlot\": null,\n      \"droppedOffBy\": null,\n      \"droppedOffByName\": \"Mrs. Okafor\",\n      \"pickedUpBy\": null,\n      \"pickedUpByName\": null,\n      \"checkinTime\": \"2026-07-06T08:45:00.000Z\",\n      \"checkoutTime\": null,\n      \"pickupCode\": \"A7K3\",\n      \"status\": \"CHECKED_IN\",\n      \"checkedInBy\": null,\n      \"flagReason\": null,\n      \"createdAt\": \"2026-07-06T08:45:00.000Z\",\n      \"updatedAt\": \"2026-07-06T08:45:00.000Z\"\n    }\n  ],\n  \"page\": 1,\n  \"limit\": 20,\n  \"totalCount\": 1,\n  \"totalPages\": 1\n}"
-            }
-          ]
-        },
-        {
-          "name": "Admin \u2014 Get Check-In History",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/children-church/admin/checkin/history?page=1&limit=20&classGroupId={{classGroupId}}&status=&slotId=",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "children-church",
-                "admin",
-                "checkin",
-                "history"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                },
-                {
-                  "key": "classGroupId",
-                  "value": "{{classGroupId}}",
-                  "disabled": true
-                },
-                {
-                  "key": "status",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "slotId",
-                  "value": "",
-                  "disabled": true
-                }
-              ]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "body": "{\n  \"data\": [\n    {\n      \"id\": \"ci2a2b3c-d4e5-f6a7-8901-abcdef123456\",\n      \"child\": {\n        \"id\": \"cp1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n        \"firstname\": \"Blessing\",\n        \"lastname\": \"Okafor\",\n        \"dateOfBirth\": \"2019-03-15\",\n        \"photoUrl\": null,\n        \"specialNotes\": \"Allergic to peanuts\",\n        \"ageGroup\": {\n          \"id\": \"ag1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n          \"name\": \"Toddlers\",\n          \"minAgeMonths\": 24,\n          \"maxAgeMonths\": 48,\n          \"displayOrder\": 1\n        },\n        \"classGroup\": {\n          \"id\": \"cg1a2b3c-d4e5-f6a7-8901-abcdef123456\",\n          \"name\": \"Class A\",\n          \"capacity\": 15,\n          \"teacherNote\": null\n        },\n        \"registeredBy\": null,\n        \"guardians\": [],\n        \"createdAt\": \"2026-07-02T08:00:00.000Z\",\n        \"updatedAt\": \"2026-07-02T08:00:00.000Z\"\n      },\n      \"serviceSlot\": null,\n      \"droppedOffBy\": null,\n      \"droppedOffByName\": \"Mrs. Okafor\",\n      \"pickedUpBy\": null,\n      \"pickedUpByName\": \"Mr. Okafor\",\n      \"checkinTime\": \"2026-07-06T08:45:00.000Z\",\n      \"checkoutTime\": \"2026-07-06T12:00:00.000Z\",\n      \"pickupCode\": \"A7K3\",\n      \"status\": \"CHECKED_OUT\",\n      \"checkedInBy\": null,\n      \"flagReason\": null,\n      \"createdAt\": \"2026-07-06T08:45:00.000Z\",\n      \"updatedAt\": \"2026-07-06T08:45:00.000Z\"\n    }\n  ],\n  \"page\": 1,\n  \"limit\": 20,\n  \"totalCount\": 1,\n  \"totalPages\": 1\n}"
-            }
-          ]
-        },
-        {
-          "name": "Get Check-Ins by Service Slot",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/children-church/checkin/slot/{{slotId}}?page=1&limit=20",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "children-church",
-                "checkin",
-                "slot",
-                "{{slotId}}"
-              ],
-              "variable": [
-                {
-                  "key": "slotId",
-                  "value": "{{slotId}}"
-                }
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1",
-                  "disabled": false
-                },
-                {
-                  "key": "limit",
-                  "value": "20",
-                  "disabled": false
-                }
-              ]
-            },
-            "description": "ADMIN only. Returns all check-in records (any status) for a given service slot."
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "body": "[\n  { \"id\": \"uuid\", \"pickupCode\": \"ABC123\", \"status\": \"CHECKED_OUT\", \"child\": { \"firstname\": \"Emma\", \"lastname\": \"Johnson\" }, \"checkinTime\": \"...\", \"checkoutTime\": \"...\" }\n]"
             }
           ]
         }
@@ -16756,7 +16760,14 @@
                 "admin",
                 "programs"
               ],
-              "query": []
+              "query": [
+                {
+                  "key": "name",
+                  "value": "",
+                  "description": "Optional. Case-insensitive partial match on program name.",
+                  "disabled": true
+                }
+              ]
             }
           },
           "response": [
@@ -17716,6 +17727,39 @@
     {
       "name": "Prayer (Worker)",
       "item": [
+        {
+          "name": "List Prayer Programs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prayer/programs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "prayer",
+                "programs"
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "",
+                  "description": "Optional. Case-insensitive partial match on program name.",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "List Prayer Programs - Success",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  {\n    \"id\": \"{{programId}}\",\n    \"name\": \"Morning Intercessory\",\n    \"description\": \"Daily morning prayer for workers\",\n    \"audience\": \"WORKERS\",\n    \"isActive\": true,\n    \"selectionWindowDays\": 7,\n    \"createdAt\": \"2026-01-01T08:00:00.000Z\",\n    \"updatedAt\": \"2026-01-01T08:00:00.000Z\"\n  },\n  {\n    \"id\": \"b2c3d4e5-f6a7-8901-b2c3-d4e5f6a78901\",\n    \"name\": \"All-Night Prayer\",\n    \"description\": \"Monthly all-night prayer open to all\",\n    \"audience\": \"ALL\",\n    \"isActive\": true,\n    \"selectionWindowDays\": 14,\n    \"createdAt\": \"2026-01-02T08:00:00.000Z\",\n    \"updatedAt\": \"2026-01-02T08:00:00.000Z\"\n  }\n]"
+            }
+          ]
+        },
         {
           "name": "Get Available Meetings",
           "request": {

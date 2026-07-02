@@ -4,13 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { PrayerProgram } from '../entity/prayer-program.entity';
 import { PrayerScheduleConfig } from '../entity/prayer-schedule-config.entity';
 import { PrayerDayConfig } from '../entity/prayer-day-config.entity';
 import { PrayerScheduleRule } from '../entity/prayer-schedule-rule.entity';
 import { PrayerFixedAssignment } from '../entity/prayer-fixed-assignment.entity';
 import { WorkerProfile } from '../../member/entity/worker-profile.entity';
+import { PrayerAudience } from '../enum/prayer.enum';
 import {
   ClonePrayerProgramDto,
   CreatePrayerDayConfigDto,
@@ -42,8 +43,25 @@ export class PrayerConfigService {
 
   // ── Programs ────────────────────────────────────────────────────────────────
 
-  async listPrograms(): Promise<PrayerProgram[]> {
-    return this.programRepo.find({ order: { createdAt: 'ASC' } });
+  async listPrograms(
+    audiences?: PrayerAudience[],
+    name?: string,
+  ): Promise<PrayerProgram[]> {
+    const nameFilter = name ? ILike(`%${name}%`) : undefined;
+    if (audiences) {
+      return this.programRepo.find({
+        where: audiences.map((a) => ({
+          audience: a,
+          isActive: true,
+          ...(nameFilter && { name: nameFilter }),
+        })),
+        order: { name: 'ASC' },
+      });
+    }
+    return this.programRepo.find({
+      where: nameFilter ? { name: nameFilter } : {},
+      order: { name: 'ASC' },
+    });
   }
 
   async createProgram(dto: CreatePrayerProgramDto): Promise<PrayerProgram> {
@@ -79,14 +97,16 @@ export class PrayerConfigService {
     dto: ClonePrayerProgramDto,
   ): Promise<PrayerProgram> {
     const source = await this.programRepo.findOne({ where: { id: sourceId } });
-    if (!source) throw new NotFoundException('Source prayer program not found.');
+    if (!source)
+      throw new NotFoundException('Source prayer program not found.');
 
     const newProgram = await this.programRepo.save(
       this.programRepo.create({
         name: dto.name,
         description: dto.description ?? source.description,
         audience: dto.audience ?? source.audience,
-        selectionWindowDays: dto.selectionWindowDays ?? source.selectionWindowDays,
+        selectionWindowDays:
+          dto.selectionWindowDays ?? source.selectionWindowDays,
       }),
     );
 
@@ -195,13 +215,19 @@ export class PrayerConfigService {
   ): Promise<PrayerDayConfig> {
     const program = await this.getProgram(programId);
     const existing = await this.dayConfigRepo.findOne({
-      where: { dayOfWeek: dto.dayOfWeek, isActive: true, program: { id: programId } },
+      where: {
+        dayOfWeek: dto.dayOfWeek,
+        isActive: true,
+        program: { id: programId },
+      },
     });
     if (existing)
       throw new BadRequestException(
         `An active day config for day ${dto.dayOfWeek} already exists in this program.`,
       );
-    return this.dayConfigRepo.save(this.dayConfigRepo.create({ ...dto, program }));
+    return this.dayConfigRepo.save(
+      this.dayConfigRepo.create({ ...dto, program }),
+    );
   }
 
   async updateDayConfig(
@@ -244,7 +270,9 @@ export class PrayerConfigService {
 
   // ── Fixed Assignments ────────────────────────────────────────────────────────
 
-  async getFixedAssignments(programId: string): Promise<PrayerFixedAssignment[]> {
+  async getFixedAssignments(
+    programId: string,
+  ): Promise<PrayerFixedAssignment[]> {
     await this.getProgram(programId);
     return this.fixedRepo.find({
       where: { isActive: true, dayConfig: { program: { id: programId } } },
@@ -263,11 +291,17 @@ export class PrayerConfigService {
       throw new NotFoundException('Worker profile not found.');
 
     const dayConfig = await this.dayConfigRepo.findOne({
-      where: { id: dto.dayConfigId, isActive: true, program: { id: programId } },
+      where: {
+        id: dto.dayConfigId,
+        isActive: true,
+        program: { id: programId },
+      },
       relations: ['program'],
     });
     if (!dayConfig)
-      throw new NotFoundException('Prayer day config not found in this program.');
+      throw new NotFoundException(
+        'Prayer day config not found in this program.',
+      );
 
     const existing = await this.fixedRepo.findOne({
       where: {

@@ -43,8 +43,8 @@ export class PrayerAdminController {
 
   @Get('programs')
   @RequiresPermission(AdminPermission.PRAYER_READ)
-  listPrograms() {
-    return this.configService.listPrograms();
+  listPrograms(@Query('name') name?: string) {
+    return this.configService.listPrograms(undefined, name);
   }
 
   @Post('programs')
